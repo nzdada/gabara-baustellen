@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://praxis-an-der-wertachbru-1d36d.web.app/sitemap.xml

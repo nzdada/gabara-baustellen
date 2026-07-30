@@ -1,0 +1,13 @@
+{
+  "projects": {
+    "default": "praxis-an-der-wertachbru-1d36d"
+  },
+  "targets": {
+    "praxis-an-der-wertachbru-1d36d": {
+      "hosting": {
+        "website": ["praxis-an-der-wertachbru-1d36d"],
+        "admin": ["praxis-wertachbruecke-admin"]
+      }
+    }
+  }
+}

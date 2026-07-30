@@ -1,0 +1,20 @@
+@import 'tailwindcss';
+
+/* Einflug-Animation für die Anfragen-Toast-Benachrichtigung */
+@keyframes toast-rein {
+  from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.toast-rein { animation: toast-rein 0.25s ease-out; }
+
+@theme {
+  --color-praxis-50: #f0fdfa;
+  --color-praxis-100: #ccfbf1;
+  --color-praxis-200: #99f6e4;
+  --color-praxis-500: #14b8a6;
+  --color-praxis-600: #0d9488;
+  --color-praxis-700: #0f766e;
+  --color-praxis-800: #115e59;
+  --color-praxis-900: #134e4a;
+  --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
