@@ -1,440 +1,318 @@
-// Fiktive Demo-Daten für die Vorstellung — KEINE echten Personen!
-// Termine werden relativ zum heutigen Datum erzeugt, damit die Demo
-// an jedem Tag "live" aussieht (heutige Termine im Arzt-Cockpit).
+// Demo-Daten für den Lokal-Modus der Gabara-Baustellen-Plattform.
+// Realistische Inhalte aus echten Unterlagen (Nachunternehmervertrag Bothmer 05/2026,
+// Baustellen-LV S36 / Projekt 25011) – Preise/Namen sind Demo-Werte.
+// Schema-Hinweis: appointments behalten die Feldnamen der Vorlage (datum/start/ende/
+// behandlung/status/arzt/...) + neue Felder (projektId, kategorie, mitarbeiterIds, ...).
 
-import { heuteISO, addTage, endeZeit } from './slots.js'
 import { EINSTELLUNGEN_DEFAULTS } from './einstellungen.js'
 
-const VORNAMEN = ['Anna', 'Mehmet', 'Sofia', 'Lukas', 'Fatima', 'Jonas', 'Elif', 'Maria', 'Ali', 'Laura', 'Omar', 'Emma', 'Yusuf', 'Katharina', 'Leon', 'Aylin', 'Peter', 'Zeynep', 'Hanna', 'David']
-const NACHNAMEN = ['Bergmann', 'Yilmaz', 'Petrova', 'Huber', 'El-Amin', 'Schneider', 'Kaya', 'Fischer', 'Hassan', 'Weber', 'Farouk', 'Maier', 'Demir', 'Schuster', 'Brandl', 'Öztürk', 'Grimm', 'Arslan', 'Vogel', 'Stein']
-const VERSICHERUNGEN = ['AOK Bayern', 'TK', 'BARMER', 'DAK', 'Privat (Allianz)', 'IKK classic', 'Privat (Debeka)']
+const TEST_EMAIL = 'info@gabara-demo.de'
 
-// Für Testzwecke: ALLE Demo-Patienten nutzen diese Adresse -> sämtliche
-// Bestätigungs-/Erinnerungs-/Gebühren-Mails landen in einem Postfach.
-const TEST_EMAIL = 'nasirdada.98@gmail.com'
+// ---------- Helfer ----------
 
-function pseudoTelefon(i) {
-  return `0821 / 5${String(10000 + i * 137).slice(0, 5)}`
+function iso(d) {
+  return d.toISOString().slice(0, 10)
 }
 
-function geburtsdatum(i) {
-  const jahr = 1950 + ((i * 7) % 55)
-  const monat = String(1 + (i % 12)).padStart(2, '0')
-  const tag = String(1 + ((i * 3) % 28)).padStart(2, '0')
-  return `${jahr}-${monat}-${tag}`
+function heutePlus(tage) {
+  const d = new Date()
+  d.setDate(d.getDate() + tage)
+  return iso(d)
 }
 
-// Zahnzusatzversicherungen (nicht jeder Patient hat eine)
-const ZUSATZ = ['', 'ERGO Dental-Schutz', '', 'Allianz DentalPlus', '', '', 'DA Direkt Zahnschutz', '', 'ottonova dental', '']
+// Platzhalter-Foto als kleines SVG (Daten-URL) – hält die Demo-DB klein.
+function svgFoto(text, farbe) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="${farbe}"/><rect x="12" y="12" width="376" height="276" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="3"/><text x="200" y="160" font-family="Segoe UI, sans-serif" font-size="26" fill="#ffffff" text-anchor="middle">${text}</text></svg>`
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+}
 
-// Leistungskatalog nach GOZ-Vorbild (Punktwert 5,62421 Cent, Standard-Faktor 2,3).
-// Preise = marktübliche 2,3-fach-Sätze; in der Verwaltung frei pflegbar.
-export const DEMO_KATALOG = [
-  { id: 'kat-0010', code: 'GOZ 0010', name: 'Eingehende Untersuchung', preis: 30, faktor: 2.3 },
-  { id: 'kat-0030', code: 'GOZ Ä935', name: 'Röntgen Einzelaufnahme', preis: 18, faktor: 2.3 },
-  { id: 'kat-0080', code: 'GOZ 0090', name: 'Infiltrationsanästhesie', preis: 24, faktor: 2.3 },
-  { id: 'kat-1000', code: 'GOZ 1000', name: 'Fluoridierung / Kariesprophylaxe', preis: 22, faktor: 2.3 },
-  { id: 'kat-1040', code: 'GOZ 1040', name: 'Professionelle Zahnreinigung (PZR), Sitzung', preis: 120, faktor: 2.3 },
-  { id: 'kat-2080', code: 'GOZ 2080', name: 'Kompositfüllung einflächig', preis: 90, faktor: 2.3 },
-  { id: 'kat-2100', code: 'GOZ 2100', name: 'Kompositfüllung zweiflächig', preis: 130, faktor: 2.3 },
-  { id: 'kat-2440', code: 'GOZ 2440', name: 'Wurzelkanalbehandlung je Kanal', preis: 220, faktor: 2.3 },
-  { id: 'kat-4005', code: 'GOZ 4005', name: 'PA-Behandlung je Zahn', preis: 28, faktor: 2.3 },
-  { id: 'kat-5000', code: 'GOZ 5000', name: 'Vollkeramikkrone', preis: 750, faktor: 2.3 },
-  { id: 'kat-9010', code: 'GOZ 9010', name: 'Implantat inkl. Aufbau', preis: 1400, faktor: 2.3 },
-  { id: 'kat-blch', code: 'GOZ 2310a', name: 'Bleaching je Kiefer', preis: 250, faktor: 2.3 },
-  { id: 'kat-schiene', code: 'GOZ 7010', name: 'Schnarch-/Aufbissschiene', preis: 390, faktor: 2.3 },
-]
+// Demo-Unterschrift (geschwungene Linie) als SVG-Daten-URL
+const DEMO_UNTERSCHRIFT = `data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="150"><path d="M30 100 C 60 40, 90 130, 120 85 S 180 40, 210 90 S 270 130, 300 70 S 350 60, 370 95" fill="none" stroke="#1e293b" stroke-width="3" stroke-linecap="round"/></svg>'
+)}`
 
-// Textbausteine für die Behandlungs-Zusammenfassung (in der Verwaltung pflegbar)
-export const DEMO_BAUSTEINE = [
-  {
-    id: 'bs-kontrolle',
-    katalogIds: ['kat-0010'],
-    titel: 'Kontrolle o.B.',
-    text: '**Kontrolluntersuchung:** Befund ohne Besonderheiten.\n- Zahnstatus stabil\n- Zahnfleisch reizfrei\n- Nächste Kontrolle in 6 Monaten',
-  },
-  {
-    id: 'bs-pzr',
-    katalogIds: ['kat-1040'],
-    titel: 'PZR',
-    text: '**Professionelle Zahnreinigung (PZR)** vollständig durchgeführt.\n- Beläge und Zahnstein entfernt\n- Politur + Fluoridierung\n- Mundhygiene besprochen, Interdentalbürsten empfohlen',
-  },
-  {
-    id: 'bs-fuellung',
-    katalogIds: ['kat-2080', 'kat-0080'],
-    titel: 'Füllung',
-    text: '**Füllungstherapie:** Zahn __ mit Kompositfüllung versorgt.\n- Karies vollständig entfernt\n- Anästhesie komplikationslos\n- Okklusion geprüft',
-  },
-  {
-    id: 'bs-wurzel',
-    katalogIds: ['kat-2440', 'kat-0080'],
-    titel: 'Wurzel',
-    text: '**Wurzelkanalbehandlung** Zahn __, Sitzung __.\n- Kanäle aufbereitet und gespült\n- Medikamentöse Einlage\n- Provisorischer Verschluss, Folgetermin vereinbart',
-  },
-  {
-    id: 'bs-implantat',
-    katalogIds: ['kat-0010', 'kat-0030'],
-    titel: 'Implantat-Beratung',
-    text: '**Implantat-Beratung** Region __.\n- Befund + Röntgen ausgewertet\n- Behandlungsablauf und Alternativen erklärt\n- Heil- und Kostenplan wird erstellt',
-  },
-]
+// ---------- Demo-Datenbank ----------
 
 export function erzeugeDemoDaten() {
-  const heute = heuteISO()
-  const patients = VORNAMEN.map((vorname, i) => ({
-    id: `pat-${String(i + 1).padStart(3, '0')}`,
-    vorname,
-    nachname: NACHNAMEN[i],
-    geburtsdatum: geburtsdatum(i),
-    telefon: pseudoTelefon(i),
-    email: TEST_EMAIL,
-    versicherung: VERSICHERUNGEN[i % VERSICHERUNGEN.length],
-    zusatzversicherung: ZUSATZ[i % ZUSATZ.length],
-    zusatzversicherungNr: ZUSATZ[i % ZUSATZ.length] ? `ZV-${String(7300000 + i * 4211)}` : '',
-    notizen: i === 4 ? 'Penicillin-Allergie!' : i === 9 ? 'Angstpatientin – bitte Martha dazu holen' : '',
-    createdAt: Date.now() - i * 86400000,
-  }))
+  const jetzt = Date.now()
 
-  // ===== Test-Szenarien: klar erkennbare Beispiel-Patienten für die Vorführung =====
-  patients.push(
+  // --- Mitarbeiter / Logins (E-Mails passend zu DEMO_ZUGAENGE in auth.js) ---
+  const users = [
+    { id: 'u-buero', email: 'buero@gabara-demo.de', name: 'Büro Gabara', rolle: 'admin', farbe: '#8B1A1A', stundensatzIntern: 0, aktiv: true },
+    { id: 'u-ahmad', email: 'monteur@gabara-demo.de', name: 'Ahmad Monteur', rolle: 'mitarbeiter', farbe: '#f97316', stundensatzIntern: 28, aktiv: true },
+    { id: 'u-samir', email: 'samir@gabara-demo.de', name: 'Samir Monteur', rolle: 'mitarbeiter', farbe: '#0ea5e9', stundensatzIntern: 25, aktiv: true },
+  ]
+
+  // --- Kunden (Spiegel; FastBill ist führend, fastbillCustomerId nach Sync) ---
+  const patients = [
     {
-      // SZENARIO 1: Stammpatient (alt) – lange Behandlungshistorie mit alten Berichten
-      id: 'pat-sz-alt',
-      vorname: 'Werner', nachname: 'Altmann',
-      geburtsdatum: '1958-04-12',
-      telefon: '0821 / 445566',
-      email: TEST_EMAIL,
-      versicherung: 'AOK Bayern',
-      zusatzversicherung: 'ERGO Dental-Schutz', zusatzversicherungNr: 'ZV-1958042',
-      notizen: 'Stammpatient seit 2024 – bevorzugt Termine bei Frau Steidle.',
-      createdAt: Date.now() - 730 * 86400000,
+      id: 'k-bothmer', firma: 'Bothmer Akustikbau GmbH',
+      vorname: 'Maximilian', nachname: 'Rußbach', ansprechpartner: 'Maximilian Rußbach',
+      telefon: '08151 9796476', email: 'bothmerakustikbau@t-online.de',
+      strasse: 'Olympiastr. 1', plzOrt: '82319 Starnberg-Wangen',
+      typ: 'gu', ustModus: '13b', zahlungszielTage: 16, sicherheitseinbehaltProzent: 10,
+      notizen: 'Generalunternehmer. Abrechnung netto §13b, Aconto mit 10 % Sicherheitseinbehalt, VOB.',
+      fastbillCustomerId: null, createdAt: jetzt - 60 * 86400000,
     },
     {
-      // SZENARIO 2: Angstpatientin – rote Warnung im Cockpit, Termin heute
-      id: 'pat-sz-angst',
-      vorname: 'Selma', nachname: 'Karim',
-      geburtsdatum: '1990-09-03',
-      telefon: '0176 / 778899',
-      email: TEST_EMAIL,
-      versicherung: 'TK',
-      zusatzversicherung: '', zusatzversicherungNr: '',
-      notizen: 'ANGSTPATIENTIN! Langsam erklären, Martha dabei, Pausen anbieten.',
-      createdAt: Date.now() - 60 * 86400000,
+      id: 'k-huber', firma: '',
+      vorname: 'Peter', nachname: 'Huber', ansprechpartner: 'Peter Huber',
+      telefon: '0821 5551234', email: TEST_EMAIL,
+      strasse: 'Bgm.-Aurnhammer-Str. 12', plzOrt: '86199 Augsburg',
+      typ: 'privat', ustModus: 'ust19', zahlungszielTage: 14, sicherheitseinbehaltProzent: 0,
+      notizen: 'Privatkunde, Empfehlung.',
+      fastbillCustomerId: null, createdAt: jetzt - 10 * 86400000,
+    },
+  ]
+
+  // --- Projekte / Baustellen ---
+  const projekte = [
+    {
+      id: 'p-iga', nummer: 'P-2026-001', name: 'IGA Augsburg – Barmer Büroflächen EG + 1. OG',
+      kundeId: 'k-bothmer', anschrift: { strasse: 'Eserwallstraße 1-3', plzOrt: '86150 Augsburg' },
+      gewerk: 'Malerarbeiten', status: 'inUmsetzung',
+      startDatum: heutePlus(-14), endeDatum: heutePlus(14), projektvolumen: 7896,
+      farbe: '#f97316',
+      beschreibung: 'Nachunternehmer-Vertrag Bothmer vom 12.05.2026. Ausführung nach VOB DIN 18363. 2 Arbeitsschritte: Grundierung + Erstanstrich, danach Zweitanstrich; Zargen schleifen und lackieren.',
+      createdAt: jetzt - 30 * 86400000,
     },
     {
-      // SZENARIO 3: Kind – Behandlung mit Therapiehündin Martha
-      id: 'pat-sz-kind',
-      vorname: 'Lina', nachname: 'Klein',
-      geburtsdatum: '2018-06-20',
-      telefon: '0170 / 334455',
-      email: TEST_EMAIL,
-      versicherung: 'AOK Bayern (familienversichert)',
-      zusatzversicherung: '', zusatzversicherungNr: '',
-      notizen: 'Kind (8 J.) – Termin immer mit Martha, Belohnungs-Sticker nicht vergessen!',
-      createdAt: Date.now() - 180 * 86400000,
-    }
-  )
-  const SZ_ALT = patients.length - 3
-  const SZ_ANGST = patients.length - 2
-  const SZ_KIND = patients.length - 1
+      id: 'p-s36', nummer: 'P-2026-002', name: 'S36 – Baustellen-LV Malerarbeiten (Projekt 25011)',
+      kundeId: 'k-bothmer', anschrift: { strasse: 'Projekt S36', plzOrt: 'München' },
+      gewerk: 'Malerarbeiten', status: 'auftragsbestaetigung',
+      startDatum: heutePlus(21), endeDatum: heutePlus(60), projektvolumen: 0,
+      farbe: '#6366f1',
+      beschreibung: 'Leer-LV vom 22.07.2026 (Unser Zeichen li/lö). GRUNDSÄTZLICH ALLE PREISE OHNE MATERIAL. Einheitspreise in Klärung.',
+      createdAt: jetzt - 9 * 86400000,
+    },
+    {
+      id: 'p-huber', nummer: 'P-2026-003', name: 'EFH Huber – Innenanstrich EG',
+      kundeId: 'k-huber', anschrift: { strasse: 'Bgm.-Aurnhammer-Str. 12', plzOrt: '86199 Augsburg' },
+      gewerk: 'Malerarbeiten', status: 'angebot',
+      startDatum: heutePlus(30), endeDatum: heutePlus(35), projektvolumen: 2400,
+      farbe: '#10b981',
+      beschreibung: 'Wohnzimmer, Flur und Küche streichen, ca. 180 m² Wand-/Deckenfläche. Angebot in Arbeit.',
+      createdAt: jetzt - 5 * 86400000,
+    },
+  ]
 
-  const pos = (katalogId, anzahl = 1) => {
-    const k = DEMO_KATALOG.find((k) => k.id === katalogId)
-    return { katalogId, code: k.code, name: k.name, preis: k.preis, anzahl }
-  }
+  // --- LV-Positionen (ein Dokument je Position; Hierarchie über OZ) ---
+  let sortNr = 0
+  const pos = (projektId, oz, typ, kurztext, felder = {}) => ({
+    id: `lv-${projektId}-${oz.replace(/\./g, '-')}`,
+    projektId, oz, typ, kurztext,
+    langtext: '', menge: 0, einheit: '', einheitspreis: 0,
+    flags: {}, istMenge: 0, istVon: '', istAm: '', abgerechnetMenge: 0,
+    sort: sortNr++,
+    ...felder,
+  })
 
-  const termin = (id, patIdx, tagOffset, start, dauer, behandlung, status, extras = {}) => {
-    const p = patients[patIdx]
+  const lvpositionen = [
+    // Projekt IGA (aus dem echten Nachunternehmervertrag)
+    pos('p-iga', '1', 'titel', 'Untergrund vorbereiten, reinigen, grundieren'),
+    pos('p-iga', '1.1', 'position', 'Wand- und Deckenflächen vorbereiten, reinigen, grundieren', {
+      langtext: 'Wand- und Deckenflächen als Vorbereitung für die Malerarbeiten von Staub und losen Verschmutzungen durch Abstauben befreien, mit Haftgrundierung zum System passend einmalig grundieren.',
+      menge: 1150, einheit: 'm²', einheitspreis: 1.65, istMenge: 820, istVon: 'Ahmad Monteur', istAm: heutePlus(-4),
+    }),
+    pos('p-iga', '2', 'titel', 'Anstrich Wand- und Deckenflächen'),
+    pos('p-iga', '2.1', 'position', '1. Wand- und Deckenbeschichtung mit Dispersionsfarbe', {
+      langtext: 'Erstbeschichtung einschl. Laibungen, innen. Vorleistung: bauseits gespachtelte Flächen in Q2/Q3. Dispersionsfarbe fungizidfrei „Blauer Engel", Nassabrieb Klasse 3 nach DIN EN 13300 (Caparol, Brillux, STO, Keim o. glw.).',
+      menge: 1150, einheit: 'm²', einheitspreis: 2.05, istMenge: 640, istVon: 'Samir Monteur', istAm: heutePlus(-2),
+    }),
+    pos('p-iga', '2.2', 'position', '2. Wand- und Deckenbeschichtung (endfertig)', {
+      langtext: 'Endfertige Beschichtung mit Dispersionsfarbe einschl. Laibungen, innen. Fungizidfrei „Blauer Engel", Nassabrieb Klasse 3 nach DIN EN 13300.',
+      menge: 1150, einheit: 'm²', einheitspreis: 1.95,
+    }),
+    pos('p-iga', '2.3', 'position', 'Zulage farbige Wandbeschichtung nach Vorgabe', {
+      langtext: 'Zulage zur Wandbeschichtung mit eingefärbter Dispersionsfarbe nach Vorgabe der Bauherrnvertretung.',
+      menge: 150, einheit: 'm²', einheitspreis: 1.65,
+    }),
+    pos('p-iga', '3', 'titel', 'Lackierung Umfassungszargen'),
+    pos('p-iga', '3.1', 'position', 'Renovierungslackierung Umfassungszarge, 1-flg.', {
+      langtext: 'Anschleifen und Grundierung der Stahlzarge, oberflächenendfertige Lackierung auf wasserbasiertem Acryl-Lack. Stahlblech, Maulweite 125 mm. Farbe nach Vorgabe. Einbauort: EG + 1. OG.',
+      menge: 10, einheit: 'Stck.', einheitspreis: 57.5, istMenge: 6, istVon: 'Ahmad Monteur', istAm: heutePlus(-3),
+    }),
+    pos('p-iga', '3.2', 'position', 'Erstlackierung Umfassungszarge, 1-flg.', {
+      langtext: 'Anschleifen der neu montierten, grundiert gelieferten Stahlzarge, oberflächenendfertige Lackierung auf wasserbasiertem Acryl-Lack.',
+      menge: 8, einheit: 'Stck.', einheitspreis: 55,
+    }),
+    pos('p-iga', '4', 'titel', 'Dauerelastische Anschlüsse'),
+    pos('p-iga', '4.1', 'position', 'Dauerelastische Anschlüsse mit Acryl', {
+      langtext: 'Erstellen von dauerelastischen Anschlüssen mit Acryl an Wand-/Wandinnenecken und Wand-/Deckeninnenecken.',
+      menge: 1, einheit: 'lfm', einheitspreis: 1.6, flags: { nep: true },
+    }),
+    pos('p-iga', '5', 'titel', 'Regiearbeiten auf Stundennachweis'),
+    pos('p-iga', '5.1', 'position', 'Regiestunden Facharbeiter im Malerhandwerk', {
+      langtext: 'Zusätzliche Kleinarbeiten, die das Angebot nicht berücksichtigt, auf Stundenbasis mit Nachweis.',
+      menge: 3, einheit: 'Std.', einheitspreis: 35, flags: { bedarf: true },
+    }),
+    pos('p-iga', '5.2', 'position', 'Regiestunden Helfer / Auszubildender', {
+      menge: 1, einheit: 'Std.', einheitspreis: 31, flags: { bedarf: true },
+    }),
+
+    // Projekt S36 (Auszug aus dem Leer-LV; Preise ohne Material, teils offen)
+    pos('p-s36', '3.2.6.3', 'titel', 'Lackierarbeiten – Nasslackbeschichtung Zargen'),
+    pos('p-s36', '3.2.6.3..2', 'position', 'Nasslackbeschichtung Umfassungszarge', {
+      menge: 155.85, einheit: 'lfm', einheitspreis: 3.9,
+      langtext: 'Preis ohne Material (Notiz im LV: „GRUNDSÄTZLICH ALLE PREISE OHNE MATERIAL – 3,90 €/lfm").',
+    }),
+    pos('p-s36', '3.2.6.3..3', 'position', 'Nasslackbeschichtung Blockzargen', {
+      menge: 81.155, einheit: 'lfm', einheitspreis: 3.9,
+    }),
+    pos('p-s36', '4.2.3.7', 'titel', 'Beschichtung Wand- und Deckenflächen – Bürobereiche'),
+    pos('p-s36', '4.2.3.7.1.1', 'position', 'Flächen vorbereiten und grundieren', {
+      langtext: 'Tiefengrundierung liefern und auftragen, einschl. Reinigen des Untergrundes und Ausbesserungen (Q3). Richtfabrikat StoPrime Plex o. glw.',
+      menge: 2582.421, einheit: 'm²', einheitspreis: 0,
+    }),
+    pos('p-s36', '4.2.3.7.1.2', 'position', 'Dispersionsanstrich Wände (Zwischen- + Schlussbeschichtung)', {
+      langtext: 'Hochdeckende, stumpfmatte Beschichtung in zwei Arbeitsgängen, RAL 9010 matt, Nassabriebklasse 2, Deckvermögen Klasse 1 nach EN 13300. Richtfabrikat StoColor Rapid Ultramatt o. glw.',
+      menge: 2582.421, einheit: 'm²', einheitspreis: 0,
+    }),
+    pos('p-s36', '4.2.3.7.1.4', 'position', 'Zulage für mittlere Tönung', {
+      menge: 1, einheit: 'm²', einheitspreis: 0, flags: { bedarf: true },
+    }),
+  ]
+
+  // --- Termine / Einsätze (Woche rund um heute) ---
+  const termin = (id, projektId, tagOffset, start, ende, titel, kategorie, mitarbeiterIds, extras = {}) => {
+    const projekt = projekte.find((p) => p.id === projektId)
+    const kunde = patients.find((k) => k.id === projekt?.kundeId)
     return {
-      id: `ter-${id}`,
-      patientId: p.id,
-      patientName: `${p.vorname} ${p.nachname}`,
-      datum: addTage(heute, tagOffset),
-      start,
-      ende: endeZeit(start, dauer),
-      behandlung,
-      status, // bestaetigt | abgeschlossen | abgesagt
-      erinnerung: 'offen', // offen | gesendet | telefonisch
-      arzt: extras.arzt || 'J. Strötz',
-      summary: extras.summary || { text: '', checks: [], updatedAt: null, updatedBy: '' },
-      befunde: extras.befunde || [], // Zahnschema-Befunde [{zahn, text, von, at}]
-      leistungen: extras.leistungen || [], // Abrechnungspositionen aus dem Katalog
-      rechnung: extras.rechnung || 'offen', // offen | gestellt | bezahlt
-      googleEventId: null,
-      patientEmail: p.email || '',
-      sprache: 'de',
-      stornoToken: `demo-tok-${id}`,
-      feedbackToken: `demo-fb-${id}`,
+      id, projektId, titel, kategorie, mitarbeiterIds,
+      datum: heutePlus(tagOffset), start, ende,
+      beschreibung: '', positionsIds: [], erledigt: false, erledigtAm: '',
+      // Vorlagen-Felder (alte Seiten lesen sie noch):
+      behandlung: titel, status: 'bestaetigt', arzt: '',
+      patientId: kunde?.id || '', patientName: kunde ? (kunde.firma || `${kunde.vorname} ${kunde.nachname}`) : '',
+      erinnerung: 'offen', summary: { text: '', checks: [], updatedAt: 0, updatedBy: '' },
+      befunde: [], leistungen: [], rechnung: 'offen',
+      ...extras,
     }
   }
 
   const appointments = [
-    // Vergangene Termine (Historie mit fertigen Zusammenfassungen)
-    termin('h01', 0, -21, '09:00', 30, 'Kontrolluntersuchung', 'abgeschlossen', {
-      summary: { text: 'Befund unauffällig, Zahnstein leicht. Nächste Kontrolle in 6 Monaten empfohlen.', checks: ['Kontrolle / 01', 'Zahnstein entfernt'], updatedAt: Date.now() - 21 * 86400000, updatedBy: 'I. Steidle' },
-      leistungen: [pos('kat-0010'), pos('kat-1000')],
-      rechnung: 'bezahlt',
+    termin('t-1', 'p-iga', 0, '07:00', '17:00', 'Umsetzung – 1. OG Flure + Büros streichen', 'umsetzung', ['u-ahmad', 'u-samir'], {
+      beschreibung: 'Zweitanstrich Flure 1. OG. Material ist vor Ort. Regiebericht schreiben, falls Zusatzarbeiten.',
     }),
-    termin('h02', 1, -14, '10:30', 60, 'Professionelle Zahnreinigung', 'abgeschlossen', {
-      summary: { text: 'PZR vollständig, Zahnfleischbluten reduziert. Empfehlung: Interdentalbürsten Gr. 2.', checks: ['Professionelle Zahnreinigung'], updatedAt: Date.now() - 14 * 86400000, updatedBy: 'Prophylaxe-Team' },
-      leistungen: [pos('kat-1040')],
-      rechnung: 'bezahlt',
+    termin('t-2', 'p-iga', 1, '07:00', '15:00', 'Fertigstellung – Zargen EG lackieren', 'fertigstellung', ['u-ahmad'], {
+      beschreibung: 'Restliche 4 Zargen Renovierungslackierung, danach Sichtkontrolle mit Bauleitung.',
     }),
-    termin('h03', 4, -10, '14:00', 30, 'Füllung Zahn 36', 'abgeschlossen', {
-      summary: { text: 'Kompositfüllung 36 okklusal. ACHTUNG Penicillin-Allergie beachtet, keine Komplikationen.', checks: ['Füllung', 'Anästhesie'], updatedAt: Date.now() - 10 * 86400000, updatedBy: 'J. Strötz' },
-      leistungen: [pos('kat-0010'), pos('kat-0080'), pos('kat-2080')],
-      rechnung: 'gestellt',
+    termin('t-3', 'p-huber', 2, '09:00', '10:00', 'Vor-Ort-Termin – Aufmaß EFH Huber', 'umsetzung', ['u-ahmad'], {
+      beschreibung: 'Aufmaß und Farbberatung mit Familie Huber.',
     }),
-    termin('h04', 2, -7, '11:00', 30, 'Beratung Implantat', 'abgeschlossen', {
-      summary: { text: 'Beratung Implantat Regio 46. Patientin wünscht Kostenvoranschlag, DVT geplant.', checks: ['Beratung', 'Röntgen'], updatedAt: Date.now() - 7 * 86400000, updatedBy: 'J. Strötz' },
-      leistungen: [pos('kat-0010'), pos('kat-0030', 2)],
-      rechnung: 'offen',
+    termin('t-4', 'p-iga', -3, '07:00', '17:00', 'Umsetzung – EG Grundierung + Erstanstrich', 'umsetzung', ['u-ahmad', 'u-samir'], {
+      erledigt: true, erledigtAm: heutePlus(-3), status: 'abgeschlossen',
     }),
-
-    // HEUTE – für das Arzt-Cockpit in der Demo
-    termin('t01', 5, 0, '08:30', 30, 'Kontrolluntersuchung', 'abgeschlossen', {
-      summary: { text: 'Kontrolle o.B., kleine Verfärbung 21 beobachten.', checks: ['Kontrolle / 01'], updatedAt: Date.now() - 3600000, updatedBy: 'I. Steidle' },
-      leistungen: [pos('kat-0010')],
-    }),
-    termin('t02', 6, 0, '09:30', 60, 'Professionelle Zahnreinigung', 'bestaetigt'),
-    termin('t03', 9, 0, '11:00', 30, 'Kontrolle + Beratung', 'bestaetigt', { arzt: 'I. Steidle' }),
-    termin('t04', 7, 0, '14:30', 30, 'Füllung Zahn 25', 'bestaetigt', {
-      befunde: [{ zahn: '25', text: 'Karies okklusal, Füllung geplant', von: 'J. Strötz', at: Date.now() - 7 * 86400000 }],
-    }),
-    termin('t05', 12, 0, '16:00', 30, 'Schmerzbehandlung', 'bestaetigt', { arzt: 'E. Erben' }),
-
-    // Nächste Tage
-    termin('m01', 3, 1, '09:00', 30, 'Kontrolluntersuchung', 'bestaetigt'),
-    termin('m02', 8, 1, '10:00', 60, 'Professionelle Zahnreinigung', 'bestaetigt'),
-    termin('m03', 10, 2, '13:30', 30, 'Wurzelbehandlung Sitzung 2', 'bestaetigt', { arzt: 'E. Erben' }),
-    termin('m04', 11, 3, '15:00', 30, 'Beratung Zahnersatz', 'bestaetigt', { arzt: 'I. Steidle' }),
-    termin('m05', 13, 4, '09:30', 30, 'Kontrolluntersuchung', 'bestaetigt'),
   ]
 
-  // ===== Szenario-Termine für die Test-Dokumentation =====
-  const ausfallPos = { katalogId: 'ausfall', code: '§ 615 BGB', name: 'Ausfallhonorar – kurzfristige Absage', preis: 50, anzahl: 1 }
-  appointments.push(
-    // SZENARIO 1: Werner Altmann – 2 Jahre Historie mit alten Berichten
-    termin('sz-a1', SZ_ALT, -730, '09:00', 30, 'Kontrolluntersuchung', 'abgeschlossen', {
-      arzt: 'I. Steidle',
-      summary: { text: '**Erstuntersuchung:** Gebiss altersentsprechend.\n- Zahnstein Unterkiefer\n- Füllung 46 randundicht, beobachten', checks: ['Kontrolle / 01', 'Röntgen'], updatedAt: Date.now() - 730 * 86400000, updatedBy: 'I. Steidle' },
-      leistungen: [pos('kat-0010'), pos('kat-0030')], rechnung: 'bezahlt',
-    }),
-    termin('sz-a2', SZ_ALT, -540, '10:00', 60, 'Professionelle Zahnreinigung (PZR)', 'abgeschlossen', {
-      arzt: 'I. Steidle',
-      summary: { text: '**PZR** vollständig.\n- Beläge entfernt, Politur, Fluoridierung', checks: ['Professionelle Zahnreinigung'], updatedAt: Date.now() - 540 * 86400000, updatedBy: 'Prophylaxe-Team' },
-      leistungen: [pos('kat-1040')], rechnung: 'bezahlt',
-    }),
-    termin('sz-a3', SZ_ALT, -365, '14:00', 30, 'Füllung Zahn 46', 'abgeschlossen', {
-      arzt: 'I. Steidle',
-      summary: { text: '**Füllungstherapie:** Zahn 46 erneuert (Komposit).\n- Karies entfernt\n- Okklusion geprüft', checks: ['Füllung', 'Anästhesie'], updatedAt: Date.now() - 365 * 86400000, updatedBy: 'I. Steidle' },
-      befunde: [{ zahn: '46', text: 'Sekundärkaries unter alter Füllung, erneuert', von: 'I. Steidle', at: Date.now() - 365 * 86400000 }],
-      leistungen: [pos('kat-2080'), pos('kat-0080')], rechnung: 'bezahlt',
-    }),
-    termin('sz-a4', SZ_ALT, -200, '11:00', 60, 'Vollkeramikkrone Zahn 36', 'abgeschlossen', {
-      arzt: 'I. Steidle',
-      summary: { text: '**Kronenversorgung Zahn 36** eingesetzt.\n- Digitaler Abdruck (3Shape)\n- Farbbestimmung A3\n- Sitz und Okklusion einwandfrei', checks: ['Abdruck / Scan', 'Anästhesie'], updatedAt: Date.now() - 200 * 86400000, updatedBy: 'I. Steidle' },
-      befunde: [{ zahn: '36', text: 'Vollkeramikkrone eingesetzt', von: 'I. Steidle', at: Date.now() - 200 * 86400000 }],
-      leistungen: [pos('kat-5000'), pos('kat-0080')], rechnung: 'bezahlt',
-    }),
-    termin('sz-a5', SZ_ALT, -90, '09:30', 30, 'Kontrolluntersuchung', 'abgeschlossen', {
-      arzt: 'I. Steidle',
-      summary: { text: '**Kontrolle:** Krone 36 reizlos, Befund stabil.', checks: ['Kontrolle / 01'], updatedAt: Date.now() - 90 * 86400000, updatedBy: 'I. Steidle' },
-      leistungen: [pos('kat-0010')], rechnung: 'bezahlt',
-    }),
-    termin('sz-a6', SZ_ALT, -30, '10:30', 60, 'Professionelle Zahnreinigung (PZR)', 'abgeschlossen', {
-      arzt: 'I. Steidle',
-      summary: { text: '**PZR** vollständig, sehr gute Mundhygiene.', checks: ['Professionelle Zahnreinigung'], updatedAt: Date.now() - 30 * 86400000, updatedBy: 'Prophylaxe-Team' },
-      leistungen: [pos('kat-1040')], rechnung: 'gestellt',
-    }),
-    // Termin MORGEN früh -> Testfall 24h-Gebühr (Absage-Link in der Mail heute Abend klicken)
-    termin('sz-a7', SZ_ALT, 1, '08:30', 60, 'Professionelle Zahnreinigung (PZR)', 'bestaetigt', { arzt: 'I. Steidle' }),
+  // --- Berichte (Regie / Reklamation / Abnahme) ---
+  const berichte = [
+    {
+      id: 'b-1', typ: 'regie', projektId: 'p-iga', terminId: 't-4',
+      mitarbeiterId: 'u-ahmad', mitarbeiterName: 'Ahmad Monteur',
+      datum: heutePlus(-3), status: 'eingereicht',
+      beschreibung: 'Zusätzliche Spachtelarbeiten an Trockenbauwand Flur EG nach Elektro-Schlitzen. Nicht im LV enthalten, auf Anweisung Bauleitung ausgeführt.',
+      stunden: [
+        { art: 'facharbeiter', anzahl: 3, satz: 35 },
+        { art: 'helfer', anzahl: 1, satz: 31 },
+      ],
+      material: [
+        { artikelId: 'a-005', name: 'Feinspachtel 25 kg', menge: 2, einheit: 'Sack', preis: 18.5 },
+        { artikelId: 'a-008', name: 'Malerkrepp 50 m', menge: 3, einheit: 'Rolle', preis: 4.5 },
+      ],
+      unterschriftKunde: DEMO_UNTERSCHRIFT, unterschriftName: 'M. Rußbach (Bauleitung)',
+      createdAt: jetzt - 3 * 86400000, eingereichtAm: jetzt - 3 * 86400000,
+    },
+    {
+      id: 'b-2', typ: 'reklamation', projektId: 'p-iga', terminId: '',
+      mitarbeiterId: 'u-samir', mitarbeiterName: 'Samir Monteur',
+      datum: heutePlus(-1), status: 'entwurf',
+      beschreibung: 'Farbabplatzer im Treppenhaus EG, ca. 0,5 m².',
+      ursache: 'Untergrund war an dieser Stelle sandend, Grundierung durch Folgegewerk beschädigt.',
+      massnahme: 'Stelle anschleifen, neu grundieren und beischichten.',
+      createdAt: jetzt - 1 * 86400000, eingereichtAm: 0,
+    },
+  ]
 
-    // SZENARIO 2: Selma Karim – Angstpatientin, Termin HEUTE (Cockpit-Tags)
-    termin('sz-b1', SZ_ANGST, -60, '16:00', 30, 'Erstgespräch (Angstpatientin)', 'abgeschlossen', {
-      summary: { text: '**Erstgespräch:** Nur Kennenlernen + Sitzprobe, KEINE Behandlung.\n- Vertrauen aufgebaut, Martha dabei\n- Nächster Schritt: kleine Kontrolle', checks: ['Beratung'], updatedAt: Date.now() - 60 * 86400000, updatedBy: 'J. Strötz' },
-      leistungen: [pos('kat-0010')], rechnung: 'bezahlt',
-    }),
-    termin('sz-b2', SZ_ANGST, 0, '12:00', 30, 'Füllung Zahn 26 (Angstpatientin)', 'bestaetigt', {
-      befunde: [{ zahn: '26', text: 'Karies okklusal, Füllung geplant', von: 'J. Strötz', at: Date.now() - 60 * 86400000 }],
-    }),
+  // --- Fotos (Platzhalter-SVGs, Bezug über berichtId/projektId) ---
+  const photos = [
+    { id: 'ph-1', projektId: 'p-iga', berichtId: 'b-1', terminId: 't-4', phase: 'vorher', dataUrl: svgFoto('VORHER – Wand mit Schlitzen', '#64748b'), name: 'vorher-flur-eg.jpg', von: 'Ahmad Monteur', createdAt: jetzt - 3 * 86400000 },
+    { id: 'ph-2', projektId: 'p-iga', berichtId: 'b-1', terminId: 't-4', phase: 'nachher', dataUrl: svgFoto('NACHHER – gespachtelt', '#10b981'), name: 'nachher-flur-eg.jpg', von: 'Ahmad Monteur', createdAt: jetzt - 3 * 86400000 },
+    { id: 'ph-3', projektId: 'p-iga', berichtId: 'b-2', terminId: '', phase: 'vorher', dataUrl: svgFoto('Abplatzer Treppenhaus', '#ef4444'), name: 'reklamation-treppenhaus.jpg', von: 'Samir Monteur', createdAt: jetzt - 1 * 86400000 },
+  ]
 
-    // SZENARIO 3: Lina Klein (Kind) – Termin HEUTE mit Martha
-    termin('sz-c1', SZ_KIND, -180, '15:00', 30, 'Kinderprophylaxe', 'abgeschlossen', {
-      summary: { text: '**Kinderprophylaxe:** Putztraining + Fluoridierung.\n- Sehr tapfer, Sticker bekommen\n- Martha war dabei', checks: ['Kontrolle / 01'], updatedAt: Date.now() - 180 * 86400000, updatedBy: 'J. Strötz' },
-      leistungen: [pos('kat-1000')], rechnung: 'bezahlt',
-    }),
-    termin('sz-c2', SZ_KIND, 0, '15:00', 30, 'Kinder-Kontrolle mit Martha', 'bestaetigt'),
+  // --- Spesen ---
+  const spesen = [
+    {
+      id: 's-1', projektId: 'p-iga', mitarbeiterId: 'u-ahmad', typ: 'fahrt',
+      datum: heutePlus(-3), betrag: 13.5, belegFotoId: '', kommentar: '',
+      fahrt: { von: 'Münchener Str. 21, 86551 Aichach', bis: 'Eserwallstraße 1-3, 86150 Augsburg', km: 27, kmSatz: 0.5, automatisch: true },
+      status: 'eingereicht', createdAt: jetzt - 3 * 86400000,
+    },
+    {
+      id: 's-2', projektId: 'p-s36', mitarbeiterId: 'u-ahmad', typ: 'hotel',
+      datum: heutePlus(21), betrag: 89, belegFotoId: '', kommentar: 'Übernachtung Montagewoche München (geplant)',
+      fahrt: null, status: 'entwurf', createdAt: jetzt,
+    },
+  ]
 
-    // SZENARIO 4: Peter Grimm – 2 kurzfristige Absagen -> Blacklist im Dashboard
-    termin('sz-d1', 16, -12, '09:00', 30, 'Kontrolluntersuchung', 'abgesagt', {
-      leistungen: [ausfallPos], rechnung: 'pruefen',
-    }),
-    termin('sz-d2', 16, -5, '10:00', 60, 'Professionelle Zahnreinigung (PZR)', 'abgesagt', {
-      leistungen: [ausfallPos], rechnung: 'pruefen',
-    })
-  )
-  // Kurzfristig-Kennzeichnung für die Blacklist-Szenarien
-  for (const t of appointments) {
-    if (t.id === 'ter-sz-d1' || t.id === 'ter-sz-d2') {
-      t.kurzfristig = true
-      t.ausfallgebuehr = 'ausstehend'
-      t.abgesagtAm = new Date(Date.now() - 3 * 86400000).toISOString()
-    }
-  }
+  // --- Artikel / Dienstleistungen (Spiegel; FastBill führend) ---
+  const art = (id, code, name, einheit, preis, ekPreis, kategorie) =>
+    ({ id, code, name, einheit, preis, ekPreis, kategorie, lieferant: '', fastbillArticleId: null })
 
+  const katalog = [
+    art('a-001', 'A-001', 'Dispersionsfarbe weiß matt, 12,5 l', 'Eimer', 42.9, 29.9, 'Farben'),
+    art('a-002', 'A-002', 'Latexfarbe weiß, scheuerbeständig, 12,5 l', 'Eimer', 54.9, 39.9, 'Farben'),
+    art('a-003', 'A-003', 'Tiefengrund LF, 10 l', 'Kanister', 24.9, 16.5, 'Grundierung'),
+    art('a-004', 'A-004', 'Acryl-Lack weiß seidenmatt, 2,5 l', 'Dose', 39.9, 27.5, 'Lacke'),
+    art('a-005', 'A-005', 'Feinspachtel 25 kg', 'Sack', 18.5, 12.9, 'Spachtel'),
+    art('a-006', 'A-006', 'Reparaturmörtel R2 25 kg', 'Sack', 32.0, 23.5, 'Spachtel'),
+    art('a-007', 'A-007', 'Acryl-Dichtstoff 310 ml', 'Kartusche', 3.2, 1.9, 'Dichtstoffe'),
+    art('a-008', 'A-008', 'Malerkrepp 50 m', 'Rolle', 4.5, 2.6, 'Abdeckung'),
+    art('a-009', 'A-009', 'Abdeckvlies 1 × 25 m', 'Rolle', 24.0, 16.0, 'Abdeckung'),
+    art('a-010', 'A-010', 'Abdeckfolie 4 × 5 m', 'Stück', 2.9, 1.4, 'Abdeckung'),
+    art('a-011', 'A-011', 'Schleifpapier K120', 'Bogen', 0.8, 0.4, 'Werkzeug'),
+    art('a-012', 'A-012', 'Farbrolle 25 cm inkl. Bügel', 'Stück', 6.9, 4.2, 'Werkzeug'),
+    art('a-013', 'A-013', 'Flachpinsel 50 mm', 'Stück', 4.9, 2.8, 'Werkzeug'),
+    art('d-001', 'D-001', 'Facharbeiterstunde Malerhandwerk', 'Std.', 35.0, 0, 'Dienstleistung'),
+    art('d-002', 'D-002', 'Helferstunde', 'Std.', 31.0, 0, 'Dienstleistung'),
+    art('d-003', 'D-003', 'An-/Abfahrt (pauschal)', 'Pauschale', 25.0, 0, 'Dienstleistung'),
+  ]
+
+  // --- Textbausteine ---
+  const bausteine = [
+    { id: 'bs-13b', titel: '§13b-Hinweis', text: 'Der Rechnungsbetrag versteht sich netto. Steuerschuldnerschaft des Leistungsempfängers gemäß § 13b UStG.' },
+    { id: 'bs-vob', titel: 'VOB-Hinweis', text: 'Die Arbeiten wurden gemäß VOB DIN 18363 (Maler- und Lackierarbeiten) ausgeführt.' },
+    { id: 'bs-zahlung', titel: 'Zahlungsziel', text: 'Zahlbar innerhalb von 16 Tagen nach Erhalt der Rechnung rein netto.' },
+    { id: 'bs-einbehalt', titel: 'Sicherheitseinbehalt', text: 'Aconto-Rechnung mit 10 % Sicherheitseinbehalt gemäß Nachunternehmervertrag.' },
+  ]
+
+  // --- Webseiten-Anfragen ---
   const requests = [
     {
-      id: 'req-001',
-      name: 'Sabine Renner',
-      telefon: '0176 / 4455 8899',
-      email: TEST_EMAIL,
-      anliegen: 'Professionelle Zahnreinigung',
-      anliegenId: 'pzr',
-      dauer: 60,
-      datum: addTage(heute, 2),
-      start: '10:00',
-      status: 'neu',
-      nachricht: 'Gerne vormittags, bin Neupatientin.',
-      createdAt: Date.now() - 7200000,
-    },
-    {
-      id: 'req-002',
-      name: 'Karim Nasser',
-      telefon: '0151 / 2233 4455',
-      email: TEST_EMAIL,
-      anliegen: 'Kontrolluntersuchung',
-      anliegenId: 'kontrolle',
-      dauer: 30,
-      datum: addTage(heute, 3),
-      start: '16:30',
-      status: 'neu',
-      nachricht: '',
-      createdAt: Date.now() - 1800000,
+      id: 'r-1', name: 'Familie Kaiser', telefon: '0821 555123', email: TEST_EMAIL,
+      anliegen: 'Innenanstrich', nachricht: '3-Zimmer-Wohnung in Augsburg-Göggingen streichen, ca. 85 m² Wohnfläche. Gerne Termin für Besichtigung.',
+      datum: heutePlus(7), start: '09:00', dauer: 60,
+      status: 'neu', sprache: 'de', createdAt: jetzt - 2 * 3600000,
     },
   ]
 
-  // Szenario-Anfragen: Neupatientin (unbekannt) + Stammpatient (Telefon-Wiedererkennung)
-  requests.push(
+  // --- Einstellungen ---
+  const settings = [
+    { ...EINSTELLUNGEN_DEFAULTS },
+    { id: 'pausen', eintraege: [] },
     {
-      id: 'req-sz-neu',
-      name: 'Nora Neumann',
-      telefon: '0175 / 991122',
-      email: TEST_EMAIL,
-      anliegen: 'Kontrolluntersuchung',
-      anliegenId: 'kontrolle',
-      dauer: 30,
-      datum: addTage(heute, 3),
-      start: '11:30',
-      status: 'neu',
-      nachricht: 'Ich bin Neupatientin und komme auf Empfehlung von Familie Altmann.',
-      sprache: 'de',
-      createdAt: Date.now() - 3600000,
+      id: 'oeffnungszeiten',
+      fenster: { 1: [{ von: '07:00', bis: '17:00' }], 2: [{ von: '07:00', bis: '17:00' }], 3: [{ von: '07:00', bis: '17:00' }], 4: [{ von: '07:00', bis: '17:00' }], 5: [{ von: '07:00', bis: '17:00' }] },
+      telefon: [], urlaub: [],
     },
-    {
-      id: 'req-sz-alt',
-      name: 'Werner Altmann', // gleiche Telefonnummer wie Patient -> automatische Zuordnung
-      telefon: '0821 / 445566',
-      email: TEST_EMAIL,
-      anliegen: 'Kontrolluntersuchung',
-      anliegenId: 'kontrolle',
-      dauer: 30,
-      datum: addTage(heute, 5),
-      start: '10:00',
-      status: 'neu',
-      nachricht: 'Bitte wieder bei Frau Steidle.',
-      sprache: 'de',
-      createdAt: Date.now() - 1800000,
-    }
-  )
-
-  // Feedback-Beispiele: 5 Sterne (erledigt) + 2 Sterne (neu -> ALARM im Admin)
-  const feedback = [
-    {
-      id: 'fb-demo-1',
-      terminId: 'ter-h01', token: 'demo-fb-h01',
-      sterne: 5, tags: ['team-freundlich', 'schmerzfrei'],
-      text: 'Sehr einfühlsame Behandlung, gerne wieder!',
-      createdAt: Date.now() - 20 * 86400000, status: 'erledigt',
-    },
-    {
-      id: 'fb-demo-2',
-      terminId: 'ter-h02', token: 'demo-fb-h02',
-      sterne: 2, tags: ['wartezeit-lang'],
-      text: 'Ich musste über 40 Minuten warten, das war zu lang.',
-      createdAt: Date.now() - 86400000, status: 'neu',
-    },
-  ]
-
-  // Beispiel-Behandlungsplan (Heil- und Kostenplan) für die Implantat-Patientin
-  const plaene = [
-    {
-      id: 'hkp-001',
-      patientId: patients[2].id,
-      patientName: `${patients[2].vorname} ${patients[2].nachname}`,
-      titel: 'Implantat Regio 46',
-      befund: 'Zahn 46 nicht erhaltungswürdig (tiefe Karies, Längsfraktur). Nachbarzähne 45/47 gesund. Knochenangebot laut Röntgen ausreichend.',
-      therapie: 'Extraktion 46, Einheilung 8 Wochen, Implantation mit Aufbau, Versorgung mit Vollkeramikkrone.',
-      positionen: [pos('kat-9010'), pos('kat-5000'), pos('kat-0030', 2), pos('kat-0080')],
-      status: 'eingereicht', // entwurf | eingereicht | genehmigt | abgelehnt
-      createdAt: Date.now() - 5 * 86400000,
-    },
-    {
-      // GENEHMIGTER Plan für Werner -> Cockpit-Warnung greift bei ihm NICHT (Krone)
-      id: 'hkp-sz-genehmigt',
-      patientId: 'pat-sz-alt',
-      patientName: 'Werner Altmann',
-      titel: 'Krone Zahn 36',
-      befund: 'Zahn 36 stark zerstört, erhaltungswürdig.',
-      therapie: 'Versorgung mit Vollkeramikkrone.',
-      positionen: [pos('kat-5000'), pos('kat-0080')],
-      status: 'genehmigt',
-      gueltigBis: addTage(heute, 120),
-      createdAt: Date.now() - 220 * 86400000,
-    },
-    {
-      // ABGELEHNTER Plan (Status-Tracker-Demo)
-      id: 'hkp-sz-abgelehnt',
-      patientId: 'pat-sz-alt',
-      patientName: 'Werner Altmann',
-      titel: 'Bleaching (Zusatzversicherung)',
-      befund: 'Verfärbungen Oberkiefer-Front.',
-      therapie: 'Professionelles Bleaching, ein Kiefer.',
-      positionen: [pos('kat-blch')],
-      status: 'abgelehnt',
-      createdAt: Date.now() - 40 * 86400000,
-    },
+    { id: 'nummernkreis', rechnung: { jahr: new Date().getFullYear(), laufend: 0 } },
+    { id: 'integrationen', fastbillEmail: '', fastbillApiKey: '' },
   ]
 
   return {
-    patients,
-    appointments,
-    requests,
-    photos: [],
-    feedback,
-    settings: [
-      { ...EINSTELLUNGEN_DEFAULTS },
-      // Wiederkehrende Pausen: Mittwoch durchgehend geöffnet -> Mittagspause blocken
-      { id: 'pausen', eintraege: [{ tag: 3, von: '12:30', bis: '13:30', grund: 'Mittagspause' }] },
-      // Öffnungszeiten (in den Einstellungen pflegbar; Firestore-Form: Objekte statt Arrays)
-      {
-        id: 'oeffnungszeiten',
-        fenster: {
-          1: [{ von: '08:00', bis: '12:00' }, { von: '13:00', bis: '18:00' }],
-          2: [{ von: '08:00', bis: '12:00' }, { von: '13:00', bis: '18:00' }],
-          3: [{ von: '08:00', bis: '17:00' }],
-          4: [{ von: '08:00', bis: '12:00' }, { von: '14:00', bis: '19:00' }],
-          5: [],
-          6: [],
-        },
-        // Tage ohne Zeitfenster, die trotzdem telefonisch erreichbar sind
-        telefon: [5],
-        // Urlaub/Betriebsferien: [{von:'JJJJ-MM-TT', bis:'JJJJ-MM-TT'}] – blockt die Online-Buchung
-        urlaub: [],
-      },
-    ],
-    katalog: DEMO_KATALOG.map((k) => ({ ...k })),
-    bausteine: DEMO_BAUSTEINE.map((b) => ({ ...b })),
-    plaene,
+    users, patients, projekte, lvpositionen, appointments, berichte, photos, spesen,
+    katalog, bausteine, requests, settings,
+    rechnungen: [], apilog: [], plaene: [], feedback: [],
   }
 }

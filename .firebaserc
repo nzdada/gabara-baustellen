@@ -1,12 +1,12 @@
 {
   "projects": {
-    "default": "praxis-an-der-wertachbru-1d36d"
+    "default": "gabara-baustellen"
   },
   "targets": {
-    "praxis-an-der-wertachbru-1d36d": {
+    "gabara-baustellen": {
       "hosting": {
-        "website": ["praxis-an-der-wertachbru-1d36d"],
-        "admin": ["praxis-wertachbruecke-admin"]
+        "website": ["gabara-baustellen"],
+        "admin": ["gabara-baustellen-admin"]
       }
     }
   }

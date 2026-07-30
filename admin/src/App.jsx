@@ -30,7 +30,7 @@ const NAV = [
 ]
 
 const TA = {
-  verwaltung: { de: 'Praxis-Verwaltung', en: 'Practice admin', ar: 'إدارة العيادة' },
+  verwaltung: { de: 'Gabara Verwaltung', en: 'Gabara Verwaltung', ar: 'Gabara Verwaltung' },
   online: { de: 'Online (Firebase)', en: 'Online (Firebase)', ar: 'متصل (Firebase)' },
   lokal: { de: 'Lokaler Demo-Modus', en: 'Local demo mode', ar: 'وضع تجريبي محلي' },
   abmelden: { de: 'Abmelden', en: 'Sign out', ar: 'تسجيل الخروج' },
@@ -133,7 +133,7 @@ function Layout({ user, children }) {
           <ZahnLogo className="w-7 h-7 text-praxis-200" />
           <div className="leading-tight">
             <p className="font-bold text-sm">{tr(TA.verwaltung)}</p>
-            <p className="text-[11px] text-praxis-200/70">an der Wertachbrücke</p>
+            <p className="text-[11px] text-praxis-200/70">Baustellen & Abrechnung</p>
           </div>
         </div>
         <nav className="flex-1 py-4 space-y-1 px-3">

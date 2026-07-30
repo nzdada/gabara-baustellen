@@ -1,14 +1,15 @@
 @import 'tailwindcss';
 
+/* Gabara-Farbwelt: Dunkelrot als Markenfarbe (praxis-500/600/700), warme Grautöne. */
 @theme {
-  --color-praxis-50: #ecfdf5;
-  --color-praxis-100: #d1fae5;
-  --color-praxis-200: #a7f3d0;
-  --color-praxis-500: #10b981;
-  --color-praxis-600: #059669;
-  --color-praxis-700: #047857;
-  --color-praxis-800: #065f46;
-  --color-praxis-900: #064e3b;
+  --color-praxis-50: #fbf7f6;
+  --color-praxis-100: #f4e9e7;
+  --color-praxis-200: #e6cdc9;
+  --color-praxis-500: #a32222;
+  --color-praxis-600: #8b1a1a;
+  --color-praxis-700: #701414;
+  --color-praxis-800: #45191b;
+  --color-praxis-900: #2b0d0e;
   --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 

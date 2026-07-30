@@ -5,8 +5,8 @@ import { ZahnLogo, Icon, SprachSchalter } from '@shared/ui.jsx'
 import { useLang, tr } from '@shared/i18n.js'
 
 const T = {
-  titel: { de: 'Praxis-Verwaltung', en: 'Practice admin', ar: 'إدارة العيادة' },
-  untertitel: { de: 'Praxis an der Wertachbrücke · nur für das Team', en: 'Praxis an der Wertachbrücke · team only', ar: 'عيادة Wertachbrücke · للفريق فقط' },
+  titel: { de: 'Gabara Verwaltung', en: 'Gabara Verwaltung', ar: 'Gabara Verwaltung' },
+  untertitel: { de: 'Gabara Service GmbH · nur für das Team', en: 'Gabara Service GmbH · team only', ar: 'Gabara Service GmbH · للفريق فقط' },
   email: { de: 'E-Mail', en: 'E-mail', ar: 'البريد الإلكتروني' },
   passwort: { de: 'Passwort', en: 'Password', ar: 'كلمة المرور' },
   anmelden: { de: 'Anmelden', en: 'Sign in', ar: 'تسجيل الدخول' },

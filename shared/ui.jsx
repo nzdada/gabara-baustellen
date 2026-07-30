@@ -91,21 +91,16 @@ export function SprachSchalter({ dunkel = false }) {
   )
 }
 
+// Gabara-Logo: Farbrolle (Vorlagen-Regel: Export-Name ZahnLogo bleibt, nur die Grafik ist neu)
 export function ZahnLogo({ className = 'w-9 h-9' }) {
   return (
     <svg viewBox="0 0 48 48" fill="none" className={className} aria-hidden="true">
-      <path
-        d="M24 6c-4.5 0-6.5-2.5-11-2.5C7.5 3.5 4 8 4 14c0 5 2 8.5 4.5 11.5 2 2.4 3 7 3.5 11.5.4 3.7 1.5 7.5 4 7.5 3.5 0 2.5-9 5-14 .8-1.6 2.5-1.6 3.3 0 2.5 5 1.5 14 5 14 2.5 0 3.6-3.8 4-7.5.5-4.5 1.5-9.1 3.5-11.5C39.5 22.5 44 19 44 14c0-6-3.5-10.5-9-10.5-4.5 0-6.5 2.5-11 2.5Z"
-        fill="currentColor"
-        opacity="0.15"
-      />
-      <path
-        d="M24 6c-4.5 0-6.5-2.5-11-2.5C7.5 3.5 4 8 4 14c0 5 2 8.5 4.5 11.5 2 2.4 3 7 3.5 11.5.4 3.7 1.5 7.5 4 7.5 3.5 0 2.5-9 5-14 .8-1.6 2.5-1.6 3.3 0 2.5 5 1.5 14 5 14 2.5 0 3.6-3.8 4-7.5.5-4.5 1.5-9.1 3.5-11.5C39.5 22.5 44 19 44 14c0-6-3.5-10.5-9-10.5-4.5 0-6.5 2.5-11 2.5Z"
-        stroke="currentColor"
-        strokeWidth="2.6"
-        strokeLinejoin="round"
-      />
-      <path d="M15 12.5c2 1.4 4.5 2 9 2s7-.6 9-2" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" opacity="0.6" />
+      <rect x="5" y="7" width="27" height="12" rx="4" fill="currentColor" opacity="0.15" />
+      <rect x="5" y="7" width="27" height="12" rx="4" stroke="currentColor" strokeWidth="2.6" strokeLinejoin="round" />
+      <path d="M32 13h8v9H26v4" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="23" y="26" width="6" height="15" rx="2" fill="currentColor" opacity="0.15" />
+      <rect x="23" y="26" width="6" height="15" rx="2" stroke="currentColor" strokeWidth="2.6" strokeLinejoin="round" />
+      <path d="M9 24c0 2-1.8 2.6-1.8 4.2a1.8 1.8 0 003.6 0C10.8 26.6 9 26 9 24z" fill="currentColor" opacity="0.6" />
     </svg>
   )
 }
@@ -139,6 +134,17 @@ const PFADE = {
   arrowLeft: 'M19 12H5m0 0l6-6m-6 6l6 6',
   arrowRight: 'M5 12h14m0 0l-6-6m6 6l-6 6',
   dog: 'M8 5l2 3h4l2-3 3 2-1.5 4.5c.5 1 .5 2.5.5 3.5 0 3.5-2.5 6-6 6s-6-2.5-6-6c0-1 0-2.5.5-3.5L5 7l3-2zm2 9h.01M14 14h.01M12 16.5v1',
+  // Maler-/Baustellen-Icons (Gabara)
+  roller: 'M3 4.5h12v6H3v-6zm12 2h5v4.5h-8.5V15m-1.5 0h3v5.5h-3V15z',
+  brush: 'M14 3l7 7-6.5 6.5c-1 1-2.5 1-3.5 0l-3.5-3.5c-1-1-1-2.5 0-3.5L14 3zM7 17l-4 4',
+  folder: 'M3 6a1 1 0 011-1h5l2 2h9a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V6z',
+  doc: 'M6 3h8l4 4v14H6V3zm8 0v4h4M9 12h6m-6 4h6',
+  list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
+  euro: 'M17.5 5.5A7 7 0 0017.5 18.5M5 10h8m-8 4h8',
+  truck: 'M2 7h12v9H2V7zm12 3h4.5L21 13v3h-7v-6zM6.5 19a1.8 1.8 0 100-3.6 1.8 1.8 0 000 3.6zm10.5 0a1.8 1.8 0 100-3.6 1.8 1.8 0 000 3.6z',
+  foto: 'M4 8h3l2-2.5h6L17 8h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1zm8 9a3.5 3.5 0 100-7 3.5 3.5 0 000 7z',
+  signatur: 'M3 20h18M5 16c2.5-5 4.5-7 5.5-6s-2.5 6-.5 6.5 4-3.5 5.5-3.5.5 3.5 2.5 3.5H21',
+  bericht: 'M7 3h10a1 1 0 011 1v16a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1zm2 5h6m-6 4h6m-6 4h4',
 }
 
 export function Icon({ name, className = 'w-6 h-6', strokeWidth = 1.8 }) {

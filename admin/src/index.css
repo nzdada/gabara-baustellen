@@ -7,14 +7,16 @@
 }
 .toast-rein { animation: toast-rein 0.25s ease-out; }
 
+/* Gabara-Farbwelt im HERO-Stil: fast schwarze Sidebar (praxis-900), Grautöne,
+   Dunkelrot als Akzent (praxis-500/600/700). Token-NAMEN bleiben wie in der Vorlage. */
 @theme {
-  --color-praxis-50: #f0fdfa;
-  --color-praxis-100: #ccfbf1;
-  --color-praxis-200: #99f6e4;
-  --color-praxis-500: #14b8a6;
-  --color-praxis-600: #0d9488;
-  --color-praxis-700: #0f766e;
-  --color-praxis-800: #115e59;
-  --color-praxis-900: #134e4a;
+  --color-praxis-50: #f7f7f8;
+  --color-praxis-100: #ededef;
+  --color-praxis-200: #d9d9dc;
+  --color-praxis-500: #a32222;
+  --color-praxis-600: #8b1a1a;
+  --color-praxis-700: #701414;
+  --color-praxis-800: #232329;
+  --color-praxis-900: #1a1a1e;
   --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }

@@ -1,15 +1,17 @@
-// Anmeldung für die Admin-Konsole.
+// Anmeldung für die Verwaltung (und später die Mitarbeiter-App).
 // Lokaler Modus: Demo-Zugänge (unten). Firebase-Modus: Firebase Authentication.
+// Rollen: 'admin' (Büro, alles) | 'mitarbeiter' (Monteur, nur Zugewiesenes).
+// Die Rolle kommt aus der users-Collection (Lookup per E-Mail); Fallback 'mitarbeiter'.
 
 import { FIREBASE_CONFIG } from './firebase-config.js'
 import { getStore } from './store.js'
 
 export const DEMO_ZUGAENGE = [
-  { email: 'empfang@praxis-demo.de', passwort: 'demo2026', name: 'Empfang (Demo)', rolle: 'empfang' },
-  { email: 'arzt@praxis-demo.de', passwort: 'demo2026', name: 'Dr. Strötz (Demo)', rolle: 'arzt' },
+  { email: 'buero@gabara-demo.de', passwort: 'demo2026', name: 'Büro Gabara (Demo)', rolle: 'admin' },
+  { email: 'monteur@gabara-demo.de', passwort: 'demo2026', name: 'Ahmad Monteur (Demo)', rolle: 'mitarbeiter' },
 ]
 
-const SESSION_KEY = 'praxis-admin-session'
+const SESSION_KEY = 'gabara-admin-session'
 const listener = new Set()
 
 function aktuelleLokaleSession() {
@@ -21,13 +23,30 @@ function aktuelleLokaleSession() {
   }
 }
 
+// users-Doc per E-Mail nachschlagen -> {name, rolle, id} oder null
+async function nutzerProfil(email) {
+  try {
+    const store = await getStore()
+    const alle = await store.list('users')
+    return alle.find((u) => (u.email || '').toLowerCase() === email.toLowerCase()) || null
+  } catch (e) {
+    return null
+  }
+}
+
 export async function anmelden(email, passwort) {
   if (!FIREBASE_CONFIG.enabled) {
     const nutzer = DEMO_ZUGAENGE.find(
       (z) => z.email.toLowerCase() === email.trim().toLowerCase() && z.passwort === passwort
     )
     if (!nutzer) throw new Error('E-Mail oder Passwort falsch.')
-    const session = { email: nutzer.email, name: nutzer.name, rolle: nutzer.rolle }
+    const profil = await nutzerProfil(nutzer.email)
+    const session = {
+      email: nutzer.email,
+      name: profil?.name || nutzer.name,
+      rolle: profil?.rolle || nutzer.rolle,
+      userId: profil?.id || null,
+    }
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session))
     listener.forEach((cb) => cb(session))
     return session
@@ -36,7 +55,13 @@ export async function anmelden(email, passwort) {
   const { getAuth, signInWithEmailAndPassword } = await import('firebase/auth')
   const auth = getAuth(store.app)
   const cred = await signInWithEmailAndPassword(auth, email.trim(), passwort)
-  return { email: cred.user.email, name: cred.user.displayName || cred.user.email, rolle: 'team' }
+  const profil = await nutzerProfil(cred.user.email)
+  return {
+    email: cred.user.email,
+    name: profil?.name || cred.user.displayName || cred.user.email,
+    rolle: profil?.rolle || 'mitarbeiter',
+    userId: profil?.id || null,
+  }
 }
 
 export async function abmelden() {
@@ -61,8 +86,15 @@ export function beobachteAnmeldung(cb) {
   getStore().then(async (store) => {
     const { getAuth, onAuthStateChanged } = await import('firebase/auth')
     const auth = getAuth(store.app)
-    unsub = onAuthStateChanged(auth, (user) => {
-      cb(user ? { email: user.email, name: user.displayName || user.email, rolle: 'team' } : null)
+    unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) return cb(null)
+      const profil = await nutzerProfil(user.email)
+      cb({
+        email: user.email,
+        name: profil?.name || user.displayName || user.email,
+        rolle: profil?.rolle || 'mitarbeiter',
+        userId: profil?.id || null,
+      })
     })
   })
   return () => unsub()

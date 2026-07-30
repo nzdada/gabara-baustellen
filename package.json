@@ -1,8 +1,8 @@
 {
-  "name": "zahnarzt-praxis",
+  "name": "gabara-baustellen",
   "private": true,
   "version": "1.0.0",
-  "description": "Praxis an der Wertachbrücke – Webseite + Admin-Konsole (Demo)",
+  "description": "Gabara Service GmbH – Baustellen-Abwicklung & Abrechnung (Webseite + Büro-Verwaltung)",
   "workspaces": [
     "website",
     "admin"

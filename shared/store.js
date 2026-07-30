@@ -19,13 +19,26 @@ function oeffnungszeitenDoc(roh) {
   return { fenster: normalisiereFenster(roh.fenster), telefon: roh.telefon || [5], urlaub: roh.urlaub || [] }
 }
 
-// photos:    Behandlungsfotos/Scans als komprimierte Daten-URLs (je Foto ein Dokument, <1 MB)
-// katalog:   Leistungskatalog für die Abrechnung (GOZ-Nr., Bezeichnung, Preis)
-// bausteine: Textbausteine für die Behandlungs-Zusammenfassung
-// plaene:    Behandlungspläne / Heil- und Kostenpläne (HKP)
-// feedback:  Patienten-Feedback nach der Behandlung (anonym per Token abgesichert)
-// settings:  globale Praxis-Einstellungen (ein Dokument 'global')
-const COLLECTIONS = ['patients', 'appointments', 'requests', 'photos', 'katalog', 'bausteine', 'plaene', 'feedback', 'settings']
+// patients:     Kunden-Spiegel (FastBill führend; UI-Label "Kunden")
+// appointments: Termine/Arbeitsaufträge (UI-Label "Termine/Einsätze")
+// requests:     Anfragen von der öffentlichen Webseite
+// photos:       Baustellenfotos als komprimierte Daten-URLs (je Foto ein Dokument, <1 MB,
+//               phase: 'vorher'|'nachher'|'beleg'|'sonstig', Bezug über projektId/berichtId)
+// katalog:      Artikel-/Dienstleistungs-Spiegel (FastBill führend)
+// bausteine:    Textbausteine (z. B. §13b-Block)
+// users:        Mitarbeiter/Logins {email, name, rolle:'admin'|'mitarbeiter', farbe, aktiv}
+// projekte:     Baustellen mit Status-Pipeline (shared/projektstatus.js)
+// lvpositionen: LV-Positionen, EIN Dokument je Position (projektId, oz, menge, ep, istMenge, ...)
+// berichte:     Regieberichte/Reklamationen/Abnahmen (typ, status entwurf->eingereicht->freigegeben->abgerechnet)
+// spesen:       Hotel-/Fahrtkosten der Monteure
+// rechnungen:   Spiegel der FastBill-Rechnungen (fastbillInvoiceId, status, Positionen)
+// apilog:       Protokoll der FastBill-API-Aufrufe (simuliert/ok/fehler)
+// plaene/feedback: Altlasten der Vorlage (ungenutzt, bleiben für Kompatibilität)
+// settings:     globale Einstellungen (Dokumente 'global', 'pausen', 'oeffnungszeiten', 'nummernkreis', 'integrationen')
+const COLLECTIONS = [
+  'patients', 'appointments', 'requests', 'photos', 'katalog', 'bausteine', 'plaene', 'feedback', 'settings',
+  'users', 'projekte', 'lvpositionen', 'berichte', 'spesen', 'rechnungen', 'apilog',
+]
 
 function uuid() {
   return crypto.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -33,7 +46,7 @@ function uuid() {
 
 // ---------- Lokaler Modus ----------
 
-const LS_KEY = 'praxis-wertachbruecke-demo-db'
+const LS_KEY = 'gabara-baustellen-demo-db'
 
 function lokalLaden() {
   try {
@@ -89,6 +102,14 @@ function lokalerStore() {
       listener[coll].add(cb)
       cb([...db[coll]])
       return () => listener[coll].delete(cb)
+    },
+    // Gefiltertes Live-Abo (z. B. nur Fotos eines Berichts) – vermeidet Vollabos
+    // großer Collections. Gleiche API wie im Firebase-Modus (dort echte where-Query).
+    subscribeWhere(coll, feld, wert, cb) {
+      const gefiltert = (rows) => cb(rows.filter((r) => r[feld] === wert))
+      listener[coll].add(gefiltert)
+      gefiltert([...db[coll]])
+      return () => listener[coll].delete(gefiltert)
     },
     async list(coll) {
       return [...db[coll]]
@@ -161,7 +182,7 @@ async function firebaseStore() {
   const { initializeApp } = await import('firebase/app')
   const {
     getFirestore, collection, doc, onSnapshot, getDocs, getDoc,
-    addDoc, setDoc, updateDoc, deleteDoc, writeBatch,
+    addDoc, setDoc, updateDoc, deleteDoc, writeBatch, query, where,
   } = await import('firebase/firestore')
 
   const app = initializeApp(FIREBASE_CONFIG)
@@ -175,6 +196,10 @@ async function firebaseStore() {
     async init() {},
     subscribe(coll, cb) {
       return onSnapshot(collection(dbf, coll), (snap) => cb(mapSnap(snap)))
+    },
+    // Gefiltertes Live-Abo per Firestore-Query (lädt nur passende Dokumente)
+    subscribeWhere(coll, feld, wert, cb) {
+      return onSnapshot(query(collection(dbf, coll), where(feld, '==', wert)), (snap) => cb(mapSnap(snap)))
     },
     async list(coll) {
       return mapSnap(await getDocs(collection(dbf, coll)))
