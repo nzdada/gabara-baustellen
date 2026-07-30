@@ -1,44 +1,37 @@
 import { useEffect, useRef, useState } from 'react'
-import { Routes, Route, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom'
 import { beobachteAnmeldung, abmelden } from '@shared/auth.js'
 import { storeModus } from '@shared/store.js'
-import { ZahnLogo, Icon, SprachSchalter } from '@shared/ui.jsx'
-import { useLang, tr, setLang } from '@shared/i18n.js'
-import { useEinstellungen } from './hooks.js'
+import { ZahnLogo, Icon } from '@shared/ui.jsx'
 import Login from './pages/Login.jsx'
+import Uebersicht from './pages/Uebersicht.jsx'
+import Projekte from './pages/Projekte.jsx'
+import ProjektDetail from './pages/ProjektDetail.jsx'
 import Kalender from './pages/Kalender.jsx'
+import Termine from './pages/Termine.jsx'
+import Kunden from './pages/Kunden.jsx'
+import Berichte from './pages/Berichte.jsx'
 import Anfragen from './pages/Anfragen.jsx'
-import Patienten from './pages/Patienten.jsx'
 import Import from './pages/Import.jsx'
-import Cockpit from './pages/Cockpit.jsx'
 import Einstellungen from './pages/Einstellungen.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Abrechnung from './pages/Abrechnung.jsx'
-import FeedbackAdmin from './pages/FeedbackAdmin.jsx'
 import { useCollection } from './hooks.js'
 
 const NAV = [
-  { to: '/kalender', label: { de: 'Kalender', en: 'Calendar', ar: 'التقويم' }, icon: 'calendar' },
-  { to: '/anfragen', label: { de: 'Anfragen', en: 'Requests', ar: 'الطلبات' }, icon: 'inbox' },
-  { to: '/patienten', label: { de: 'Patienten', en: 'Patients', ar: 'المرضى' }, icon: 'users' },
-  { to: '/dashboard', label: { de: 'Dashboard', en: 'Dashboard', ar: 'لوحة الطبيب' }, icon: 'chat' },
-  { to: '/cockpit', label: { de: 'Arzt-Cockpit', en: 'Doctor cockpit', ar: 'شاشة الطبيب' }, icon: 'tablet' },
-  { to: '/abrechnung', label: { de: 'Abrechnung', en: 'Billing', ar: 'الفوترة' }, icon: 'shield' },
-  { to: '/feedback', label: { de: 'Feedback', en: 'Feedback', ar: 'الملاحظات' }, icon: 'smile' },
-  { to: '/import', label: { de: 'Import', en: 'Import', ar: 'استيراد' }, icon: 'upload' },
-  { to: '/einstellungen', label: { de: 'Einstellungen', en: 'Settings', ar: 'الإعدادات' }, icon: 'bell' },
+  { to: '/', label: 'Übersicht', icon: 'home', exakt: true },
+  { to: '/projekte', label: 'Projekte', icon: 'folder' },
+  { to: '/kalender', label: 'Kalender', icon: 'calendar' },
+  { to: '/termine', label: 'Termine', icon: 'list' },
+  { to: '/kunden', label: 'Kunden', icon: 'users' },
+  { to: '/berichte', label: 'Berichte', icon: 'bericht' },
+  { to: '/anfragen', label: 'Anfragen', icon: 'inbox' },
+  { to: '/abrechnung', label: 'Abrechnung', icon: 'euro' },
+  { to: '/import', label: 'Import', icon: 'upload' },
+  { to: '/einstellungen', label: 'Einstellungen', icon: 'bell' },
 ]
 
-const TA = {
-  verwaltung: { de: 'Gabara Verwaltung', en: 'Gabara Verwaltung', ar: 'Gabara Verwaltung' },
-  online: { de: 'Online (Firebase)', en: 'Online (Firebase)', ar: 'متصل (Firebase)' },
-  lokal: { de: 'Lokaler Demo-Modus', en: 'Local demo mode', ar: 'وضع تجريبي محلي' },
-  abmelden: { de: 'Abmelden', en: 'Sign out', ar: 'تسجيل الخروج' },
-  neueAnfrage: { de: 'Neue Terminanfrage', en: 'New appointment request', ar: 'طلب موعد جديد' },
-  uhr: { de: 'Uhr', en: '', ar: '' },
-}
-
-// Dezenter Doppel-Piepton für neue Anfragen (WebAudio, kein Audio-Asset nötig)
+// Dezenter Doppel-Piepton für neue Anfragen/Berichte (WebAudio, kein Audio-Asset nötig)
 function piepton() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)()
@@ -56,27 +49,45 @@ function piepton() {
   } catch (e) { /* Autoplay-Richtlinie o. ä. – Ton ist optional */ }
 }
 
-// Toast oben rechts: erscheint live, sobald eine neue Online-Anfrage eingeht
-function AnfragenToast() {
+// Toast oben rechts: neue Webseiten-Anfragen UND neu eingereichte Berichte
+function LiveToast() {
   const requests = useCollection('requests')
+  const berichte = useCollection('berichte')
   const navigate = useNavigate()
-  const bekannt = useRef(null)
+  const bekannteAnfragen = useRef(null)
+  const bekannteBerichte = useRef(null)
   const [toast, setToast] = useState(null)
 
   useEffect(() => {
     const offene = requests.filter((r) => r.status === 'neu')
-    if (bekannt.current === null) {
-      // Erste Ladung nicht melden – nur wirklich NEUE Anfragen
-      if (requests.length > 0 || bekannt.current === null) bekannt.current = new Set(offene.map((r) => r.id))
+    if (bekannteAnfragen.current === null) {
+      bekannteAnfragen.current = new Set(offene.map((r) => r.id))
       return
     }
-    const frische = offene.filter((r) => !bekannt.current.has(r.id))
-    offene.forEach((r) => bekannt.current.add(r.id))
+    const frische = offene.filter((r) => !bekannteAnfragen.current.has(r.id))
+    offene.forEach((r) => bekannteAnfragen.current.add(r.id))
     if (frische.length > 0) {
-      setToast(frische[frische.length - 1])
+      const r = frische[frische.length - 1]
+      setToast({ art: 'anfrage', titel: 'Neue Anfrage', name: r.name, text: r.anliegen || '', ziel: `/anfragen?id=${r.id}` })
       piepton()
     }
   }, [requests])
+
+  useEffect(() => {
+    const eingereicht = berichte.filter((b) => b.status === 'eingereicht')
+    if (bekannteBerichte.current === null) {
+      bekannteBerichte.current = new Set(eingereicht.map((b) => b.id))
+      return
+    }
+    const frische = eingereicht.filter((b) => !bekannteBerichte.current.has(b.id))
+    eingereicht.forEach((b) => bekannteBerichte.current.add(b.id))
+    if (frische.length > 0) {
+      const b = frische[frische.length - 1]
+      const typ = b.typ === 'regie' ? 'Regiebericht' : b.typ === 'abnahme' ? 'Abnahme' : 'Reklamation'
+      setToast({ art: 'bericht', titel: `Neuer ${typ}`, name: b.mitarbeiterName || '', text: b.beschreibung || '', ziel: '/berichte' })
+      piepton()
+    }
+  }, [berichte])
 
   useEffect(() => {
     if (!toast) return
@@ -87,19 +98,17 @@ function AnfragenToast() {
   if (!toast) return null
   return (
     <button
-      onClick={() => { navigate(`/anfragen?id=${toast.id}`); setToast(null) }}
-      className="fixed top-4 right-4 rtl:right-auto rtl:left-4 z-[70] w-80 max-w-[calc(100vw-2rem)] text-left rtl:text-right bg-white border-2 border-amber-400 rounded-2xl shadow-2xl p-4 toast-rein"
+      onClick={() => { navigate(toast.ziel); setToast(null) }}
+      className="fixed top-4 right-4 z-[70] w-80 max-w-[calc(100vw-2rem)] text-left bg-white border-2 border-amber-400 rounded-2xl shadow-2xl p-4 toast-rein"
     >
       <p className="flex items-center gap-2 text-xs font-bold text-amber-600 uppercase tracking-wide">
-        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" /> {tr(TA.neueAnfrage)}
+        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" /> {toast.titel}
       </p>
       <p className="mt-1.5 font-bold text-slate-900">{toast.name}</p>
-      <p className="text-sm text-slate-500">
-        {toast.anliegen} · {new Date(toast.datum + 'T12:00:00').toLocaleDateString('de-DE')} · {toast.start} {tr(TA.uhr)}
-      </p>
+      <p className="text-sm text-slate-500 truncate">{toast.text}</p>
       <span
         onClick={(e) => { e.stopPropagation(); setToast(null) }}
-        className="absolute top-2.5 right-3 rtl:right-auto rtl:left-3 text-slate-300 hover:text-slate-600 text-lg leading-none cursor-pointer"
+        className="absolute top-2.5 right-3 text-slate-300 hover:text-slate-600 text-lg leading-none cursor-pointer"
       >
         ×
       </span>
@@ -107,40 +116,38 @@ function AnfragenToast() {
   )
 }
 
-function Layout({ user, children }) {
-  useLang()
-  const requests = useCollection('requests')
-  const feedback = useCollection('feedback')
-  const neueAnfragen = requests.filter((r) => r.status === 'neu').length
-  const feedbackAlarme = feedback.filter((f) => f.status === 'neu' && f.sterne <= 2).length
-  const modus = storeModus()
+function Badge({ wert, farbe = 'bg-amber-400 text-praxis-900' }) {
+  if (!wert) return null
+  return (
+    <span className={`ml-auto ${farbe} text-xs font-bold rounded-full px-2 py-0.5`}>{wert}</span>
+  )
+}
 
-  // Standardsprache aus den globalen Einstellungen – nur wenn der Nutzer
-  // noch keine eigene Sprachwahl getroffen hat
-  const einst = useEinstellungen()
-  useEffect(() => {
-    try {
-      if (!localStorage.getItem('praxis-sprache') && einst.standardSprache) setLang(einst.standardSprache)
-    } catch (e) { /* localStorage gesperrt */ }
-  }, [einst.standardSprache])
+function Layout({ user, children }) {
+  const requests = useCollection('requests')
+  const berichte = useCollection('berichte')
+  const neueAnfragen = requests.filter((r) => r.status === 'neu').length
+  const neueBerichte = berichte.filter((b) => b.status === 'eingereicht').length
+  const modus = storeModus()
 
   return (
     <div className="min-h-screen bg-slate-100 flex">
-      <AnfragenToast />
+      <LiveToast />
       {/* Seitenleiste (Desktop) */}
       <aside className="hidden lg:flex flex-col w-60 bg-praxis-900 text-white shrink-0">
         <div className="flex items-center gap-2.5 px-5 h-16 border-b border-white/10">
           <ZahnLogo className="w-7 h-7 text-praxis-200" />
           <div className="leading-tight">
-            <p className="font-bold text-sm">{tr(TA.verwaltung)}</p>
+            <p className="font-bold text-sm">Gabara Verwaltung</p>
             <p className="text-[11px] text-praxis-200/70">Baustellen & Abrechnung</p>
           </div>
         </div>
-        <nav className="flex-1 py-4 space-y-1 px-3">
+        <nav className="flex-1 py-4 space-y-1 px-3 overflow-y-auto">
           {NAV.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
+              end={n.exakt}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
                   isActive ? 'bg-praxis-600 text-white' : 'text-praxis-100/80 hover:bg-white/10'
@@ -148,17 +155,9 @@ function Layout({ user, children }) {
               }
             >
               <Icon name={n.icon} className="w-5 h-5" />
-              {tr(n.label)}
-              {n.to === '/anfragen' && neueAnfragen > 0 && (
-                <span className="ml-auto rtl:ml-0 rtl:mr-auto bg-amber-400 text-praxis-900 text-xs font-bold rounded-full px-2 py-0.5">
-                  {neueAnfragen}
-                </span>
-              )}
-              {n.to === '/feedback' && feedbackAlarme > 0 && (
-                <span className="ml-auto rtl:ml-0 rtl:mr-auto bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5 animate-pulse">
-                  {feedbackAlarme}
-                </span>
-              )}
+              {n.label}
+              {n.to === '/anfragen' && <Badge wert={neueAnfragen} />}
+              {n.to === '/berichte' && <Badge wert={neueBerichte} farbe="bg-sky-400 text-praxis-900" />}
             </NavLink>
           ))}
         </nav>
@@ -168,11 +167,10 @@ function Layout({ user, children }) {
             modus === 'firebase' ? 'bg-praxis-600/60' : 'bg-amber-400/20 text-amber-200'
           }`}>
             <span className="w-1.5 h-1.5 rounded-full bg-current" />
-            {modus === 'firebase' ? tr(TA.online) : tr(TA.lokal)}
+            {modus === 'firebase' ? 'Online (Firebase)' : 'Lokaler Demo-Modus'}
           </p>
-          <SprachSchalter dunkel />
           <button onClick={abmelden} className="flex items-center gap-2 text-praxis-200/70 hover:text-white">
-            <Icon name="logout" className="w-4 h-4" /> {tr(TA.abmelden)}
+            <Icon name="logout" className="w-4 h-4" /> Abmelden
           </button>
         </div>
       </aside>
@@ -182,12 +180,9 @@ function Layout({ user, children }) {
         <header className="lg:hidden bg-praxis-900 text-white h-14 flex items-center justify-between px-4 sticky top-0 z-40">
           <div className="flex items-center gap-2">
             <ZahnLogo className="w-6 h-6 text-praxis-200" />
-            <span className="font-bold text-sm">{tr(TA.verwaltung)}</span>
+            <span className="font-bold text-sm">Gabara Verwaltung</span>
           </div>
-          <div className="flex items-center gap-2">
-            <SprachSchalter dunkel />
-            <button onClick={abmelden} className="text-praxis-200"><Icon name="logout" className="w-5 h-5" /></button>
-          </div>
+          <button onClick={abmelden} className="text-praxis-200"><Icon name="logout" className="w-5 h-5" /></button>
         </header>
 
         <main className="flex-1 min-w-0 pb-20 lg:pb-0">{children}</main>
@@ -198,6 +193,7 @@ function Layout({ user, children }) {
             <NavLink
               key={n.to}
               to={n.to}
+              end={n.exakt}
               className={({ isActive }) =>
                 `flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium relative ${
                   isActive ? 'text-praxis-700' : 'text-slate-400'
@@ -205,12 +201,7 @@ function Layout({ user, children }) {
               }
             >
               <Icon name={n.icon} className="w-5 h-5" />
-              {tr(n.label)}
-              {n.to === '/anfragen' && neueAnfragen > 0 && (
-                <span className="absolute top-1 right-1/2 translate-x-4 bg-amber-400 text-praxis-900 text-[9px] font-bold rounded-full px-1.5">
-                  {neueAnfragen}
-                </span>
-              )}
+              {n.label}
             </NavLink>
           ))}
         </nav>
@@ -221,7 +212,6 @@ function Layout({ user, children }) {
 
 export default function App() {
   const [user, setUser] = useState(undefined) // undefined = lädt noch
-  const location = useLocation()
 
   useEffect(() => beobachteAnmeldung((u) => setUser(u)), [])
 
@@ -235,29 +225,22 @@ export default function App() {
 
   if (!user) return <Login />
 
-  // Das Cockpit läuft im Vollbild ohne Verwaltung drumherum (Tablet-Ansicht)
-  if (location.pathname.startsWith('/cockpit')) {
-    return (
-      <Routes>
-        <Route path="/cockpit" element={<Cockpit user={user} />} />
-        <Route path="*" element={<Navigate to="/cockpit" replace />} />
-      </Routes>
-    )
-  }
-
   return (
     <Layout user={user}>
       <Routes>
-        <Route path="/" element={<Navigate to="/kalender" replace />} />
+        <Route path="/" element={<Uebersicht user={user} />} />
+        <Route path="/projekte" element={<Projekte />} />
+        <Route path="/projekte/:id" element={<ProjektDetail user={user} />} />
         <Route path="/kalender" element={<Kalender user={user} />} />
+        <Route path="/termine" element={<Termine user={user} />} />
+        <Route path="/kunden" element={<Kunden />} />
+        <Route path="/berichte" element={<Berichte />} />
         <Route path="/anfragen" element={<Anfragen user={user} />} />
-        <Route path="/patienten" element={<Patienten user={user} />} />
-        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/abrechnung" element={<Abrechnung />} />
-        <Route path="/feedback" element={<FeedbackAdmin />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/import" element={<Import />} />
         <Route path="/einstellungen" element={<Einstellungen />} />
-        <Route path="*" element={<Navigate to="/kalender" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
   )

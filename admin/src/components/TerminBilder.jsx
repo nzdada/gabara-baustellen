@@ -5,7 +5,7 @@ import { useLang, tr } from '@shared/i18n.js'
 
 const T = {
   titel: { de: 'Bilder & Scans', en: 'Images & scans', ar: 'الصور والمسوحات' },
-  foto: { de: '📷 Foto aufnehmen', en: '📷 Take photo', ar: '📷 التقاط صورة' },
+  foto: { de: 'Foto aufnehmen', en: 'Take photo', ar: 'التقاط صورة' },
   hochladen: { de: 'Hochladen', en: 'Upload', ar: 'رفع ملف' },
   keinBild: { de: 'ist kein Bild – bitte Scans als Bild (JPG/PNG) exportieren.', en: 'is not an image – please export scans as image (JPG/PNG).', ar: 'ليس صورة – يرجى تصدير المسوحات كصورة (JPG/PNG).' },
   zuGross: { de: 'Bild ist auch komprimiert zu groß – bitte kleineres Bild wählen.', en: 'Image is too large even after compression – please choose a smaller one.', ar: 'الصورة كبيرة جدًا حتى بعد الضغط – يرجى اختيار صورة أصغر.' },

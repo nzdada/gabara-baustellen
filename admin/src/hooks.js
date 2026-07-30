@@ -25,6 +25,25 @@ export function useCollection(name) {
   return rows
 }
 
+// Gefiltertes Live-Abo (z. B. LV-Positionen EINES Projekts) – nutzt store.subscribeWhere,
+// damit im Firebase-Modus nur die passenden Dokumente geladen werden (keine Vollabos!).
+export function useWhere(name, feld, wert) {
+  const [rows, setRows] = useState([])
+  useEffect(() => {
+    if (wert === undefined || wert === null || wert === '') { setRows([]); return () => {} }
+    let unsub = () => {}
+    let aktiv = true
+    getStore().then((store) => {
+      if (aktiv) unsub = store.subscribeWhere(name, feld, wert, setRows)
+    })
+    return () => {
+      aktiv = false
+      unsub()
+    }
+  }, [name, feld, wert])
+  return rows
+}
+
 export async function withStore(fn) {
   const store = await getStore()
   return fn(store)

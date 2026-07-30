@@ -20,9 +20,9 @@ const T = {
   urlaub: { de: 'Urlaub', en: 'holiday', ar: 'إجازة' },
   termine: { de: 'Termine', en: 'appointments', ar: 'مواعيد' },
   hinweis: {
-    de: 'Klick auf einen Termin öffnet Details + Behandlungs-Zusammenfassung (live im Arzt-Cockpit sichtbar).',
-    en: 'Click an appointment for details + treatment summary (visible live in the doctor cockpit).',
-    ar: 'اضغط على موعد لفتح التفاصيل وملخص العلاج (يظهر مباشرة في شاشة الطبيب).',
+    de: 'Klick auf einen Einsatz öffnet die Details – Klick auf eine freie Fläche legt einen neuen Termin an.',
+    en: 'Klick auf einen Einsatz öffnet die Details – Klick auf eine freie Fläche legt einen neuen Termin an.',
+    ar: 'Klick auf einen Einsatz öffnet die Details – Klick auf eine freie Fläche legt einen neuen Termin an.',
   },
   googleFehler: { de: 'Google-Kalender-Verbindung fehlgeschlagen:', en: 'Google Calendar connection failed:', ar: 'فشل الاتصال بتقويم جوجل:' },
   anfragenTitel: { de: 'Neue Terminanfragen', en: 'New appointment requests', ar: 'طلبات مواعيد جديدة' },

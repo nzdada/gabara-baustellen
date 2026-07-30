@@ -1,103 +1,97 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import Modal from './Modal.jsx'
 import TerminBilder from './TerminBilder.jsx'
-import SummaryEditor from './SummaryEditor.jsx'
-import LeistungenListe from './LeistungenListe.jsx'
 import { Icon } from '@shared/ui.jsx'
-import { BEHANDLUNGS_CHECKS } from '@shared/praxis.js'
-import { withStore, alter, fmtGeburtstag, useEinstellungen } from '../hooks.js'
+import { withStore, useCollection } from '../hooks.js'
+import { heuteISO, addTage } from '@shared/slots.js'
 import { kalenderVerbunden, eventLoeschen } from '@shared/googleCalendar.js'
-import { useLang, tr, datumLok } from '@shared/i18n.js'
-import { terminAbsagen, istKurzfristig, AUSFALL_GEBUEHR } from '../absage.js'
 
 const STATUS_INFO = {
-  bestaetigt: { label: { de: 'Bestätigt', en: 'Confirmed', ar: 'مؤكد' }, farbe: 'bg-praxis-100 text-praxis-800' },
-  abgeschlossen: { label: { de: 'Abgeschlossen', en: 'Completed', ar: 'منجز' }, farbe: 'bg-slate-200 text-slate-600' },
-  abgesagt: { label: { de: 'Abgesagt', en: 'Cancelled', ar: 'ملغى' }, farbe: 'bg-red-100 text-red-700' },
+  bestaetigt: { label: 'Geplant', farbe: 'bg-praxis-100 text-praxis-800' },
+  abgeschlossen: { label: 'Abgeschlossen', farbe: 'bg-slate-200 text-slate-600' },
+  abgesagt: { label: 'Abgesagt', farbe: 'bg-red-100 text-red-700' },
 }
 
-const T = {
-  termin: { de: 'Termin', en: 'Appointment', ar: 'الموعد' },
-  kasseUnbekannt: { de: 'Versicherung unbekannt', en: 'Insurance unknown', ar: 'التأمين غير معروف' },
-  datum: { de: 'Datum:', en: 'Date:', ar: 'التاريخ:' },
-  zeit: { de: 'Zeit:', en: 'Time:', ar: 'الوقت:' },
-  behandlung: { de: 'Behandlung:', en: 'Treatment:', ar: 'العلاج:' },
-  behandler: { de: 'Behandler:', en: 'Practitioner:', ar: 'المعالج:' },
-  zusammenfassung: { de: 'Behandlungs-Zusammenfassung', en: 'Treatment summary', ar: 'ملخص العلاج' },
-  liveCockpit: { de: 'LIVE im Arzt-Cockpit', en: 'LIVE in doctor cockpit', ar: 'مباشر في شاشة الطبيب' },
-  platzhalter: { de: 'Was wurde gemacht? Diese Notiz sieht der Arzt live auf dem Tablet …', en: 'What was done? The doctor sees this note live on the tablet …', ar: 'ماذا تم عمله؟ يرى الطبيب هذه الملاحظة مباشرة على الجهاز اللوحي …' },
-  zuletzt: { de: 'Zuletzt:', en: 'Last update:', ar: 'آخر تحديث:' },
-  uhr: { de: 'Uhr', en: '', ar: '' },
-  abschliessen: { de: 'Behandlung abschließen', en: 'Complete treatment', ar: 'إنهاء العلاج' },
-  absagen: { de: 'Termin absagen', en: 'Cancel appointment', ar: 'إلغاء الموعد' },
-  aktivieren: { de: 'Wieder aktivieren', en: 'Reactivate', ar: 'إعادة تفعيل' },
-  kurzfristigFrage: { de: 'Kurzfristige Absage unter 24 Stunden – Ausfallhonorar nach § 615 BGB berechnen?', en: 'Cancellation under 24 hours – charge the no-show fee (§ 615 BGB)?', ar: 'إلغاء قبل أقل من 24 ساعة – هل تُحتسب رسوم الإلغاء؟' },
-  gebuehrJa: { de: 'Gebühr berechnen + Gebühren-Mail an den Patienten', en: 'charge fee + send fee e-mail', ar: 'احتساب الرسوم وإرسال بريد' },
-  gebuehrNein: { de: 'ohne Gebühr absagen (Absage durch die Praxis)', en: 'cancel without fee (practice cancelled)', ar: 'إلغاء دون رسوم' },
+export const KATEGORIE_INFO = {
+  umsetzung: { label: 'Umsetzung', farbe: 'bg-praxis-100 text-praxis-800' },
+  fertigstellung: { label: 'Fertigstellung', farbe: 'bg-emerald-100 text-emerald-700' },
+  reklamation: { label: 'Reklamationsarbeit', farbe: 'bg-red-100 text-red-700' },
+  krank: { label: 'Krank/Abwesend', farbe: 'bg-amber-100 text-amber-800' },
+  privat: { label: 'Privater Termin', farbe: 'bg-slate-200 text-slate-600' },
+}
+
+function fmtDatum(iso) {
+  if (!iso) return '–'
+  return new Date(iso + 'T12:00:00').toLocaleDateString('de-DE')
 }
 
 export default function TerminModal({ termin, patient, user, onClose }) {
-  useLang()
-  const einst = useEinstellungen()
-  const [summary, setSummary] = useState(termin.summary || { text: '', checks: [], updatedAt: null, updatedBy: '' })
+  const projekte = useCollection('projekte')
+  const users = useCollection('users')
+  // Lokaler Spiegel, damit der Schalter sofort reagiert (termin-Prop ist ein Schnappschuss)
+  const [erledigt, setErledigt] = useState(!!termin.erledigt)
+  const [erledigtAm, setErledigtAm] = useState(termin.erledigtAm || '')
+  const [status, setStatus] = useState(termin.status || 'bestaetigt')
+  const [kopiertFuer, setKopiertFuer] = useState('')
 
-  async function speichereSummary(neu) {
-    setSummary(neu)
-    await withStore((s) =>
-      s.update('appointments', termin.id, {
-        summary: { ...neu, updatedAt: Date.now(), updatedBy: user?.name || 'Team' },
-      })
-    )
+  const projekt = projekte.find((p) => p.id === termin.projektId)
+  const zugewiesene = (termin.mitarbeiterIds || [])
+    .map((id) => users.find((u) => u.id === id))
+    .filter(Boolean)
+  const kat = KATEGORIE_INFO[termin.kategorie]
+  const statusInfo = STATUS_INFO[status] || STATUS_INFO.bestaetigt
+
+  async function erledigtToggle() {
+    const neu = !erledigt
+    const am = neu ? heuteISO() : ''
+    setErledigt(neu)
+    setErledigtAm(am)
+    await withStore((s) => s.update('appointments', termin.id, { erledigt: neu, erledigtAm: am }))
   }
 
-  function toggleCheck(check) {
-    const checks = summary.checks.includes(check)
-      ? summary.checks.filter((c) => c !== check)
-      : [...summary.checks, check]
-    speichereSummary({ ...summary, checks })
-  }
-
-  async function setzeStatus(status) {
-    if (status === 'abgesagt') {
-      // 24-Stunden-Regel: bei kurzfristiger Absage entscheidet das Team,
-      // ob das Ausfallhonorar berechnet wird (nicht bei Absage durch die Praxis)
-      let gebuehr = false
-      if (istKurzfristig(termin, einst.stornoFristStunden)) {
-        gebuehr = confirm(
-          `${tr(T.kurzfristigFrage)} (${einst.ausfallGebuehr} €)\n\nOK = ${tr(T.gebuehrJa)}\nAbbrechen = ${tr(T.gebuehrNein)}`
-        )
-      }
-      await withStore((s) => terminAbsagen(s, termin, { gebuehrBerechnen: gebuehr, gebuehr: einst.ausfallGebuehr }))
-      if (termin.googleEventId && kalenderVerbunden()) {
-        try { await eventLoeschen(termin.googleEventId) } catch (e) { /* Kalender nicht erreichbar */ }
-      }
-      onClose()
-      return
+  // Dupliziert den Termin auf den Folgetag (ohne erledigt, ohne alte IDs/Tokens)
+  async function kopieren() {
+    const { id, ...rest } = termin
+    const kopie = {
+      ...rest,
+      datum: addTage(termin.datum, 1),
+      erledigt: false,
+      erledigtAm: '',
+      status: 'bestaetigt',
+      googleEventId: null,
+      stornoToken: crypto.randomUUID(),
+      feedbackToken: rest.feedbackToken ? crypto.randomUUID() : '',
     }
+    delete kopie.abgeschlossenAm
     await withStore(async (s) => {
-      const patch = { status }
-      // Abschluss übergibt den Termin an die Abrechnung ("Bereit für Abrechnung")
-      if (status === 'abgeschlossen') {
-        patch.abgeschlossenAm = new Date().toISOString() // Basis für den Feedback-Versand
-        if (!['gestellt', 'bezahlt'].includes(termin.rechnung)) patch.rechnung = 'pruefen'
-      }
-      await s.update('appointments', termin.id, patch)
-      if (s.mode === 'firebase') await s.schreibeSlot(termin)
+      const neueId = await s.add('appointments', kopie)
+      if (s.mode === 'firebase') await s.schreibeSlot({ ...kopie, id: neueId })
     })
-    onClose()
+    setKopiertFuer(fmtDatum(kopie.datum))
   }
 
-  const info = STATUS_INFO[termin.status] || STATUS_INFO.bestaetigt
+  async function statusSetzen(neu) {
+    setStatus(neu)
+    await withStore(async (s) => {
+      await s.update('appointments', termin.id, { status: neu })
+      if (s.mode === 'firebase') await s.schreibeSlot({ ...termin, status: neu })
+    })
+    if (neu === 'abgesagt' && termin.googleEventId && kalenderVerbunden()) {
+      try { await eventLoeschen(termin.googleEventId) } catch (e) { /* Kalender nicht erreichbar */ }
+    }
+  }
 
   return (
-    <Modal titel={tr(T.termin)} onClose={onClose} breite="max-w-xl">
+    <Modal titel="Termin" onClose={onClose} breite="max-w-xl">
       <div className="space-y-5">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-lg font-bold text-slate-900">{termin.patientName}</p>
-            {patient && (
+          <div className="min-w-0">
+            <p className="text-lg font-bold text-slate-900">{termin.titel || termin.behandlung}</p>
+            {termin.patientName && (
               <p className="text-sm text-slate-500">
-                {fmtGeburtstag(patient.geburtsdatum)} ({alter(patient.geburtsdatum)} J.) · {patient.versicherung || tr(T.kasseUnbekannt)} · <span dir="ltr">{patient.telefon}</span>
+                {termin.patientName}
+                {patient?.telefon && <span dir="ltr"> · {patient.telefon}</span>}
               </p>
             )}
             {patient?.notizen && (
@@ -106,74 +100,110 @@ export default function TerminModal({ termin, patient, user, onClose }) {
               </p>
             )}
           </div>
-          <span className={`shrink-0 text-xs font-bold rounded-full px-3 py-1.5 ${info.farbe}`}>{tr(info.label)}</span>
+          <div className="shrink-0 flex flex-col items-end gap-1.5">
+            {kat && <span className={`text-xs font-bold rounded-full px-3 py-1.5 ${kat.farbe}`}>{kat.label}</span>}
+            {erledigt ? (
+              <span className="text-xs font-bold rounded-full px-3 py-1.5 bg-emerald-100 text-emerald-700">
+                Erledigt{erledigtAm ? ` am ${fmtDatum(erledigtAm)}` : ''}
+              </span>
+            ) : (
+              <span className={`text-xs font-bold rounded-full px-3 py-1.5 ${statusInfo.farbe}`}>{statusInfo.label}</span>
+            )}
+          </div>
         </div>
 
-        <div className="bg-praxis-50 rounded-2xl p-4 text-sm grid grid-cols-2 gap-2">
-          <p><span className="text-slate-500">{tr(T.datum)}</span> <span className="font-semibold">{datumLok(termin.datum)}</span></p>
-          <p><span className="text-slate-500">{tr(T.zeit)}</span> <span className="font-semibold" dir="ltr">{termin.start} – {termin.ende}</span> {tr(T.uhr)}</p>
-          <p><span className="text-slate-500">{tr(T.behandlung)}</span> <span className="font-semibold">{termin.behandlung}</span></p>
-          <p><span className="text-slate-500">{tr(T.behandler)}</span> <span className="font-semibold">{termin.arzt}</span></p>
-        </div>
-
-        {/* Live-Zusammenfassung: erscheint sofort im Arzt-Cockpit */}
-        <div>
-          <p className="font-semibold text-slate-800 flex items-center gap-2">
-            {tr(T.zusammenfassung)}
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-praxis-700 bg-praxis-100 rounded-full px-2 py-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-praxis-500 animate-pulse" /> {tr(T.liveCockpit)}
-            </span>
-          </p>
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {BEHANDLUNGS_CHECKS.map((c) => (
-              <button
-                key={c}
-                onClick={() => toggleCheck(c)}
-                className={`text-xs font-medium rounded-full px-3 py-1.5 border transition ${
-                  summary.checks.includes(c)
-                    ? 'bg-praxis-600 border-praxis-600 text-white'
-                    : 'border-slate-200 text-slate-600 hover:border-praxis-400'
-                }`}
+        <div className="bg-praxis-50 rounded-2xl p-4 text-sm grid grid-cols-2 gap-2.5">
+          <p><span className="text-slate-500">Datum:</span> <span className="font-semibold">{fmtDatum(termin.datum)}</span></p>
+          <p><span className="text-slate-500">Zeit:</span> <span className="font-semibold" dir="ltr">{termin.start} – {termin.ende}</span> Uhr</p>
+          <p className="col-span-2">
+            <span className="text-slate-500">Projekt:</span>{' '}
+            {projekt ? (
+              <Link
+                to={`/projekte/${projekt.id}`}
+                onClick={onClose}
+                className="font-semibold text-praxis-700 hover:underline"
               >
-                {c}
-              </button>
-            ))}
-          </div>
-          <div className="mt-3">
-            <SummaryEditor
-              text={summary.text}
-              onText={(text) => speichereSummary({ ...summary, text })}
-              placeholder={tr(T.platzhalter)}
-              rows={3}
-            />
-          </div>
-          {summary.updatedAt && (
-            <p className="text-xs text-slate-400 mt-1">
-              {tr(T.zuletzt)} {summary.updatedBy} · {new Date(summary.updatedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} {tr(T.uhr)}
+                {projekt.nummer} · {projekt.name}
+              </Link>
+            ) : (
+              <span className="text-slate-400">kein Projekt</span>
+            )}
+          </p>
+          {projekt?.anschrift && (
+            <p className="col-span-2 flex items-center gap-1.5">
+              <Icon name="pin" className="w-4 h-4 text-slate-400 shrink-0" />
+              <span className="font-medium text-slate-700">
+                {[projekt.anschrift.strasse, projekt.anschrift.plzOrt].filter(Boolean).join(', ')}
+              </span>
             </p>
           )}
+          <div className="col-span-2 flex flex-wrap items-center gap-2">
+            <span className="text-slate-500">Mitarbeiter:</span>
+            {zugewiesene.length > 0 ? (
+              zugewiesene.map((u) => (
+                <span key={u.id} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-2.5 py-1 text-xs font-semibold text-slate-700">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: u.farbe || '#94a3b8' }} />
+                  {u.name}
+                </span>
+              ))
+            ) : termin.arzt ? (
+              <span className="font-semibold">{termin.arzt}</span>
+            ) : (
+              <span className="text-slate-400">nicht zugewiesen</span>
+            )}
+          </div>
         </div>
 
-        {/* Leistungen & Abrechnung (live geteilt mit dem Arzt-Cockpit) */}
-        <LeistungenListe termin={termin} />
+        {termin.beschreibung && (
+          <div>
+            <p className="font-semibold text-slate-800 text-sm">Beschreibung</p>
+            <p className="mt-1.5 text-sm text-slate-600 bg-slate-50 rounded-xl px-4 py-3 whitespace-pre-wrap">
+              {termin.beschreibung}
+            </p>
+          </div>
+        )}
 
-        {/* Bilder & Scans zum Termin (live geteilt mit dem Arzt-Cockpit) */}
+        {/* Fotos zum Termin (vorher/nachher/Beleg) */}
         <TerminBilder termin={termin} user={user} />
 
+        {kopiertFuer && (
+          <p className="text-sm text-emerald-700 bg-emerald-50 rounded-xl px-4 py-3">
+            Termin wurde für den {kopiertFuer} kopiert.
+          </p>
+        )}
+
         <div className="flex flex-wrap gap-2 pt-1">
-          {termin.status !== 'abgeschlossen' && (
-            <button onClick={() => setzeStatus('abgeschlossen')} className="flex-1 bg-praxis-600 hover:bg-praxis-700 text-white font-semibold py-3 rounded-xl text-sm">
-              {tr(T.abschliessen)}
+          <button
+            onClick={erledigtToggle}
+            className={`flex-1 inline-flex items-center justify-center gap-1.5 font-semibold py-3 rounded-xl text-sm ${
+              erledigt
+                ? 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                : 'bg-praxis-600 hover:bg-praxis-700 text-white'
+            }`}
+          >
+            <Icon name="check" className="w-4 h-4" />
+            {erledigt ? 'Erledigt zurücknehmen' : 'Als erledigt markieren'}
+          </button>
+          <button
+            onClick={kopieren}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-praxis-300 text-praxis-700 hover:bg-praxis-50 font-semibold py-3 rounded-xl text-sm"
+          >
+            <Icon name="plus" className="w-4 h-4" />
+            Kopieren (+1 Tag)
+          </button>
+          {status !== 'abgesagt' ? (
+            <button
+              onClick={() => statusSetzen('abgesagt')}
+              className="flex-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-semibold py-3 rounded-xl text-sm"
+            >
+              Termin absagen
             </button>
-          )}
-          {termin.status !== 'abgesagt' && (
-            <button onClick={() => setzeStatus('abgesagt')} className="flex-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-semibold py-3 rounded-xl text-sm">
-              {tr(T.absagen)}
-            </button>
-          )}
-          {termin.status === 'abgesagt' && (
-            <button onClick={() => setzeStatus('bestaetigt')} className="flex-1 bg-white border border-praxis-300 text-praxis-700 hover:bg-praxis-50 font-semibold py-3 rounded-xl text-sm">
-              {tr(T.aktivieren)}
+          ) : (
+            <button
+              onClick={() => statusSetzen('bestaetigt')}
+              className="flex-1 bg-white border border-praxis-300 text-praxis-700 hover:bg-praxis-50 font-semibold py-3 rounded-xl text-sm"
+            >
+              Wieder aktivieren
             </button>
           )}
         </div>
