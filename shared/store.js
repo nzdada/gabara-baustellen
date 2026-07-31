@@ -181,12 +181,17 @@ function endeAus(start, dauer) {
 async function firebaseStore() {
   const { initializeApp } = await import('firebase/app')
   const {
-    getFirestore, collection, doc, onSnapshot, getDocs, getDoc,
+    initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+    collection, doc, onSnapshot, getDocs, getDoc,
     addDoc, setDoc, updateDoc, deleteDoc, writeBatch, query, where,
   } = await import('firebase/firestore')
 
   const app = initializeApp(FIREBASE_CONFIG)
-  const dbf = getFirestore(app)
+  // Offline-Persistenz (IndexedDB): Schreibvorgänge werden bei Verbindungsabbruch
+  // in eine Queue gestellt und automatisch nachgereicht – wichtig für Baustellen.
+  const dbf = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+  })
 
   const mapSnap = (snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }))
 

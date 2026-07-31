@@ -48,14 +48,21 @@ export async function fastbillCall(service, { data, filter, limit, bezugId } = {
   if (filter) body.FILTER = filter
   if (limit) body.LIMIT = limit
   if (data) body.DATA = data
+  const auth = btoa(`${email}:${key}`)
+  // GAS-Web-Apps (V2-Proxy) reichen KEINE Authorization-Header durch ->
+  // bei externer Proxy-URL geht der Zugang als ?auth=-Parameter mit
+  // (seed/gabara-fastbill-proxy.gs setzt daraus den Basic-Header).
+  const istExternerProxy = /^https?:/i.test(proxyUrl)
+  const url = istExternerProxy
+    ? `${proxyUrl}${proxyUrl.includes('?') ? '&' : '?'}auth=${encodeURIComponent(auth)}`
+    : proxyUrl
   let res
   try {
-    res = await fetch(proxyUrl, {
+    res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Basic ' + btoa(`${email}:${key}`),
-      },
+      headers: istExternerProxy
+        ? { 'Content-Type': 'text/plain;charset=utf-8' }
+        : { 'Content-Type': 'application/json', Authorization: `Basic ${auth}` },
       body: JSON.stringify(body),
     })
   } catch (e) {

@@ -2,66 +2,40 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Terminanfragen von der öffentlichen Webseite:
+    // Anfragen von der öffentlichen Gabara-Webseite:
     // Jeder darf ANLEGEN (Formular), aber niemand ohne Login darf lesen/ändern.
     match /requests/{id} {
-      allow create: if request.resource.data.keys().hasAll(['name', 'telefon', 'anliegen', 'status'])
+      allow create: if request.resource.data.keys().hasOnly(['name', 'telefon', 'email', 'anliegen', 'anliegenId', 'nachricht', 'sprache', 'status', 'createdAt'])
+                    && request.resource.data.keys().hasAll(['name', 'anliegen', 'status'])
                     && request.resource.data.status == 'neu'
                     && request.resource.data.name is string
                     && request.resource.data.name.size() > 1
-                    && request.resource.data.name.size() < 120;
+                    && request.resource.data.name.size() < 120
+                    && request.resource.data.nachricht.size() < 3000;
       allow read, update, delete: if request.auth != null;
     }
 
-    // Belegte Zeitfenster für die Online-Buchung:
-    // öffentlich NUR lesbar, enthält ausschließlich Datum/Uhrzeit – keinerlei Patientendaten.
-    match /slots/{id} {
-      allow read: if true;
-      // Anonyme dürfen einen Slot nur als "angefragt" reservieren (reine Zeitangaben)
-      allow create: if request.auth != null || (
-        request.resource.data.keys().hasOnly(['datum', 'start', 'ende', 'status'])
-        && request.resource.data.status == 'angefragt');
-      allow update, delete: if request.auth != null;
-    }
-
-    // Patienten, Termine, Zusammenfassungen: nur mit Login (Praxis-Mitarbeiter).
-    match /patients/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /appointments/{id} {
-      allow read, write: if request.auth != null;
-    }
-    // Behandlungsfotos/Scans (komprimierte Daten-URLs): nur mit Login
+    // Interne Kern-Daten: nur mit Login (Gabara-Team).
+    // Rollen-Feinschnitt (admin vs. mitarbeiter) folgt beim Firebase-Go-Live.
+    match /patients/{id} { allow read, write: if request.auth != null; }
+    match /appointments/{id} { allow read, write: if request.auth != null; }
+    match /projekte/{id} { allow read, write: if request.auth != null; }
+    match /lvpositionen/{id} { allow read, write: if request.auth != null; }
+    match /berichte/{id} { allow read, write: if request.auth != null; }
+    match /spesen/{id} { allow read, write: if request.auth != null; }
     match /photos/{id} {
-      allow read, write: if request.auth != null;
+      allow read, write: if request.auth != null
+        && (!('dataUrl' in request.resource.data) || request.resource.data.dataUrl.size() < 980000);
     }
-    // Patienten-Feedback: anonym NUR mit gültigem Token des zugehörigen Termins
-    // (Token-Prüfung per get()-Lookup) – lesen/bearbeiten nur das Praxis-Team.
-    match /feedback/{id} {
-      // Team (eingeloggt) darf immer anlegen (z. B. Demo-Seed); anonym nur mit gültigem Token
-      allow create: if request.auth != null
-        || (request.resource.data.keys().hasOnly(['terminId', 'token', 'sterne', 'tags', 'text', 'createdAt', 'status'])
-        && request.resource.data.status == 'neu'
-        && request.resource.data.sterne is int
-        && request.resource.data.sterne >= 1 && request.resource.data.sterne <= 5
-        && request.resource.data.text is string && request.resource.data.text.size() < 2000
-        && get(/databases/$(database)/documents/appointments/$(request.resource.data.terminId)).data.feedbackToken == request.resource.data.token);
-      allow read, update, delete: if request.auth != null;
-    }
+    match /rechnungen/{id} { allow read, write: if request.auth != null; }
+    match /apilog/{id} { allow read, write: if request.auth != null; }
+    match /users/{id} { allow read, write: if request.auth != null; }
+    match /katalog/{id} { allow read, write: if request.auth != null; }
+    match /bausteine/{id} { allow read, write: if request.auth != null; }
 
-    // Leistungskatalog, Textbausteine, Behandlungspläne (HKP): nur mit Login
-    match /katalog/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /bausteine/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /plaene/{id} {
-      allow read, write: if request.auth != null;
-    }
     match /settings/{id} {
-      // 'pausen' und 'oeffnungszeiten' (nur Wochentage + Uhrzeiten) muss die öffentliche
-      // Buchung lesen können; alles andere (global mit Bankdaten etc.) bleibt Team-intern
+      // Nur reine Zeit-Dokumente öffentlich lesbar (falls die Webseite sie je braucht);
+      // alles andere (global, integrationen mit FastBill-Zugang!) bleibt Team-intern.
       allow read: if id in ['pausen', 'oeffnungszeiten'] || request.auth != null;
       allow write: if request.auth != null;
     }
