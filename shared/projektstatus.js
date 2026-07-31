@@ -1,36 +1,49 @@
-// Projekt-Status-Pipeline (Baustellen-Lebenslauf), Reihenfolge = Anzeige.
-// Vorbild: typische Handwerker-Software-Pipeline (Erstkontakt -> Abrechnung).
+// Projekt-Status: bewusst SCHLICHT – 6 Stufen + Archiv.
+// Alte, feinere Stati (aus früheren Daten) werden über ALT_ZUORDNUNG abgebildet.
 
 export const PROJEKT_STATUS = [
-  { id: 'neu', label: 'Neu – Erstkontakt', farbe: '#64748b' },
-  { id: 'vorOrtTermin', label: 'Vor-Ort-Termin', farbe: '#0ea5e9' },
-  { id: 'angebot', label: 'Angebotserstellung', farbe: '#6366f1' },
-  { id: 'detailgespraech', label: 'Detailgespräch', farbe: '#8b5cf6' },
-  { id: 'auftragsvergabe', label: 'Auftragsvergabe', farbe: '#d946ef' },
-  { id: 'auftragsbestaetigung', label: 'Auftragsbestätigung', farbe: '#ec4899' },
-  { id: 'umsetzungsbeginn', label: 'Umsetzungsbeginn', farbe: '#f59e0b' },
-  { id: 'inUmsetzung', label: 'In Umsetzung', farbe: '#f97316' },
-  { id: 'kundenrechnung', label: 'Kundenrechnung', farbe: '#10b981' },
-  { id: 'reklamation', label: 'Reklamation', farbe: '#ef4444' },
+  { id: 'neu', label: 'Neu / Anfrage', farbe: '#64748b' },
+  { id: 'angebot', label: 'Angebot', farbe: '#6366f1' },
+  { id: 'beauftragt', label: 'Beauftragt', farbe: '#d946ef' },
+  { id: 'inUmsetzung', label: 'In Arbeit', farbe: '#f97316' },
+  { id: 'abrechnung', label: 'Abrechnung', farbe: '#10b981' },
   { id: 'abgeschlossen', label: 'Abgeschlossen', farbe: '#22c55e' },
-  { id: 'archiviert', label: 'Archiviert', farbe: '#94a3b8' },
+  { id: 'archiviert', label: 'Archiv', farbe: '#94a3b8' },
 ]
 
-// Stati, bei denen die Baustelle als "offen" gilt (Pipeline-Filter "Alle Offenen")
-export const OFFENE_STATI = PROJEKT_STATUS
-  .map((s) => s.id)
-  .filter((id) => id !== 'abgeschlossen' && id !== 'archiviert')
+// Alt-Stati (feinere Pipeline der ersten Version) -> neue schlichte Stufen
+const ALT_ZUORDNUNG = {
+  vorOrtTermin: 'neu',
+  detailgespraech: 'angebot',
+  auftragsvergabe: 'beauftragt',
+  auftragsbestaetigung: 'beauftragt',
+  umsetzungsbeginn: 'inUmsetzung',
+  kundenrechnung: 'abrechnung',
+  reklamation: 'inUmsetzung',
+}
 
-// Stati, deren Einsätze Monteure auf dem Handy noch sehen sollen
+export function normalisiereStatus(id) {
+  return ALT_ZUORDNUNG[id] || id
+}
+
+export const OFFENE_STATI = ['neu', 'angebot', 'beauftragt', 'inUmsetzung', 'abrechnung']
+
+// Offen = weder abgeschlossen noch archiviert (versteht auch Alt-Stati)
+export function istOffen(status) {
+  return OFFENE_STATI.includes(normalisiereStatus(status))
+}
+
+// Stati, deren Einsätze Monteure auf dem Handy sehen sollen
 export const AKTIVE_STATI = OFFENE_STATI
 
 export function statusInfo(id) {
-  return PROJEKT_STATUS.find((s) => s.id === id) || { id, label: id, farbe: '#64748b' }
+  const norm = normalisiereStatus(id)
+  return PROJEKT_STATUS.find((s) => s.id === norm) || { id: norm, label: norm || '–', farbe: '#64748b' }
 }
 
 // "Überfällig": geplantes Ende liegt in der Vergangenheit, aber Projekt ist offen
 export function istUeberfaellig(projekt, heuteIso) {
   if (!projekt?.endeDatum) return false
-  if (!OFFENE_STATI.includes(projekt.status)) return false
+  if (!istOffen(projekt.status)) return false
   return projekt.endeDatum < heuteIso
 }

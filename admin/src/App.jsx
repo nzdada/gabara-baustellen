@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { beobachteAnmeldung, abmelden } from '@shared/auth.js'
 import { storeModus } from '@shared/store.js'
 import { ZahnLogo, Icon } from '@shared/ui.jsx'
@@ -16,6 +16,7 @@ import Import from './pages/Import.jsx'
 import Einstellungen from './pages/Einstellungen.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Abrechnung from './pages/Abrechnung.jsx'
+import MonteurApp from './pages/monteur/MonteurApp.jsx'
 import { useCollection } from './hooks.js'
 
 const NAV = [
@@ -30,6 +31,7 @@ const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: 'chat' },
   { to: '/import', label: 'Import', icon: 'upload' },
   { to: '/einstellungen', label: 'Einstellungen', icon: 'bell' },
+  { to: '/monteur', label: 'Monteur-Ansicht', icon: 'tablet' },
 ]
 
 // Dezenter Doppel-Piepton für neue Anfragen/Berichte (WebAudio, kein Audio-Asset nötig)
@@ -213,6 +215,7 @@ function Layout({ user, children }) {
 
 export default function App() {
   const [user, setUser] = useState(undefined) // undefined = lädt noch
+  const location = useLocation()
 
   useEffect(() => beobachteAnmeldung((u) => setUser(u)), [])
 
@@ -225,6 +228,11 @@ export default function App() {
   }
 
   if (!user) return <Login />
+
+  // Monteure bekommen IMMER die Handy-Ansicht (Vollbild, große Buttons);
+  // Admins erreichen sie als Vorschau über /monteur.
+  if (user.rolle === 'mitarbeiter') return <MonteurApp user={user} />
+  if (location.pathname.startsWith('/monteur')) return <MonteurApp user={user} vorschau />
 
   return (
     <Layout user={user}>

@@ -24,7 +24,10 @@ service cloud.firestore {
     match /berichte/{id} { allow read, write: if request.auth != null; }
     match /spesen/{id} { allow read, write: if request.auth != null; }
     match /photos/{id} {
-      allow read, write: if request.auth != null
+      // Größencheck NUR bei create/update – bei read/delete existiert
+      // request.resource nicht (Zugriff darauf würde alles verweigern).
+      allow read, delete: if request.auth != null;
+      allow create, update: if request.auth != null
         && (!('dataUrl' in request.resource.data) || request.resource.data.dataUrl.size() < 980000);
     }
     match /rechnungen/{id} { allow read, write: if request.auth != null; }

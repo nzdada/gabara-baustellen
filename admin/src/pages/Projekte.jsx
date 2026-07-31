@@ -4,7 +4,7 @@ import { useCollection, withStore } from '../hooks.js'
 import { Icon } from '@shared/ui.jsx'
 import Modal from '../components/Modal.jsx'
 import { euro } from '@shared/format.js'
-import { PROJEKT_STATUS, OFFENE_STATI, statusInfo, istUeberfaellig } from '@shared/projektstatus.js'
+import { PROJEKT_STATUS, istOffen, normalisiereStatus, statusInfo, istUeberfaellig } from '@shared/projektstatus.js'
 
 const FARBE_OFFEN = '#8b1a1a'
 const FARBE_UEBERFAELLIG = '#dc2626'
@@ -61,18 +61,18 @@ export default function Projekte() {
   const chips = useMemo(() => {
     const zaehl = (fn) => projekte.filter(fn).length
     return [
-      { id: 'offen', label: 'Alle Offenen', farbe: FARBE_OFFEN, anzahl: zaehl((p) => OFFENE_STATI.includes(p.status)) },
+      { id: 'offen', label: 'Alle Offenen', farbe: FARBE_OFFEN, anzahl: zaehl((p) => istOffen(p.status)) },
       { id: 'ueberfaellig', label: 'Überfällig', farbe: FARBE_UEBERFAELLIG, anzahl: zaehl((p) => istUeberfaellig(p, heute)) },
-      ...PROJEKT_STATUS.map((s) => ({ id: s.id, label: s.label, farbe: s.farbe, anzahl: zaehl((p) => p.status === s.id) })),
+      ...PROJEKT_STATUS.map((s) => ({ id: s.id, label: s.label, farbe: s.farbe, anzahl: zaehl((p) => normalisiereStatus(p.status) === s.id) })),
     ]
   }, [projekte, heute])
 
   // Zeilen mit Filter-Texten je Spalte
   const zeilen = useMemo(() => {
     const vorgefiltert = projekte.filter((p) => {
-      if (aktiv === 'offen') return OFFENE_STATI.includes(p.status)
+      if (aktiv === 'offen') return istOffen(p.status)
       if (aktiv === 'ueberfaellig') return istUeberfaellig(p, heute)
-      return p.status === aktiv
+      return normalisiereStatus(p.status) === aktiv
     })
     const mitText = vorgefiltert.map((p) => {
       const kunde = kunden.find((k) => k.id === p.kundeId)

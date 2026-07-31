@@ -79,7 +79,7 @@ export function erzeugeDemoDaten() {
     {
       id: 'p-s36', nummer: 'P-2026-002', name: 'S36 – Baustellen-LV Malerarbeiten (Projekt 25011)',
       kundeId: 'k-bothmer', anschrift: { strasse: 'Projekt S36', plzOrt: 'München' },
-      gewerk: 'Malerarbeiten', status: 'auftragsbestaetigung',
+      gewerk: 'Malerarbeiten', status: 'beauftragt',
       startDatum: heutePlus(21), endeDatum: heutePlus(60), projektvolumen: 0,
       farbe: '#6366f1',
       beschreibung: 'Leer-LV vom 22.07.2026 (Unser Zeichen li/lö). GRUNDSÄTZLICH ALLE PREISE OHNE MATERIAL. Einheitspreise in Klärung.',

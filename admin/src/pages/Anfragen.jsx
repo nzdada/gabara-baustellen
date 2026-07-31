@@ -323,32 +323,39 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
           const id = await s.add('patients', neu)
           patient = { ...neu, id }
         }
-        const termin = {
-          patientId: patient.id,
-          patientName: `${patient.vorname} ${patient.nachname}`.trim(),
-          datum: anfrage.datum,
-          start: anfrage.start,
-          ende: endeZeit(anfrage.start, anfrage.dauer || 30),
-          behandlung: anfrage.anliegen,
-          status: 'bestaetigt',
-          erinnerung: 'offen',
-          arzt: 'J. Strötz',
-          summary: { text: '', checks: [], updatedAt: null, updatedBy: '' },
-          googleEventId: null,
-          // für Mail-Dienst: Erinnerung + Absage-Link + Sprache des Patienten
-          patientEmail: patient.email || anfrage.email || '',
-          sprache: anfrage.sprache || 'de',
-          stornoToken: crypto.randomUUID(),
-          feedbackToken: crypto.randomUUID(),
-        }
-        const terminId = await s.add('appointments', termin)
-        termin.id = terminId
-        if (s.mode === 'firebase') await s.schreibeSlot(termin)
-        if (kalenderVerbunden()) {
-          try {
-            const eventId = await eventAnlegen(termin, patient.email || '')
-            if (eventId) await s.update('appointments', terminId, { googleEventId: eventId })
-          } catch (e) { /* Kalender optional */ }
+        // Gabara-Anfragen haben KEINEN Wunschtermin (nur Name/Kontakt/Nachricht) –
+        // dann wird hier nur der Kunde angelegt; Termine plant das Büro im Kalender.
+        let terminId = null
+        if (anfrage.datum && anfrage.start) {
+          const termin = {
+            patientId: patient.id,
+            patientName: `${patient.vorname} ${patient.nachname}`.trim(),
+            datum: anfrage.datum,
+            start: anfrage.start,
+            ende: endeZeit(anfrage.start, anfrage.dauer || 60),
+            behandlung: anfrage.anliegen,
+            titel: anfrage.anliegen,
+            kategorie: 'umsetzung',
+            mitarbeiterIds: [],
+            status: 'bestaetigt',
+            erinnerung: 'offen',
+            arzt: '',
+            summary: { text: '', checks: [], updatedAt: null, updatedBy: '' },
+            googleEventId: null,
+            patientEmail: patient.email || anfrage.email || '',
+            sprache: anfrage.sprache || 'de',
+            stornoToken: crypto.randomUUID(),
+            feedbackToken: crypto.randomUUID(),
+          }
+          terminId = await s.add('appointments', termin)
+          termin.id = terminId
+          if (s.mode === 'firebase') await s.schreibeSlot(termin)
+          if (kalenderVerbunden()) {
+            try {
+              const eventId = await eventAnlegen(termin, patient.email || '')
+              if (eventId) await s.update('appointments', terminId, { googleEventId: eventId })
+            } catch (e) { /* Kalender optional */ }
+          }
         }
         await s.update('requests', anfrage.id, { status: 'bestaetigt', terminId })
         // Mail im HINTERGRUND senden (Apps Script braucht beim Kaltstart einige Sekunden) –
@@ -363,6 +370,8 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
           .catch(() => {})
       })
       onClose()
+    } catch (e) {
+      alert(`Bestätigen fehlgeschlagen: ${e.message}`)
     } finally {
       setLaedt(false)
     }
@@ -373,7 +382,12 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
       <div className="space-y-4">
         <div className="bg-praxis-50 rounded-2xl p-4 text-sm">
           <p className="font-bold text-slate-900">{anfrage.anliegen}</p>
-          <p className="text-slate-600 mt-0.5">{datumLok(anfrage.datum)}, {anfrage.start} {tr(T.uhr)} · {anfrage.dauer} {tr(T.min)}</p>
+          {anfrage.datum && anfrage.start ? (
+            <p className="text-slate-600 mt-0.5">{datumLok(anfrage.datum)}, {anfrage.start} {tr(T.uhr)} · {anfrage.dauer} {tr(T.min)}</p>
+          ) : (
+            <p className="text-slate-600 mt-0.5">Kein Wunschtermin – Kunde wird angelegt, Einsatz plant das Büro im Kalender.</p>
+          )}
+          {anfrage.nachricht && <p className="text-slate-600 mt-1.5 whitespace-pre-wrap">{anfrage.nachricht}</p>}
         </div>
 
         {vorschlag ? (

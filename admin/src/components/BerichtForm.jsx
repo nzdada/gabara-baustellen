@@ -155,9 +155,13 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
         unterschriftKunde, unterschriftName: daten.unterschriftName,
       } : {}),
     }
-    docAngelegt.current = true
-    await withStore((s) => s.add('berichte', doc))
-    onClose()
+    try {
+      docAngelegt.current = true
+      await withStore((s) => s.add('berichte', doc))
+      onClose()
+    } catch (e) {
+      setFehler(e.message)
+    }
   }
 
   const feld = 'w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500'

@@ -72,8 +72,20 @@ function lokalerStore() {
   }
   const kanal = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(LS_KEY) : null
 
+  let quotaGemeldet = false
   function speichern() {
-    localStorage.setItem(LS_KEY, JSON.stringify(db))
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(db))
+    } catch (e) {
+      // Browser-Speicher voll (typisch: viele Foto-Daten-URLs im Lokal-Modus).
+      // Laut melden statt still Daten verlieren – und den Fehler weiterreichen,
+      // damit Formulare ihn anzeigen können.
+      if (!quotaGemeldet) {
+        quotaGemeldet = true
+        alert('Browser-Speicher ist voll – Änderungen können NICHT gespeichert werden!\nBitte alte Fotos/Berichte löschen oder auf den Firebase-Modus umstellen.')
+      }
+      throw new Error('Browser-Speicher voll – Änderung wurde nicht gespeichert.')
+    }
     if (kanal) kanal.postMessage({ type: 'changed' })
     COLLECTIONS.forEach(benachrichtigen)
   }
@@ -116,7 +128,13 @@ function lokalerStore() {
     },
     async add(coll, data) {
       const id = data.id || uuid()
-      db[coll] = [...db[coll], { ...data, id }]
+      // Upsert wie im Firebase-Modus (setDoc): existiert die id schon, wird
+      // ERSETZT statt angehängt – sonst entstehen Duplikate (z. B. Bericht
+      // erst als Foto-Entwurf angelegt, dann eingereicht).
+      const vorhanden = db[coll].some((d) => d.id === id)
+      db[coll] = vorhanden
+        ? db[coll].map((d) => (d.id === id ? { ...data, id } : d))
+        : [...db[coll], { ...data, id }]
       speichern()
       return id
     },

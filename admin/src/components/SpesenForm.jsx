@@ -96,6 +96,7 @@ export default function SpesenForm({ projektId = '', spesen = null, user, onClos
       : Number(daten.betrag) || 0
     if (betrag <= 0) { setFehler('Betrag bzw. Kilometer fehlen.'); return }
     const mitarbeiter = users.find((u) => u.id === daten.mitarbeiterId)
+    try {
     await withStore((s) => s.add('spesen', {
       id: spesen?.id || (crypto.randomUUID ? crypto.randomUUID() : `s-${Date.now()}`),
       projektId: daten.projektId, mitarbeiterId: daten.mitarbeiterId,
@@ -108,6 +109,9 @@ export default function SpesenForm({ projektId = '', spesen = null, user, onClos
       status, createdAt: spesen?.createdAt || Date.now(),
     }))
     onClose()
+    } catch (e) {
+      setFehler(e.message)
+    }
   }
 
   const feld = 'w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500'

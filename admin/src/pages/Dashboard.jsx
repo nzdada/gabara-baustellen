@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Icon } from '@shared/ui.jsx'
 import { euro } from '@shared/format.js'
 import { useCollection } from '../hooks.js'
-import { OFFENE_STATI, statusInfo, istUeberfaellig } from '@shared/projektstatus.js'
+import { istOffen, normalisiereStatus, statusInfo, istUeberfaellig } from '@shared/projektstatus.js'
 
 // Finanz-Dashboard: Verdienst/Gewinn je Baustelle (Näherung), offene Rechnungen,
 // überfällige Projekte. Alle Zahlen aus Ist-Mengen, Regieberichten und internen Sätzen.
@@ -37,7 +37,7 @@ export default function Dashboard() {
   const heute = new Date().toISOString().slice(0, 10)
 
   const zeilen = useMemo(() => {
-    const relevant = projekte.filter((p) => OFFENE_STATI.includes(p.status) || ['kundenrechnung', 'abgeschlossen'].includes(p.status))
+    const relevant = projekte.filter((p) => istOffen(p.status) || normalisiereStatus(p.status) === 'abgeschlossen')
     return relevant.map((p) => {
       const pos = lv.filter((x) => x.projektId === p.id && x.typ === 'position' && !x.flags?.bedarf && !x.flags?.nep)
       const auftragswert = pos.reduce((s, x) => s + (x.menge || 0) * (x.einheitspreis || 0), 0)
@@ -68,7 +68,7 @@ export default function Dashboard() {
     })
   }, [projekte, lv, berichte, spesen, appointments, users, katalog])
 
-  const laufende = projekte.filter((p) => OFFENE_STATI.includes(p.status)).length
+  const laufende = projekte.filter((p) => istOffen(p.status)).length
   const offeneRechnungen = rechnungen.filter((r) => ['uebertragen', 'gestellt'].includes(r.status))
   const offeneSumme = offeneRechnungen.reduce((s, r) => s + (r.zahlbetrag ?? r.netto ?? 0), 0)
   const bezahltSumme = rechnungen.filter((r) => r.status === 'bezahlt').reduce((s, r) => s + (r.zahlbetrag ?? r.netto ?? 0), 0)
@@ -76,7 +76,7 @@ export default function Dashboard() {
   const offeneSpesen = spesen.filter((s) => s.status === 'eingereicht').reduce((x, s) => x + (s.betrag || 0), 0)
 
   const ueberfaellig = projekte.filter((p) => istUeberfaellig(p, heute))
-  const chartZeilen = zeilen.filter((z) => OFFENE_STATI.includes(z.p.status) && z.auftragswert > 0)
+  const chartZeilen = zeilen.filter((z) => istOffen(z.p.status) && z.auftragswert > 0)
   const chartMax = Math.max(1, ...chartZeilen.map((z) => z.auftragswert))
 
   return (

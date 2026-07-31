@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Icon } from '@shared/ui.jsx'
 import { useCollection } from '../hooks.js'
-import { OFFENE_STATI } from '@shared/projektstatus.js'
+import { istOffen } from '@shared/projektstatus.js'
 
 // Startseite der Verwaltung: Karten-Grid nach HERO-Vorbild –
 // je Bereich eine Karte mit Kurzbeschreibung, Kennzahl und Absprung.
@@ -49,7 +49,7 @@ export default function Uebersicht({ user }) {
   const requests = useCollection('requests')
 
   const heute = new Date().toISOString().slice(0, 10)
-  const offeneProjekte = projekte.filter((p) => OFFENE_STATI.includes(p.status)).length
+  const offeneProjekte = projekte.filter((p) => istOffen(p.status)).length
   const termineHeute = appointments.filter((t) => t.datum === heute && !t.erledigt).length
   const eingereicht = berichte.filter((b) => b.status === 'eingereicht').length
   const offeneRechnungen = rechnungen.filter((r) => r.status !== 'bezahlt' && r.status !== 'storniert').length

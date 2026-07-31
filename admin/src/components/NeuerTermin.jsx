@@ -3,7 +3,7 @@ import Modal from './Modal.jsx'
 import { freieSlots, buchbareTage, endeZeit, heuteISO, addTage, wochentag as wochentagVon, imUrlaub } from '@shared/slots.js'
 import { withStore, useCollection } from '../hooks.js'
 import { kalenderVerbunden, eventAnlegen } from '@shared/googleCalendar.js'
-import { OFFENE_STATI } from '@shared/projektstatus.js'
+import { istOffen } from '@shared/projektstatus.js'
 
 const DAUERN = [30, 60, 90, 120, 180, 240, 480, 600]
 
@@ -70,7 +70,7 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
   const projektAuswahl = useMemo(
     () =>
       projekte
-        .filter((p) => OFFENE_STATI.includes(p.status) || p.id === projektId)
+        .filter((p) => istOffen(p.status) || p.id === projektId)
         .sort((a, b) => (a.nummer || '').localeCompare(b.nummer || '')),
     [projekte, projektId]
   )

@@ -34,11 +34,20 @@ export default function TerminModal({ termin, patient, user, onClose }) {
   const [erledigtAm, setErledigtAm] = useState(termin.erledigtAm || '')
   const [status, setStatus] = useState(termin.status || 'bestaetigt')
   const [kopiertFuer, setKopiertFuer] = useState('')
+  const [mitarbeiterIds, setMitarbeiterIds] = useState(termin.mitarbeiterIds || [])
 
   const projekt = projekte.find((p) => p.id === termin.projektId)
-  const zugewiesene = (termin.mitarbeiterIds || [])
-    .map((id) => users.find((u) => u.id === id))
-    .filter(Boolean)
+  const monteure = users.filter((u) => u.rolle === 'mitarbeiter' && u.aktiv !== false)
+
+  // Zuweisung direkt im Modal ändern (Chips an-/abwählen)
+  async function zuweisungToggle(id) {
+    const neu = mitarbeiterIds.includes(id)
+      ? mitarbeiterIds.filter((x) => x !== id)
+      : [...mitarbeiterIds, id]
+    setMitarbeiterIds(neu)
+    const ersterName = users.find((u) => u.id === neu[0])?.name || ''
+    await withStore((s) => s.update('appointments', termin.id, { mitarbeiterIds: neu, arzt: ersterName }))
+  }
   const kat = KATEGORIE_INFO[termin.kategorie]
   const statusInfo = STATUS_INFO[status] || STATUS_INFO.bestaetigt
 
@@ -137,20 +146,26 @@ export default function TerminModal({ termin, patient, user, onClose }) {
               </span>
             </p>
           )}
-          <div className="col-span-2 flex flex-wrap items-center gap-2">
-            <span className="text-slate-500">Mitarbeiter:</span>
-            {zugewiesene.length > 0 ? (
-              zugewiesene.map((u) => (
-                <span key={u.id} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-2.5 py-1 text-xs font-semibold text-slate-700">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: u.farbe || '#94a3b8' }} />
-                  {u.name}
-                </span>
-              ))
-            ) : termin.arzt ? (
-              <span className="font-semibold">{termin.arzt}</span>
-            ) : (
-              <span className="text-slate-400">nicht zugewiesen</span>
-            )}
+          <div className="col-span-2">
+            <p className="text-slate-500 mb-1.5">Zugewiesene Mitarbeiter <span className="text-slate-400">(antippen zum Ändern)</span>:</p>
+            <div className="flex flex-wrap gap-2">
+              {monteure.length === 0 && <span className="text-slate-400">Keine Monteure angelegt (Einstellungen → Mitarbeiter).</span>}
+              {monteure.map((u) => {
+                const an = mitarbeiterIds.includes(u.id)
+                return (
+                  <button
+                    key={u.id}
+                    onClick={() => zuweisungToggle(u.id)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border transition ${
+                      an ? 'bg-praxis-600 border-praxis-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-praxis-400'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: u.farbe || '#94a3b8' }} />
+                    {u.name}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </div>
 

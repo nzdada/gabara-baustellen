@@ -15,9 +15,18 @@ async function zugang() {
   const store = await getStore()
   const settings = await store.list('settings')
   const integ = settings.find((s) => s.id === 'integrationen') || {}
+  // .env.local-Fallback NUR im Dev-Modus: Vite kompiliert VITE_-Variablen als
+  // Klartext ins Bundle – im Produktions-Build darf der API-Key deshalb NICHT
+  // aus der Env kommen (dort: Einstellungen -> FastBill, liegt in Firestore).
+  let envEmail = ''
+  let envKey = ''
+  if (import.meta.env.DEV) {
+    envEmail = import.meta.env.VITE_FASTBILL_EMAIL || ''
+    envKey = import.meta.env.VITE_FASTBILL_API_KEY || ''
+  }
   return {
-    email: integ.fastbillEmail || import.meta.env.VITE_FASTBILL_EMAIL || '',
-    key: integ.fastbillApiKey || import.meta.env.VITE_FASTBILL_API_KEY || '',
+    email: integ.fastbillEmail || envEmail,
+    key: integ.fastbillApiKey || envKey,
     proxyUrl: integ.proxyUrl || '/fastbill-api/api.php',
   }
 }

@@ -481,7 +481,7 @@ export default function ProjektDetail() {
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Status</p>
               <select
-                value={projekt.status}
+                value={statusInfo(projekt.status).id}
                 onChange={(e) => patchProjekt({ status: e.target.value })}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-praxis-500"
               >
@@ -657,11 +657,24 @@ function BerichtDetail({ bericht, onClose, onFoto }) {
           </div>
         )}
 
-        {/* Abnahme: Mängel / Ergebnis, falls vorhanden */}
-        {bericht.maengel && (
+        {/* Abnahme: Ergebnis + Mängelliste ({text, frist}-Objekte!) */}
+        {bericht.typ === 'abnahme' && (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">Mängel</p>
-            <p className="text-sm text-slate-700">{bericht.maengel}</p>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">Ergebnis der Abnahme</p>
+            {bericht.ohneMaengel ? (
+              <p className="text-sm font-semibold text-emerald-700">Abnahme ohne Mängel</p>
+            ) : (bericht.maengel || []).length > 0 ? (
+              <div className="space-y-1">
+                {bericht.maengel.map((m, i) => (
+                  <p key={i} className="text-sm text-slate-700">
+                    • {m.text || '–'}
+                    {m.frist && <span className="text-slate-400"> · Frist: {new Date(m.frist + 'T12:00:00').toLocaleDateString('de-DE')}</span>}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">Abnahme mit Mängeln (keine Einzelmängel erfasst)</p>
+            )}
           </div>
         )}
         {bericht.ergebnis && (
