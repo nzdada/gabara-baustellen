@@ -52,7 +52,10 @@ export default function Berichte({ user }) {
   }
 
   async function freigeben(b) {
-    await withStore((s) => s.update('berichte', b.id, { status: 'freigegeben' }))
+    // Zeitstempel + Person dokumentieren (Beweiswert auf dem Ausdruck)
+    await withStore((s) => s.update('berichte', b.id, {
+      status: 'freigegeben', freigegebenAm: Date.now(), freigegebenVon: user?.name || '',
+    }))
   }
 
   const gefiltert = filter === 'spesen'
@@ -157,7 +160,11 @@ export default function Berichte({ user }) {
                 {b.status === 'eingereicht' && (
                   <button onClick={() => freigeben(b)} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700">Freigeben</button>
                 )}
-                <button onClick={() => setBearbeite(b)} className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium hover:bg-slate-200">Bearbeiten</button>
+                {['entwurf', 'eingereicht'].includes(b.status) ? (
+                  <button onClick={() => setBearbeite(b)} className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium hover:bg-slate-200">Bearbeiten</button>
+                ) : (
+                  <button onClick={() => setBearbeite(b)} className="px-3 py-1.5 rounded-lg bg-slate-50 text-slate-400 text-xs font-medium" title="Freigegeben – nur Ansicht (Beweissicherung)">Ansehen</button>
+                )}
                 <button onClick={() => drucken(b)} className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium hover:bg-slate-200 flex items-center gap-1">
                   <Icon name="doc" className="w-3.5 h-3.5" /> PDF
                 </button>

@@ -61,13 +61,15 @@ export default function RechnungWizard({ onClose, projektIdVorbelegt = '' }) {
     }
     for (const b of regieFrei) {
       if (!gewaehltRegie[b.id]) continue
+      const ref = b.nummer ? `lt. Regiebericht ${b.nummer}` : `lt. Regiebericht vom ${b.datum ? new Date(b.datum + 'T12:00:00').toLocaleDateString('de-DE') : ''}`
       for (const z of b.stunden || []) {
         if (!z.anzahl) continue
-        pos.push({ quelle: 'regie', quelleId: b.id, oz: 'Regie', text: `Regiestunden ${z.art === 'helfer' ? 'Helfer' : 'Facharbeiter'} – ${b.datum ? new Date(b.datum + 'T12:00:00').toLocaleDateString('de-DE') : ''}`, menge: z.anzahl, einheit: 'Std.', ep: z.satz })
+        // Zitierfähige Position: Berichtsnummer + Name + Tag (Beweiskette Rechnung -> Nachweis)
+        pos.push({ quelle: 'regie', quelleId: b.id, oz: b.nummer || 'Regie', text: `Regiestunden ${z.art === 'helfer' ? 'Helfer' : 'Facharbeiter'}${z.name ? ` (${z.name}` : ''}${z.datum ? `${z.name ? ', ' : ' ('}${new Date(z.datum + 'T12:00:00').toLocaleDateString('de-DE')})` : (z.name ? ')' : '')} ${ref}`, menge: z.anzahl, einheit: 'Std.', ep: z.satz })
       }
       for (const m of b.material || []) {
         if (!m.menge) continue
-        pos.push({ quelle: 'material', quelleId: b.id, oz: 'Material', text: m.name, menge: m.menge, einheit: m.einheit || '', ep: m.preis })
+        pos.push({ quelle: 'material', quelleId: b.id, oz: b.nummer || 'Material', text: `${m.name} ${ref}`, menge: m.menge, einheit: m.einheit || '', ep: m.preis })
       }
     }
     for (const s of spesenOffen) {

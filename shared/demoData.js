@@ -208,28 +208,33 @@ export function erzeugeDemoDaten() {
   // --- Berichte (Regie / Reklamation / Abnahme) ---
   const berichte = [
     {
-      id: 'b-1', typ: 'regie', projektId: 'p-iga', terminId: 't-4',
+      id: 'b-1', typ: 'regie', nummer: 'RB-2026-001', projektId: 'p-iga', terminId: 't-4',
       mitarbeiterId: 'u-ahmad', mitarbeiterName: 'Ahmad Monteur',
       datum: heutePlus(-3), status: 'eingereicht',
-      beschreibung: 'Zusätzliche Spachtelarbeiten an Trockenbauwand Flur EG nach Elektro-Schlitzen. Nicht im LV enthalten, auf Anweisung Bauleitung ausgeführt.',
+      beschreibung: 'Zusätzliche Spachtelarbeiten an Trockenbauwand Flur EG nach Elektro-Schlitzen. Nicht im LV enthalten.',
+      // Anordnung VOR Beginn (VOB/B § 15 Abs. 3)
+      angeordnetDurch: 'M. Rußbach, Bauleitung', angeordnetAm: heutePlus(-3), anzeigeArt: 'muendlich',
+      // Stundenlohnzettel: je Person mit Datum und Von/Bis (wie mam_solar-Protokoll)
       stunden: [
-        { art: 'facharbeiter', anzahl: 3, satz: 35 },
-        { art: 'helfer', anzahl: 1, satz: 31 },
+        { name: 'Ahmad Monteur', datum: heutePlus(-3), art: 'facharbeiter', von: '13:00', bis: '16:00', anzahl: 3, satz: 35 },
+        { name: 'Samir Monteur', datum: heutePlus(-3), art: 'helfer', von: '15:00', bis: '16:00', anzahl: 1, satz: 31 },
       ],
       material: [
         { artikelId: 'a-005', name: 'Feinspachtel 25 kg', menge: 2, einheit: 'Sack', preis: 18.5 },
         { artikelId: 'a-008', name: 'Malerkrepp 50 m', menge: 3, einheit: 'Rolle', preis: 4.5 },
       ],
-      unterschriftKunde: DEMO_UNTERSCHRIFT, unterschriftName: 'M. Rußbach (Bauleitung)',
-      createdAt: jetzt - 3 * 86400000, eingereichtAm: jetzt - 3 * 86400000,
+      unterschriftKunde: DEMO_UNTERSCHRIFT, unterschriftName: 'M. Rußbach',
+      unterschriftFunktion: 'Bauleitung', unterschriftFirma: 'Bothmer Akustikbau GmbH',
+      createdAt: jetzt - 3 * 86400000, eingereichtAm: jetzt - 3 * 86400000, eingereichtVon: 'Ahmad Monteur',
     },
     {
-      id: 'b-2', typ: 'reklamation', projektId: 'p-iga', terminId: '',
+      id: 'b-2', typ: 'reklamation', nummer: 'RK-2026-002', projektId: 'p-iga', terminId: '',
       mitarbeiterId: 'u-samir', mitarbeiterName: 'Samir Monteur',
       datum: heutePlus(-1), status: 'entwurf',
       beschreibung: 'Farbabplatzer im Treppenhaus EG, ca. 0,5 m².',
       ursache: 'Untergrund war an dieser Stelle sandend, Grundierung durch Folgegewerk beschädigt.',
       massnahme: 'Stelle anschleifen, neu grundieren und beischichten.',
+      geruegtDurch: 'Bothmer Akustikbau (Bauleitung)', ruegeZugangAm: heutePlus(-1), fristBis: heutePlus(6),
       createdAt: jetzt - 1 * 86400000, eingereichtAm: 0,
     },
   ]
@@ -306,7 +311,7 @@ export function erzeugeDemoDaten() {
       fenster: { 1: [{ von: '07:00', bis: '17:00' }], 2: [{ von: '07:00', bis: '17:00' }], 3: [{ von: '07:00', bis: '17:00' }], 4: [{ von: '07:00', bis: '17:00' }], 5: [{ von: '07:00', bis: '17:00' }] },
       telefon: [], urlaub: [],
     },
-    { id: 'nummernkreis', rechnung: { jahr: new Date().getFullYear(), laufend: 0 } },
+    { id: 'nummernkreis', rechnung: { jahr: new Date().getFullYear(), laufend: 0 }, bericht: { jahr: new Date().getFullYear(), laufend: 2 } },
     { id: 'integrationen', fastbillEmail: '', fastbillApiKey: '' },
   ]
 

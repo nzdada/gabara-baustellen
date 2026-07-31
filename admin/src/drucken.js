@@ -104,33 +104,48 @@ function projektBlock(projekt, kunde) {
 
 const PHASE_LABEL = { vorher: 'Vorher', nachher: 'Nachher', beleg: 'Beleg', sonstig: 'Foto' }
 
+function zeitpunktDe(ms) {
+  if (!ms) return '–'
+  return new Date(ms).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
 function fotoGrid(fotos) {
   if (!fotos?.length) return ''
-  return `<div class="fotos">${fotos.map((f) => `<figure><img src="${esc(f.dataUrl)}"><figcaption><strong>${PHASE_LABEL[f.phase] || 'Foto'}</strong> · ${esc(f.name || '')} · ${esc(f.von || '')}</figcaption></figure>`).join('')}</div>`
+  return `<div class="fotos">${fotos.map((f) => `<figure><img src="${esc(f.dataUrl)}"><figcaption><strong>${PHASE_LABEL[f.phase] || 'Foto'}</strong> · erfasst am ${zeitpunktDe(f.createdAt)} · ${esc(f.von || '')}</figcaption></figure>`).join('')}</div>`
+}
+
+// Beweis-Zeitstempel des Berichts (Erfassung/Einreichung/Freigabe – NICHT der Druckzeitpunkt)
+function zeitstempelZeile(bericht) {
+  return `<p class="meta">Erfasst am ${zeitpunktDe(bericht.createdAt)}${
+    bericht.eingereichtAm ? ` · eingereicht am ${zeitpunktDe(bericht.eingereichtAm)}${bericht.eingereichtVon ? ` durch ${esc(bericht.eingereichtVon)}` : ''}` : ''}${
+    bericht.freigegebenAm ? ` · freigegeben am ${zeitpunktDe(bericht.freigegebenAm)}${bericht.freigegebenVon ? ` durch ${esc(bericht.freigegebenVon)}` : ''}` : ''}</p>`
 }
 
 function unterschriftBlock(bericht) {
+  const kundeZeile = [bericht?.unterschriftName, bericht?.unterschriftFunktion, bericht?.unterschriftFirma]
+    .filter(Boolean).map(esc).join(' · ')
   const kunde = bericht?.unterschriftKunde
-    ? `<div class="signatur"><img src="${esc(bericht.unterschriftKunde)}">${esc(bericht.unterschriftName || 'Kunde/Bauleitung')} · ${datumDe(bericht.datum)}</div>`
-    : '<div>Datum, Unterschrift Kunde/Bauleitung</div>'
+    ? `<div class="signatur"><img src="${esc(bericht.unterschriftKunde)}">${kundeZeile || 'Auftraggeber/Bauleitung'}<br>${datumDe(bericht.datum)}</div>`
+    : '<div>Datum, Unterschrift Auftraggeber/Bauleitung<br>(Name, Funktion, Firma in Klarschrift)</div>'
   const monteur = bericht?.unterschriftMonteur
-    ? `<div class="signatur"><img src="${esc(bericht.unterschriftMonteur)}">${esc(bericht.mitarbeiterName || 'Monteur')} · Gabara Service GmbH</div>`
-    : '<div>Datum, Unterschrift Auftragnehmer</div>'
+    ? `<div class="signatur"><img src="${esc(bericht.unterschriftMonteur)}">${esc(bericht.mitarbeiterName || 'Monteur')} · Gabara Service GmbH<br>${datumDe(bericht.datum)}</div>`
+    : '<div>Datum, Unterschrift Auftragnehmer<br>(Gabara Service GmbH)</div>'
   return `<div class="unterschrift">${kunde}${monteur}</div>`
 }
 
-// ---------- Regiebericht / Reklamations-/Schadensprotokoll ----------
+// ---------- Regiebericht (Stundenlohnzettel VOB/B § 15) / Reklamationsprotokoll ----------
 export function druckeRegiebericht({ bericht, projekt, kunde, fotos = [], einst = {} }) {
-  const titel = bericht.typ === 'reklamation' ? 'Reklamations-/Schadensprotokoll' : 'Regiebericht'
+  const titel = `${bericht.typ === 'reklamation' ? 'Reklamations-/Schadensprotokoll' : 'Regiebericht / Stundenlohnzettel'}${bericht.nummer ? ` Nr. ${bericht.nummer}` : ''}`
   const stunden = bericht.stunden || []
   const material = bericht.material || []
   const stundenSumme = stunden.reduce((s, z) => s + (z.anzahl || 0) * (z.satz || 0), 0)
   const materialSumme = material.reduce((s, z) => s + (z.menge || 0) * (z.preis || 0), 0)
 
-  const stundenTabelle = stunden.length ? `<h2>Arbeitszeit (Regie)</h2><table>
-    <tr><th>Art</th><th class="r">Stunden</th><th class="r">Satz</th><th class="r">Betrag</th></tr>
-    ${stunden.map((z) => `<tr><td>${z.art === 'helfer' ? 'Helfer / Auszubildender' : 'Facharbeiter im Malerhandwerk'}</td><td class="r">${esc(z.anzahl)}</td><td class="r">${euro(z.satz)}</td><td class="r">${euro((z.anzahl || 0) * (z.satz || 0))}</td></tr>`).join('')}
-    <tr class="summe"><td colspan="3">Summe Arbeitszeit (netto)</td><td class="r">${euro(stundenSumme)}</td></tr>
+  // VOB/B § 15 Abs. 3: Namen der Arbeitskräfte + Stunden je Person und Tag
+  const stundenTabelle = stunden.length ? `<h2>Arbeitszeit je Person (Stundenlohnzettel)</h2><table>
+    <tr><th>Name</th><th>Datum</th><th>Qualifikation</th><th>Von–Bis</th><th class="r">Std.</th><th class="r">Satz</th><th class="r">Betrag</th></tr>
+    ${stunden.map((z) => `<tr><td>${esc(z.name || '–')}</td><td>${datumDe(z.datum)}</td><td>${z.art === 'helfer' ? 'Helfer/Azubi' : 'Facharbeiter Malerhandwerk'}</td><td>${z.von && z.bis ? `${esc(z.von)}–${esc(z.bis)}` : '–'}</td><td class="r">${esc(z.anzahl)}</td><td class="r">${euro(z.satz)}</td><td class="r">${euro((z.anzahl || 0) * (z.satz || 0))}</td></tr>`).join('')}
+    <tr class="summe"><td colspan="6">Summe Arbeitszeit (netto)</td><td class="r">${euro(stundenSumme)}</td></tr>
   </table>` : ''
 
   const materialTabelle = material.length ? `<h2>Materialverbrauch</h2><table>
@@ -139,9 +154,30 @@ export function druckeRegiebericht({ bericht, projekt, kunde, fotos = [], einst 
     <tr class="summe"><td colspan="4">Summe Material (netto)</td><td class="r">${euro(materialSumme)}</td></tr>
   </table>` : ''
 
+  // Anordnung/Anzeige der Stundenlohnarbeiten (VOB/B § 15 Abs. 3 Satz 1)
+  const anordnung = bericht.typ === 'regie' && bericht.angeordnetDurch
+    ? `<div class="box">Stundenlohnarbeiten angezeigt/angeordnet am <strong>${datumDe(bericht.angeordnetAm)}</strong>
+       durch <strong>${esc(bericht.angeordnetDurch)}</strong>
+       (${bericht.anzeigeArt === 'schriftlich' ? 'schriftlich' : bericht.anzeigeArt === 'mail' ? 'per E-Mail' : 'mündlich vor Ort'}) – § 15 Abs. 3 VOB/B.</div>`
+    : ''
+
+  // Fristen-Block bei Reklamationen (§ 13 Abs. 5 VOB/B)
+  const ruege = bericht.typ === 'reklamation' && (bericht.geruegtDurch || bericht.ruegeZugangAm || bericht.fristBis)
+    ? `<div class="box warn">Mängelrüge${bericht.ruegeZugangAm ? ` zugegangen am <strong>${datumDe(bericht.ruegeZugangAm)}</strong>` : ''}${bericht.geruegtDurch ? ` durch <strong>${esc(bericht.geruegtDurch)}</strong>` : ''}${bericht.fristBis ? ` · Frist zur Beseitigung: <strong>${datumDe(bericht.fristBis)}</strong>` : ''} (§ 13 Abs. 5 VOB/B).</div>`
+    : ''
+
+  // Anerkennungsfiktion (§ 15 Abs. 3 VOB/B: 6 Werktage)
+  const fiktion = bericht.typ === 'regie'
+    ? `<div class="box"><strong>Hinweis:</strong> Einwendungen gegen diesen Stundenlohnnachweis sind innerhalb von
+       6 Werktagen nach Zugang geltend zu machen; andernfalls gilt er gemäß § 15 Abs. 3 VOB/B als anerkannt.</div>`
+    : ''
+
   drucke(titel, `
     ${projektBlock(projekt, kunde)}
-    <p class="meta">Datum: <strong>${datumDe(bericht.datum)}</strong> · Monteur: <strong>${esc(bericht.mitarbeiterName || '–')}</strong></p>
+    <p class="meta">Berichtsdatum: <strong>${datumDe(bericht.datum)}</strong> · Monteur: <strong>${esc(bericht.mitarbeiterName || '–')}</strong></p>
+    ${zeitstempelZeile(bericht)}
+    ${anordnung}
+    ${ruege}
     <h2>${bericht.typ === 'reklamation' ? 'Beschreibung des Mangels/Schadens' : 'Ausgeführte Arbeiten (Beschreibung)'}</h2>
     <p>${escBr(bericht.beschreibung || '–')}</p>
     ${bericht.typ === 'reklamation' && bericht.ursache ? `<h2>Ursache</h2><p>${escBr(bericht.ursache)}</p>` : ''}
@@ -150,7 +186,8 @@ export function druckeRegiebericht({ bericht, projekt, kunde, fotos = [], einst 
     ${materialTabelle}
     ${stunden.length && material.length ? `<div class="box"><strong>Gesamtsumme Regie (netto): ${euro(stundenSumme + materialSumme)}</strong></div>` : ''}
     ${fotoGrid(fotos)}
-    ${unterschriftBlock(bericht)}`, einst)
+    ${fiktion}
+    ${unterschriftBlock(bericht)}`, einst, `Ausdruck vom ${new Date().toLocaleDateString('de-DE')}`)
 }
 
 // ---------- Abnahmeprotokoll ----------
@@ -163,15 +200,42 @@ export function druckeAbnahme({ bericht, projekt, kunde, fotos = [], einst = {} 
        ${maengel.map((m) => `<tr><td>${esc(m.text || '')}</td><td>${datumDe(m.frist)}</td></tr>`).join('') || '<tr><td colspan="2" class="meta">Keine Einzelmängel erfasst.</td></tr>'}
        </table>`
 
-  drucke('Abnahmeprotokoll', `
+  // Verjährung: VOB 4 Jahre / BGB 5 Jahre – abgeleitet aus dem Kundentyp,
+  // mit berechnetem Enddatum ab Abnahmedatum
+  const istVob = (kunde?.typ || 'gu') === 'gu'
+  const monate = istVob ? 48 : 60
+  const ende = (() => {
+    if (!bericht.datum) return null
+    const d = new Date(bericht.datum + 'T12:00:00')
+    d.setMonth(d.getMonth() + monate)
+    return d.toLocaleDateString('de-DE')
+  })()
+
+  const vorbehalte = `<h2>Vorbehalte des Auftraggebers</h2>
+    <div class="box${bericht.vorbehaltVertragsstrafe ? ' warn' : ''}">
+      Der Auftraggeber behält sich die Vertragsstrafe gemäß § 11 VOB/B vor:
+      <strong>${bericht.vorbehaltVertragsstrafe === true ? 'JA' : bericht.vorbehaltVertragsstrafe === false ? 'nein' : 'keine Angabe'}</strong>.<br>
+      Sonstige Vorbehalte (bekannte Mängel / Restleistungen): ${esc(bericht.vorbehalteSonstige || 'keine')}
+    </div>`
+
+  drucke(`Abnahmeprotokoll${bericht.abnahmeArt === 'teil' ? ' (Teilabnahme)' : ''}${bericht.nummer ? ` Nr. ${bericht.nummer}` : ''}`, `
     ${projektBlock(projekt, kunde)}
-    <p class="meta">Datum: <strong>${datumDe(bericht.datum)}</strong> · Ort: <strong>${esc(bericht.ort || projekt?.anschrift?.plzOrt || '–')}</strong> · Monteur: <strong>${esc(bericht.mitarbeiterName || '–')}</strong></p>
+    <p class="meta">Datum der Abnahme: <strong>${datumDe(bericht.datum)}</strong> · Ort: <strong>${esc(bericht.ort || projekt?.anschrift?.plzOrt || '–')}</strong> · Für den Auftragnehmer: <strong>${esc(bericht.mitarbeiterName || '–')}</strong>${bericht.unterschriftName ? ` · Für den Auftraggeber: <strong>${esc(bericht.unterschriftName)}${bericht.unterschriftFunktion ? ` (${esc(bericht.unterschriftFunktion)})` : ''}</strong>` : ''}</p>
+    ${zeitstempelZeile(bericht)}
+    <h2>Gegenstand der Abnahme (${bericht.abnahmeArt === 'teil' ? 'Teilabnahme' : 'Gesamtabnahme'})</h2>
+    <p>${escBr(bericht.leistungsumfang || 'Vertraglich geschuldete Maler- und Lackierarbeiten gemäß Leistungsverzeichnis.')}</p>
     <h2>Ergebnis der Abnahme</h2>
     ${ergebnis}
+    ${vorbehalte}
     ${bericht.beschreibung ? `<h2>Bemerkungen</h2><p>${escBr(bericht.beschreibung)}</p>` : ''}
     ${fotoGrid(fotos)}
-    <p class="meta">Die Abnahme erfolgt gemäß VOB/B § 12. Mit der Abnahme beginnt die Verjährungsfrist für Mängelansprüche.</p>
-    ${unterschriftBlock(bericht)}`, einst)
+    <div class="box">
+      Die Abnahme erfolgt gemäß § 12 VOB/B. Mit der Abnahme geht die Gefahr auf den Auftraggeber über
+      (§ 12 Abs. 6 VOB/B). Die Verjährungsfrist für Mängelansprüche beträgt
+      <strong>${istVob ? '4 Jahre gemäß § 13 Abs. 4 VOB/B' : '5 Jahre gemäß § 634a BGB'}</strong>,
+      beginnt mit der Abnahme am ${datumDe(bericht.datum)}${ende ? ` und endet am <strong>${ende}</strong>` : ''}.
+    </div>
+    ${unterschriftBlock(bericht)}`, einst, `Ausdruck vom ${new Date().toLocaleDateString('de-DE')}`)
 }
 
 // ---------- Rechnung (interner Fallback-Eigendruck; offiziell macht FastBill) ----------

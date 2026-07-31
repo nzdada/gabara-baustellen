@@ -111,9 +111,16 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
   const zeiten = ozDoc?.fenster || null
   const urlaub = ozDoc?.urlaub || []
 
+  // Mehrere Kolonnen dürfen PARALLEL arbeiten: als "belegt" zählen nur Termine,
+  // die mindestens einen der GEWÄHLTEN Monteure enthalten (Doppelbelegung
+  // derselben Person verhindern) – plus interne Blocker (gelten für alle).
   const busy = useMemo(
-    () => appointments.filter((t) => t.status !== 'abgesagt').map((t) => ({ datum: t.datum, start: t.start, ende: t.ende })),
-    [appointments]
+    () => appointments
+      .filter((t) => t.status !== 'abgesagt')
+      .filter((t) => t.intern
+        || (mitarbeiterIds.length > 0 && (t.mitarbeiterIds || []).some((id) => mitarbeiterIds.includes(id))))
+      .map((t) => ({ datum: t.datum, start: t.start, ende: t.ende })),
+    [appointments, mitarbeiterIds]
   )
   const tage = useMemo(() => buchbareTage(21, zeiten).filter((t) => !imUrlaub(t, urlaub)), [zeiten, urlaub])
   const slots = useMemo(() => {

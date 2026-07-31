@@ -6,6 +6,7 @@ import { euro } from '@shared/format.js'
 import { PROJEKT_STATUS, statusInfo } from '@shared/projektstatus.js'
 import LvEditor from '../components/LvEditor.jsx'
 import LvImport from '../components/LvImport.jsx'
+import RechnungWizard from '../components/RechnungWizard.jsx'
 import Modal from '../components/Modal.jsx'
 
 // Projekt-Detailseite (#/projekte/:id): Dreispalter im HERO-Stil –
@@ -126,6 +127,7 @@ export default function ProjektDetail() {
 
   const [bereich, setBereich] = useState('uebersicht')
   const [zeigeImport, setZeigeImport] = useState(false)
+  const [zeigeRechnungWizard, setZeigeRechnungWizard] = useState(false)
   const [vollbildFoto, setVollbildFoto] = useState(null)
   const [berichtId, setBerichtId] = useState(null)
 
@@ -372,7 +374,13 @@ export default function ProjektDetail() {
 
           {bereich === 'rechnungen' && (
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-              <h2 className="font-bold text-slate-800 text-sm px-5 pt-4 pb-2">Rechnungen</h2>
+              <div className="flex items-center justify-between px-5 pt-4 pb-2">
+                <h2 className="font-bold text-slate-800 text-sm">Rechnungen</h2>
+                <button onClick={() => setZeigeRechnungWizard(true)}
+                  className="px-3 py-1.5 rounded-lg bg-praxis-600 text-white text-xs font-bold hover:bg-praxis-700">
+                  + Rechnung zu diesem Projekt
+                </button>
+              </div>
               {rechnungen.length === 0 ? (
                 <p className="px-5 pb-6 text-sm text-slate-400">Noch keine Rechnungen zu diesem Projekt.</p>
               ) : (
@@ -574,6 +582,9 @@ export default function ProjektDetail() {
       {/* LV-Import-Modal */}
       {zeigeImport && <LvImport projektId={id} onClose={() => setZeigeImport(false)} />}
 
+      {/* Rechnung direkt aus dem Projekt (Wizard startet in Schritt 2) */}
+      {zeigeRechnungWizard && <RechnungWizard projektIdVorbelegt={id} onClose={() => setZeigeRechnungWizard(false)} />}
+
       {/* Foto-Vollbild-Overlay */}
       {vollbildFoto && (
         <div
@@ -597,14 +608,14 @@ export default function ProjektDetail() {
 
       {/* Bericht-Detail-Modal */}
       {gewaehlterBericht && (
-        <BerichtDetail bericht={gewaehlterBericht} onClose={() => setBerichtId(null)} onFoto={setVollbildFoto} />
+        <BerichtDetail bericht={gewaehlterBericht} user={user} onClose={() => setBerichtId(null)} onFoto={setVollbildFoto} />
       )}
     </div>
   )
 }
 
 // Detail-Ansicht eines Berichts: alle Felder, Vorher/Nachher-Fotos, Unterschrift, Freigabe
-function BerichtDetail({ bericht, onClose, onFoto }) {
+function BerichtDetail({ bericht, user, onClose, onFoto }) {
   const fotos = useWhere('photos', 'berichtId', bericht.id)
   const vorher = fotos.filter((f) => f.phase === 'vorher')
   const nachher = fotos.filter((f) => f.phase === 'nachher')
@@ -615,7 +626,7 @@ function BerichtDetail({ bericht, onClose, onFoto }) {
 
   function setzeStatus(status) {
     withStore((s) => s.update('berichte', bericht.id, status === 'freigegeben'
-      ? { status, freigegebenAm: Date.now() }
+      ? { status, freigegebenAm: Date.now(), freigegebenVon: user?.name || '' }
       : { status }))
   }
 

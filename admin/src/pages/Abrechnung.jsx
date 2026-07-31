@@ -108,8 +108,23 @@ export default function Abrechnung() {
   }
 
   async function loeschen(r) {
-    if (!confirm('Diese vorbereitete Rechnung löschen? (Abgerechnete Mengen/Berichte werden NICHT zurückgesetzt.)')) return
-    await withStore((s) => s.remove('rechnungen', r.id))
+    if (!confirm('Diese vorbereitete Rechnung löschen? Die enthaltenen Leistungen (LV-Mengen, Regieberichte, Spesen) werden wieder abrechenbar.')) return
+    // Quellen ZURÜCKBUCHEN – sonst wären die Leistungen für immer "abgerechnet"
+    // markiert und würden nie fakturiert (Review-Finding: bares Geld).
+    await withStore(async (s) => {
+      const lv = await s.list('lvpositionen')
+      for (const p of r.positionen || []) {
+        if (p.quelle === 'lv' && p.quelleId) {
+          const pos = lv.find((x) => x.id === p.quelleId)
+          if (pos) await s.update('lvpositionen', pos.id, { abgerechnetMenge: Math.max(0, Math.round(((pos.abgerechnetMenge || 0) - (p.menge || 0)) * 1000) / 1000) })
+        }
+      }
+      const regieIds = [...new Set((r.positionen || []).filter((p) => ['regie', 'material'].includes(p.quelle)).map((p) => p.quelleId).filter(Boolean))]
+      for (const bid of regieIds) await s.update('berichte', bid, { status: 'freigegeben' })
+      const spesenIds = [...new Set((r.positionen || []).filter((p) => p.quelle === 'spesen').map((p) => p.quelleId).filter(Boolean))]
+      for (const sid of spesenIds) await s.update('spesen', sid, { status: 'eingereicht' })
+      await s.remove('rechnungen', r.id)
+    })
   }
 
   const knopf = 'px-2.5 py-1.5 rounded-lg text-xs font-medium disabled:opacity-40'
