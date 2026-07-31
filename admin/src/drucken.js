@@ -110,13 +110,13 @@ function fotoGrid(fotos) {
 }
 
 function unterschriftBlock(bericht) {
-  if (bericht?.unterschriftKunde) {
-    return `<div class="unterschrift">
-      <div class="signatur"><img src="${esc(bericht.unterschriftKunde)}">${esc(bericht.unterschriftName || 'Kunde/Bauleitung')} · ${datumDe(bericht.datum)}</div>
-      <div>Datum, Unterschrift Auftragnehmer</div>
-    </div>`
-  }
-  return `<div class="unterschrift"><div>Datum, Unterschrift Kunde/Bauleitung</div><div>Datum, Unterschrift Auftragnehmer</div></div>`
+  const kunde = bericht?.unterschriftKunde
+    ? `<div class="signatur"><img src="${esc(bericht.unterschriftKunde)}">${esc(bericht.unterschriftName || 'Kunde/Bauleitung')} · ${datumDe(bericht.datum)}</div>`
+    : '<div>Datum, Unterschrift Kunde/Bauleitung</div>'
+  const monteur = bericht?.unterschriftMonteur
+    ? `<div class="signatur"><img src="${esc(bericht.unterschriftMonteur)}">${esc(bericht.mitarbeiterName || 'Monteur')} · Gabara Service GmbH</div>`
+    : '<div>Datum, Unterschrift Auftragnehmer</div>'
+  return `<div class="unterschrift">${kunde}${monteur}</div>`
 }
 
 // ---------- Regiebericht / Reklamations-/Schadensprotokoll ----------
