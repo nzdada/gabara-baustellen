@@ -1,357 +1,175 @@
-import { useMemo, useState } from 'react'
-import { useCollection, withStore } from '../hooks.js'
+import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { Icon } from '@shared/ui.jsx'
-import { heuteISO, addTage } from '@shared/slots.js'
-import { summe, euro } from '@shared/format.js'
-import { useLang, tr, datumLok } from '@shared/i18n.js'
-import { druckeBericht } from '../drucken.js'
+import { euro } from '@shared/format.js'
+import { useCollection } from '../hooks.js'
+import { OFFENE_STATI, statusInfo, istUeberfaellig } from '@shared/projektstatus.js'
 
-// Status-Farben für das Termin-Chart (Palette validiert: Lightness/Chroma/CVD ok;
-// Amber hat Kontrast-WARN -> Pflicht-Ausgleich über Legende, Zahlen + Tooltips)
-const CHART_FARBEN = {
-  abgeschlossen: '#0d9488',
-  rechtzeitig: '#f59e0b',
-  kurzfristig: '#dc2626',
+// Finanz-Dashboard: Verdienst/Gewinn je Baustelle (Näherung), offene Rechnungen,
+// überfällige Projekte. Alle Zahlen aus Ist-Mengen, Regieberichten und internen Sätzen.
+
+function stundenAus(start, ende) {
+  if (!start || !ende) return 0
+  const [h1, m1] = start.split(':').map(Number)
+  const [h2, m2] = ende.split(':').map(Number)
+  return Math.max(0, (h2 * 60 + m2 - h1 * 60 - m1) / 60)
 }
 
-// Arzt-Dashboard: Wer wurde behandelt, was wurde verdient, Bericht-Export
-// (Behandlungsprotokoll inkl. Bilder – für Überweisungen oder die Versicherung).
-
-const T = {
-  titel: { de: 'Arzt-Dashboard', en: 'Doctor dashboard', ar: 'لوحة الطبيب' },
-  untertitel: { de: 'Behandelte Patienten, Umsatz und Berichte auf einen Blick.', en: 'Treated patients, revenue and reports at a glance.', ar: 'المرضى المعالجون والإيرادات والتقارير في لمحة.' },
-  zeitraeume: [
-    { key: 'heute', label: { de: 'Heute', en: 'Today', ar: 'اليوم' }, tage: 0 },
-    { key: 'woche', label: { de: '7 Tage', en: '7 days', ar: '7 أيام' }, tage: 7 },
-    { key: 'monat', label: { de: '30 Tage', en: '30 days', ar: '30 يومًا' }, tage: 30 },
-    { key: 'alle', label: { de: 'Gesamt', en: 'All', ar: 'الكل' }, tage: 9999 },
-  ],
-  behandlungen: { de: 'Behandlungen', en: 'Treatments', ar: 'علاجات' },
-  patienten: { de: 'Patienten', en: 'Patients', ar: 'مرضى' },
-  umsatz: { de: 'Umsatz (Leistungen)', en: 'Revenue (services)', ar: 'الإيرادات (الخدمات)' },
-  offenBetrag: { de: 'davon offen', en: 'of which open', ar: 'منها مفتوح' },
-  alleAerzte: { de: 'Alle Behandler', en: 'All practitioners', ar: 'كل المعالجين' },
-  tabelle: { de: 'Abgeschlossene Behandlungen', en: 'Completed treatments', ar: 'العلاجات المنجزة' },
-  keine: { de: 'Im gewählten Zeitraum keine abgeschlossenen Behandlungen.', en: 'No completed treatments in the selected period.', ar: 'لا علاجات منجزة في الفترة المحددة.' },
-  bericht: { de: 'Bericht', en: 'Report', ar: 'تقرير' },
-  gesamtBericht: { de: 'Gesamtbericht je Patient: Patienten → Patient öffnen → „Bericht (PDF)".', en: 'Full report per patient: Patients → open patient → “Report (PDF)”.', ar: 'تقرير كامل لكل مريض: المرضى ← افتح المريض ← "تقرير PDF".' },
-  bilder: { de: 'Bilder', en: 'images', ar: 'صور' },
-  rechnungStatus: { offen: { de: 'offen', en: 'open', ar: 'مفتوح' }, pruefen: { de: 'prüfen', en: 'review', ar: 'مراجعة' }, gestellt: { de: 'gestellt', en: 'issued', ar: 'صادرة' }, bezahlt: { de: 'bezahlt', en: 'paid', ar: 'مدفوعة' } },
-  patientenGesamt: { de: 'Patienten gesamt', en: 'Total patients', ar: 'إجمالي المرضى' },
-  neu30: { de: 'neu in 30 Tagen', en: 'new in 30 days', ar: 'جدد خلال 30 يومًا' },
-  ausfallquote: { de: 'Ausfallquote', en: 'No-show rate', ar: 'نسبة الإلغاء' },
-  gebuehrenUmsatz: { de: 'Ausfallgebühren', en: 'No-show fees', ar: 'رسوم الإلغاء' },
-  chartTitel: { de: 'Termine der letzten 8 Wochen', en: 'Appointments – last 8 weeks', ar: 'مواعيد آخر 8 أسابيع' },
-  lAbgeschlossen: { de: 'Erfolgreich', en: 'Completed', ar: 'منجزة' },
-  lRechtzeitig: { de: 'Abgesagt (≥ 24 Std.)', en: 'Cancelled (≥ 24 h)', ar: 'ملغاة (≥ 24 س)' },
-  lKurzfristig: { de: 'Kurzfristig (< 24 Std.)', en: 'Short notice (< 24 h)', ar: 'متأخرة (< 24 س)' },
-  woche: { de: 'KW', en: 'Wk', ar: 'أسبوع' },
-  auffTitel: { de: 'Auffällige Patienten (≥ 2 kurzfristige Absagen)', en: 'Conspicuous patients (≥ 2 short-notice cancellations)', ar: 'مرضى ملفتون (≥ إلغاءان متأخران)' },
-  auffLeer: { de: 'Keine auffälligen Patienten – sehr gut!', en: 'No conspicuous patients – great!', ar: 'لا يوجد مرضى ملفتون – ممتاز!' },
-  spAbsagen: { de: 'kurzfr. Absagen', en: 'short-notice', ar: 'إلغاءات متأخرة' },
-  spGebuehren: { de: 'Gebühren offen', en: 'fees open', ar: 'رسوم مفتوحة' },
-  sperren: { de: 'Online-Buchung sperren', en: 'Block online booking', ar: 'حظر الحجز الإلكتروني' },
-  entsperren: { de: 'Sperre aufheben', en: 'Unblock', ar: 'إلغاء الحظر' },
-  gesperrt: { de: 'GESPERRT', en: 'BLOCKED', ar: 'محظور' },
-}
-
-// Gestapeltes Wochen-Chart: Erfolgreich (teal) / rechtzeitig abgesagt (amber) /
-// kurzfristig abgesagt (rot). Dünne Balken, 2px-Lücken zwischen Segmenten,
-// Legende + Hover-Tooltip (Pflicht-Ausgleich für den Amber-Kontrast).
-function WochenChart({ appointments }) {
-  useLang()
-  const [tip, setTip] = useState(null) // {x, y, woche, werte}
-  const heute = heuteISO()
-
-  const wochen = useMemo(() => {
-    const liste = []
-    for (let w = 7; w >= 0; w--) {
-      const bis = addTage(heute, -w * 7)
-      const von = addTage(bis, -6)
-      const im = appointments.filter((a) => a.datum >= von && a.datum <= bis)
-      liste.push({
-        label: `${new Date(von + 'T12:00:00').getDate()}.${new Date(von + 'T12:00:00').getMonth() + 1}.`,
-        abgeschlossen: im.filter((a) => a.status === 'abgeschlossen').length,
-        rechtzeitig: im.filter((a) => a.status === 'abgesagt' && !a.kurzfristig).length,
-        kurzfristig: im.filter((a) => a.status === 'abgesagt' && a.kurzfristig).length,
-      })
-    }
-    return liste
-  }, [appointments, heute])
-
-  const max = Math.max(1, ...wochen.map((w) => w.abgeschlossen + w.rechtzeitig + w.kurzfristig))
-  const B = 34 // Balkenbreite
-  const H = 150 // Plot-Höhe
-  const abstand = 66
-
-  const legende = [
-    ['abgeschlossen', T.lAbgeschlossen],
-    ['rechtzeitig', T.lRechtzeitig],
-    ['kurzfristig', T.lKurzfristig],
-  ]
-
+function Kpi({ icon, label, wert, farbe = 'text-slate-900' }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-6 relative">
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
-        <p className="font-bold text-sm text-slate-800 mr-auto rtl:mr-0 rtl:ml-auto">{tr(T.chartTitel)}</p>
-        {legende.map(([key, label]) => (
-          <span key={key} className="flex items-center gap-1.5 text-xs text-slate-600">
-            <span className="w-3 h-3 rounded-[4px]" style={{ background: CHART_FARBEN[key] }} /> {tr(label)}
-          </span>
-        ))}
-      </div>
-      <div className="overflow-x-auto" dir="ltr">
-        <svg viewBox={`0 0 ${wochen.length * abstand + 20} ${H + 34}`} className="mt-3 w-full min-w-[520px]" onMouseLeave={() => setTip(null)}>
-          {wochen.map((w, i) => {
-            const gesamt = w.abgeschlossen + w.rechtzeitig + w.kurzfristig
-            const x = 14 + i * abstand
-            let y = H
-            const segmente = []
-            for (const key of ['abgeschlossen', 'rechtzeitig', 'kurzfristig']) {
-              const h = (w[key] / max) * (H - 18)
-              if (w[key] > 0) {
-                y -= h
-                segmente.push(
-                  <rect
-                    key={key}
-                    x={x}
-                    y={y}
-                    width={B}
-                    height={Math.max(h - 2, 2) /* 2px Lücke zwischen Segmenten */}
-                    rx="4"
-                    fill={CHART_FARBEN[key]}
-                    onMouseEnter={() => setTip({ x: x + B / 2, woche: w })}
-                  />
-                )
-              }
-            }
-            return (
-              <g key={i}>
-                {segmente}
-                {gesamt > 0 && (
-                  <text x={x + B / 2} y={y - 6} textAnchor="middle" fontSize="11" fontWeight="700" fill="#334155">{gesamt}</text>
-                )}
-                <text x={x + B / 2} y={H + 16} textAnchor="middle" fontSize="10" fill="#94a3b8">{tr(T.woche)} {w.label}</text>
-                <rect x={x - 8} y={0} width={B + 16} height={H} fill="transparent" onMouseEnter={() => setTip({ x: x + B / 2, woche: w })} />
-              </g>
-            )
-          })}
-          <line x1="8" y1={H} x2={wochen.length * abstand + 14} y2={H} stroke="#e2e8f0" strokeWidth="1" />
-        </svg>
-      </div>
-      {tip && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs rounded-xl px-3.5 py-2.5 shadow-xl pointer-events-none z-10">
-          {legende.map(([key, label]) => (
-            <p key={key} className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-sm" style={{ background: CHART_FARBEN[key] }} />
-              {tr(label)}: <strong>{tip.woche[key]}</strong>
-            </p>
-          ))}
-        </div>
-      )}
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+      <p className="text-xs text-slate-400 flex items-center gap-1.5"><Icon name={icon} className="w-3.5 h-3.5" /> {label}</p>
+      <p className={`mt-1 text-xl font-bold ${farbe}`}>{wert}</p>
     </div>
   )
 }
 
 export default function Dashboard() {
-  useLang()
+  const projekte = useCollection('projekte')
+  const lv = useCollection('lvpositionen')
+  const berichte = useCollection('berichte')
+  const spesen = useCollection('spesen')
+  const rechnungen = useCollection('rechnungen')
   const appointments = useCollection('appointments')
-  const patients = useCollection('patients')
-  const photos = useCollection('photos')
-  const [zeitraum, setZeitraum] = useState('woche')
-  const [arzt, setArzt] = useState('')
+  const users = useCollection('users')
+  const katalog = useCollection('katalog')
 
-  const heute = heuteISO()
-  const aerzte = useMemo(() => [...new Set(appointments.map((a) => a.arzt).filter(Boolean))].sort(), [appointments])
+  const heute = new Date().toISOString().slice(0, 10)
 
-  const fertige = useMemo(() => {
-    const zr = T.zeitraeume.find((z) => z.key === zeitraum)
-    const von = addTage(heute, -zr.tage)
-    return appointments
-      .filter((a) => a.status === 'abgeschlossen' && a.datum >= von && a.datum <= heute && (!arzt || a.arzt === arzt))
-      .sort((a, b) => `${b.datum}${b.start}`.localeCompare(`${a.datum}${a.start}`))
-  }, [appointments, zeitraum, arzt, heute])
+  const zeilen = useMemo(() => {
+    const relevant = projekte.filter((p) => OFFENE_STATI.includes(p.status) || ['kundenrechnung', 'abgeschlossen'].includes(p.status))
+    return relevant.map((p) => {
+      const pos = lv.filter((x) => x.projektId === p.id && x.typ === 'position' && !x.flags?.bedarf && !x.flags?.nep)
+      const auftragswert = pos.reduce((s, x) => s + (x.menge || 0) * (x.einheitspreis || 0), 0)
+      const geleistet = pos.reduce((s, x) => s + (x.istMenge || 0) * (x.einheitspreis || 0), 0)
+      const abgerechnet = pos.reduce((s, x) => s + (x.abgerechnetMenge || 0) * (x.einheitspreis || 0), 0)
 
-  const umsatz = fertige.reduce((s, a) => s + summe(a.leistungen), 0)
-  const offen = fertige.filter((a) => ['offen', 'pruefen'].includes(a.rechnung || 'offen')).reduce((s, a) => s + summe(a.leistungen), 0)
-  const patientenAnzahl = new Set(fertige.map((a) => a.patientId)).size
+      const regie = berichte.filter((b) => b.projektId === p.id && b.typ === 'regie' && ['freigegeben', 'abgerechnet'].includes(b.status))
+      const regieErloes = regie.reduce((s, b) =>
+        s + (b.stunden || []).reduce((x, z) => x + (z.anzahl || 0) * (z.satz || 0), 0)
+          + (b.material || []).reduce((x, m) => x + (m.menge || 0) * (m.preis || 0), 0), 0)
+      const materialKosten = regie.reduce((s, b) => s + (b.material || []).reduce((x, m) => {
+        const art = katalog.find((a) => a.id === m.artikelId)
+        const ek = art?.ekPreis || (m.preis || 0) * 0.7
+        return x + (m.menge || 0) * ek
+      }, 0), 0)
 
-  // Praxis-Kennzahlen (Modul 7)
-  const neue30 = patients.filter((p) => p.createdAt && Date.now() - p.createdAt < 30 * 86400000).length
-  const zr = T.zeitraeume.find((z) => z.key === zeitraum)
-  const vonDatum = addTage(heute, -zr.tage)
-  const imZeitraum = appointments.filter((a) => a.datum >= vonDatum && a.datum <= heute && a.status !== 'bestaetigt')
-  const abgesagtZahl = imZeitraum.filter((a) => a.status === 'abgesagt').length
-  const ausfallquote = imZeitraum.length > 0 ? Math.round((abgesagtZahl / imZeitraum.length) * 100) : 0
-  const gebuehrenUmsatz = appointments
-    .filter((a) => a.datum >= vonDatum)
-    .reduce((s, a) => s + (a.leistungen || []).filter((l) => l.katalogId === 'ausfall').reduce((x, l) => x + l.preis * (l.anzahl || 1), 0), 0)
+      const einsaetze = appointments.filter((t) => t.projektId === p.id && t.erledigt)
+      const lohnKosten = einsaetze.reduce((s, t) => {
+        const std = stundenAus(t.start, t.ende)
+        const satzSumme = (t.mitarbeiterIds || []).reduce((x, id) => x + (users.find((u) => u.id === id)?.stundensatzIntern || 0), 0)
+        return s + std * satzSumme
+      }, 0)
 
-  // Auffällige Patienten: >= 2 kurzfristige Absagen
-  const auffaellige = useMemo(() => {
-    const zaehler = {}
-    for (const a of appointments) {
-      if (a.status === 'abgesagt' && a.kurzfristig) {
-        zaehler[a.patientId] = zaehler[a.patientId] || { anzahl: 0, gebuehren: 0 }
-        zaehler[a.patientId].anzahl++
-        if (a.ausfallgebuehr === 'ausstehend') {
-          zaehler[a.patientId].gebuehren += (a.leistungen || []).filter((l) => l.katalogId === 'ausfall').reduce((x, l) => x + l.preis, 0)
-        }
-      }
-    }
-    return Object.entries(zaehler)
-      .filter(([, w]) => w.anzahl >= 2)
-      .map(([pid, w]) => ({ patient: patients.find((p) => p.id === pid), ...w }))
-      .filter((e) => e.patient)
-      .sort((a, b) => b.anzahl - a.anzahl)
-  }, [appointments, patients])
+      const spesenSumme = spesen.filter((s) => s.projektId === p.id).reduce((x, s) => x + (s.betrag || 0), 0)
+      const ergebnis = geleistet + regieErloes - materialKosten - lohnKosten - spesenSumme
 
-  async function sperren(patient, wert) {
-    await withStore((s) => s.update('patients', patient.id, { gesperrt: wert }))
-  }
+      return { p, auftragswert, geleistet, abgerechnet, regieErloes, materialKosten, lohnKosten, spesenSumme, ergebnis }
+    })
+  }, [projekte, lv, berichte, spesen, appointments, users, katalog])
 
-  function bericht(t) {
-    const patient = patients.find((p) => p.id === t.patientId)
-    druckeBericht(patient, [t], photos)
-  }
+  const laufende = projekte.filter((p) => OFFENE_STATI.includes(p.status)).length
+  const offeneRechnungen = rechnungen.filter((r) => ['uebertragen', 'gestellt'].includes(r.status))
+  const offeneSumme = offeneRechnungen.reduce((s, r) => s + (r.zahlbetrag ?? r.netto ?? 0), 0)
+  const bezahltSumme = rechnungen.filter((r) => r.status === 'bezahlt').reduce((s, r) => s + (r.zahlbetrag ?? r.netto ?? 0), 0)
+  const eingereicht = berichte.filter((b) => b.status === 'eingereicht').length
+  const offeneSpesen = spesen.filter((s) => s.status === 'eingereicht').reduce((x, s) => x + (s.betrag || 0), 0)
 
-  const stat = [
-    { icon: 'check', wert: fertige.length, label: T.behandlungen },
-    { icon: 'users', wert: patientenAnzahl, label: T.patienten },
-    { icon: 'calendar', wert: euro(umsatz), label: T.umsatz, gruen: true },
-    { icon: 'alert', wert: euro(offen), label: T.offenBetrag, amber: true },
-    { icon: 'users', wert: patients.length, label: T.patientenGesamt, trend: `+${neue30} ${tr(T.neu30)}` },
-    { icon: 'x', wert: `${ausfallquote} %`, label: T.ausfallquote, amber: ausfallquote >= 15 },
-    { icon: 'shield', wert: euro(gebuehrenUmsatz), label: T.gebuehrenUmsatz, gruen: gebuehrenUmsatz > 0 },
-  ]
+  const ueberfaellig = projekte.filter((p) => istUeberfaellig(p, heute))
+  const chartZeilen = zeilen.filter((z) => OFFENE_STATI.includes(z.p.status) && z.auftragswert > 0)
+  const chartMax = Math.max(1, ...chartZeilen.map((z) => z.auftragswert))
 
   return (
-    <div className="p-4 lg:p-6 max-w-5xl">
-      <div className="flex flex-wrap items-center gap-3 mb-1">
-        <h1 className="text-xl font-bold text-slate-900">{tr(T.titel)}</h1>
-        <div className="flex items-center gap-1 bg-white rounded-full border border-slate-200 p-1 text-xs font-semibold">
-          {T.zeitraeume.map((z) => (
-            <button
-              key={z.key}
-              onClick={() => setZeitraum(z.key)}
-              className={`px-3 py-1.5 rounded-full ${zeitraum === z.key ? 'bg-praxis-600 text-white' : 'text-slate-500 hover:text-slate-800'}`}
-            >
-              {tr(z.label)}
-            </button>
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+        <p className="text-sm text-slate-500">Finanzielle Auswertung je Baustelle – Näherung auf Basis Ist-Mengen und internen Sätzen</p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+        <Kpi icon="folder" label="Laufende Baustellen" wert={laufende} />
+        <Kpi icon="euro" label="Offene Rechnungen" wert={euro(offeneSumme)} farbe="text-amber-600" />
+        <Kpi icon="check" label="Bezahlt" wert={euro(bezahltSumme)} farbe="text-emerald-600" />
+        <Kpi icon="bericht" label="Berichte eingereicht" wert={eingereicht} />
+        <Kpi icon="truck" label="Offene Spesen" wert={euro(offeneSpesen)} />
+      </div>
+
+      {(ueberfaellig.length > 0) && (
+        <div className="mb-5 bg-red-50 border border-red-200 rounded-2xl p-4">
+          <p className="text-sm font-bold text-red-700 mb-1.5 flex items-center gap-1.5"><Icon name="alert" className="w-4 h-4" /> Überfällige Projekte</p>
+          {ueberfaellig.map((p) => (
+            <Link key={p.id} to={`/projekte/${p.id}`} className="block text-sm text-red-700 hover:underline">
+              {p.nummer} · {p.name} – geplantes Ende {new Date(p.endeDatum + 'T12:00:00').toLocaleDateString('de-DE')}
+            </Link>
           ))}
         </div>
-        <select
-          value={arzt}
-          onChange={(e) => setArzt(e.target.value)}
-          className="ml-auto rtl:ml-0 rtl:mr-auto text-sm bg-white border border-slate-200 rounded-full px-3.5 py-2"
-        >
-          <option value="">{tr(T.alleAerzte)}</option>
-          {aerzte.map((a) => <option key={a}>{a}</option>)}
-        </select>
-      </div>
-      <p className="text-sm text-slate-500 mb-5">{tr(T.untertitel)}</p>
+      )}
 
-      {/* Kennzahlen */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {stat.map((s, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-slate-200 p-5">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-              s.gruen ? 'bg-praxis-100 text-praxis-700' : s.amber ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'
-            }`}>
-              <Icon name={s.icon} className="w-5 h-5" />
-            </div>
-            <p className={`mt-3 text-2xl font-bold ${s.gruen ? 'text-praxis-700' : s.amber ? 'text-amber-600' : 'text-slate-900'}`} dir="ltr">{s.wert}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{tr(s.label)}</p>
-            {s.trend && <p className="text-[11px] font-semibold text-praxis-700 mt-0.5">↗ {s.trend}</p>}
-          </div>
-        ))}
-      </div>
-
-      {/* Termin-Verlauf: gestapelte Wochen-Balken (grün/gelb/rot) */}
-      <WochenChart appointments={appointments} />
-
-      {/* Auffällige Patienten ("Blacklist") */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-6">
-        <p className="px-5 py-3.5 font-bold text-sm text-slate-800 border-b border-slate-100">⚠ {tr(T.auffTitel)}</p>
-        {auffaellige.length === 0 ? (
-          <p className="px-5 py-6 text-center text-sm text-slate-400">{tr(T.auffLeer)}</p>
-        ) : (
-          <div className="divide-y divide-slate-50">
-            {auffaellige.map((e) => (
-              <div key={e.patient.id} className="px-5 py-3 flex flex-wrap items-center gap-3 text-sm">
-                <p className="font-semibold text-slate-900 min-w-0 flex-1">
-                  {e.patient.vorname} {e.patient.nachname}
-                  {e.patient.gesperrt && (
-                    <span className="mx-2 text-[10px] font-bold bg-red-600 text-white rounded-full px-2 py-0.5 align-middle">{tr(T.gesperrt)}</span>
-                  )}
-                </p>
-                <span className="text-xs font-bold bg-red-100 text-red-700 rounded-full px-2.5 py-1">{e.anzahl}× {tr(T.spAbsagen)}</span>
-                <span className="text-xs font-bold bg-amber-100 text-amber-700 rounded-full px-2.5 py-1" dir="ltr">{euro(e.gebuehren)} {tr(T.spGebuehren)}</span>
-                <button
-                  onClick={() => sperren(e.patient, !e.patient.gesperrt)}
-                  className={`text-xs font-semibold rounded-full px-3.5 py-2 border ${
-                    e.patient.gesperrt
-                      ? 'border-slate-200 text-slate-500 hover:border-praxis-400'
-                      : 'border-red-300 text-red-600 hover:bg-red-50'
-                  }`}
-                >
-                  {e.patient.gesperrt ? tr(T.entsperren) : tr(T.sperren)}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Behandlungsliste */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <p className="px-5 py-3.5 font-bold text-sm text-slate-800 border-b border-slate-100">{tr(T.tabelle)} ({fertige.length})</p>
-        {fertige.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-slate-400">{tr(T.keine)}</p>
-        ) : (
-          <div className="divide-y divide-slate-50">
-            {fertige.map((t) => {
-              const bilder = photos.filter((p) => p.terminId === t.id).length
-              const betrag = summe(t.leistungen)
-              const patient = patients.find((p) => p.id === t.patientId)
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto mb-6">
+        <table className="w-full text-sm min-w-[980px]">
+          <thead>
+            <tr className="text-left text-xs uppercase text-slate-400 border-b border-slate-100">
+              <th className="px-4 py-3">Baustelle</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3 text-right">LV-Auftragswert</th>
+              <th className="px-4 py-3 text-right">Geleistet (Ist)</th>
+              <th className="px-4 py-3 text-right">Abgerechnet</th>
+              <th className="px-4 py-3 text-right">Regie-Erlös</th>
+              <th className="px-4 py-3 text-right">Material</th>
+              <th className="px-4 py-3 text-right">Lohn intern</th>
+              <th className="px-4 py-3 text-right">Spesen</th>
+              <th className="px-4 py-3 text-right">Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody>
+            {zeilen.map(({ p, auftragswert, geleistet, abgerechnet, regieErloes, materialKosten, lohnKosten, spesenSumme, ergebnis }) => {
+              const st = statusInfo(p.status)
               return (
-                <div key={t.id} className="px-5 py-3 flex flex-wrap items-center gap-3 text-sm">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-slate-900 truncate">
-                      {t.patientName}
-                      {patient?.zusatzversicherung && (
-                        <span className="mx-2 text-[10px] font-bold bg-sky-100 text-sky-700 rounded-full px-2 py-0.5 align-middle">
-                          + {patient.zusatzversicherung}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      {datumLok(t.datum)} · {t.start} · {t.behandlung} · {t.arzt}
-                      {bilder > 0 && ` · ${bilder} ${tr(T.bilder)}`}
-                    </p>
-                  </div>
-                  <span className={`text-[10px] font-bold rounded-full px-2.5 py-1 ${
-                    t.rechnung === 'bezahlt' ? 'bg-praxis-100 text-praxis-800'
-                    : t.rechnung === 'gestellt' ? 'bg-sky-100 text-sky-700'
-                    : t.rechnung === 'pruefen' ? 'bg-violet-100 text-violet-700'
-                    : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {tr(T.rechnungStatus[t.rechnung || 'offen'])}
-                  </span>
-                  <span className="w-24 text-right rtl:text-left font-bold text-slate-900" dir="ltr">{betrag > 0 ? euro(betrag) : '–'}</span>
-                  <button
-                    onClick={() => bericht(t)}
-                    className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:border-praxis-400 text-slate-600 text-xs font-semibold px-3 py-2 rounded-full"
-                  >
-                    <Icon name="upload" className="w-3.5 h-3.5 rotate-180" /> {tr(T.bericht)} (PDF)
-                  </button>
-                </div>
+                <tr key={p.id} className="border-b border-slate-50">
+                  <td className="px-4 py-3">
+                    <Link to={`/projekte/${p.id}`} className="font-medium text-praxis-600 hover:underline">{p.nummer}</Link>
+                    <p className="text-xs text-slate-500 truncate max-w-[200px]">{p.name}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ color: st.farbe, backgroundColor: `${st.farbe}1f` }}>{st.label}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right">{auftragswert ? euro(auftragswert) : '–'}</td>
+                  <td className="px-4 py-3 text-right">{euro(geleistet)}</td>
+                  <td className="px-4 py-3 text-right">{euro(abgerechnet)}</td>
+                  <td className="px-4 py-3 text-right">{euro(regieErloes)}</td>
+                  <td className="px-4 py-3 text-right text-slate-500">− {euro(materialKosten)}</td>
+                  <td className="px-4 py-3 text-right text-slate-500">− {euro(lohnKosten)}</td>
+                  <td className="px-4 py-3 text-right text-slate-500">− {euro(spesenSumme)}</td>
+                  <td className={`px-4 py-3 text-right font-bold ${ergebnis >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{euro(ergebnis)}</td>
+                </tr>
               )
             })}
-          </div>
-        )}
+          </tbody>
+        </table>
       </div>
-      <p className="mt-3 text-xs text-slate-400">{tr(T.gesamtBericht)}</p>
+
+      {chartZeilen.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <p className="text-sm font-bold text-slate-700 mb-4">Auftragswert vs. geleistete Arbeit (offene Baustellen)</p>
+          <svg viewBox={`0 0 600 ${chartZeilen.length * 56 + 10}`} className="w-full">
+            {chartZeilen.map((z, i) => {
+              const y = i * 56
+              const w1 = (z.auftragswert / chartMax) * 420
+              const w2 = (z.geleistet / chartMax) * 420
+              return (
+                <g key={z.p.id} transform={`translate(0, ${y})`}>
+                  <text x="0" y="14" fontSize="11" fill="#475569">{z.p.nummer} {z.p.name.slice(0, 40)}</text>
+                  <rect x="0" y="20" width={w1} height="10" rx="5" fill="#d9d9dc" />
+                  <rect x="0" y="34" width={w2} height="10" rx="5" fill="#8b1a1a" />
+                  <text x={w1 + 8} y="29" fontSize="10" fill="#94a3b8">{euro(z.auftragswert)}</text>
+                  <text x={w2 + 8} y="43" fontSize="10" fill="#8b1a1a">{euro(z.geleistet)}</text>
+                </g>
+              )
+            })}
+          </svg>
+          <p className="text-xs text-slate-400 mt-2">Grau = LV-Auftragswert · Rot = geleistete Arbeit (Ist-Mengen × EP)</p>
+        </div>
+      )}
     </div>
   )
 }

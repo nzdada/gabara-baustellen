@@ -1,616 +1,573 @@
-import { useEffect, useRef, useState } from 'react'
-import { useCollection, withStore, speichereSetting } from '../hooks.js'
-import { EINSTELLUNGEN_DEFAULTS } from '@shared/einstellungen.js'
+import { useState } from 'react'
+import { useCollection, withStore, speichereSetting, useEinstellungen } from '../hooks.js'
 import { storeModus } from '@shared/store.js'
-import { kalenderKonfiguriert, kalenderVerbunden, kalenderVerbinden } from '@shared/googleCalendar.js'
-import { mailKonfiguriert } from '@shared/mail.js'
-import { heuteISO, addTage, normalisiereFenster } from '@shared/slots.js'
 import { Icon } from '@shared/ui.jsx'
-import { useLang, tr, datumLok, WOCHENTAGE } from '@shared/i18n.js'
+import { pruefeVerbindung, ladeArtikelVonFastbill, syncArtikel } from '@shared/fastbill.js'
 
-const T = {
-  titel: { de: 'Einstellungen & System', en: 'Settings & system', ar: 'الإعدادات والنظام' },
-  status: { de: 'Systemstatus', en: 'System status', ar: 'حالة النظام' },
-  daten: { de: 'Datenhaltung:', en: 'Data storage:', ar: 'تخزين البيانات:' },
-  datenFirebase: { de: 'Firebase Firestore (Frankfurt, EU) – online von überall', en: 'Firebase Firestore (Frankfurt, EU) – online from anywhere', ar: 'Firebase Firestore (فرانكفورت، الاتحاد الأوروبي) – متاح من أي مكان' },
-  datenLokal: { de: 'Lokaler Demo-Modus (Daten nur in diesem Browser)', en: 'Local demo mode (data only in this browser)', ar: 'وضع تجريبي محلي (البيانات في هذا المتصفح فقط)' },
-  google: { de: 'Google Kalender:', en: 'Google Calendar:', ar: 'تقويم جوجل:' },
-  gVerbunden: { de: 'verbunden', en: 'connected', ar: 'متصل' },
-  gKonf: { de: 'konfiguriert, nicht verbunden', en: 'configured, not connected', ar: 'مهيأ، غير متصل' },
-  gDemo: { de: 'Demo-Modus (keine Client-ID hinterlegt)', en: 'demo mode (no client ID configured)', ar: 'وضع تجريبي (لا يوجد معرف عميل)' },
-  verbinden: { de: 'Jetzt verbinden', en: 'Connect now', ar: 'اتصل الآن' },
-  mail: { de: 'Patienten-Mails (Bestätigung/Absage):', en: 'Patient e-mails (confirmation/decline):', ar: 'رسائل المرضى (تأكيد/إلغاء):' },
-  mailAktiv: { de: 'aktiv (Apps-Script-Mail-Dienst)', en: 'active (Apps Script mail service)', ar: 'مفعّل (خدمة بريد Apps Script)' },
-  mailInaktiv: { de: 'nicht eingerichtet – seed/erinnerung.gs als Web-App bereitstellen und URL in shared/firebase-config.js (MAIL_DIENST.url) eintragen', en: 'not set up – deploy seed/erinnerung.gs as a web app and store the URL in shared/firebase-config.js (MAIL_DIENST.url)', ar: 'غير مفعّل – انشر seed/erinnerung.gs كتطبيق ويب وأدخل الرابط في الإعدادات' },
-  lokalHinweis: {
-    de: 'Für den Betrieb von überall (Tablet + Empfang gleichzeitig) wird Firebase aktiviert – Anleitung in der README (Konto: nasiradada.98@gmail.com). Die Oberfläche bleibt exakt gleich.',
-    en: 'For operation from anywhere (tablet + front desk at the same time) Firebase is activated – see README (account: nasiradada.98@gmail.com). The interface stays exactly the same.',
-    ar: 'للعمل من أي مكان (الجهاز اللوحي والاستقبال معًا) يتم تفعيل Firebase – الدليل في README (الحساب: nasiradada.98@gmail.com). تبقى الواجهة كما هي تمامًا.',
-  },
-  erinnerungTitel: { de: 'Termin-Erinnerungen (1 Tag vorher)', en: 'Appointment reminders (1 day before)', ar: 'تذكيرات المواعيد (قبل يوم واحد)' },
-  erinnerungText: {
-    de: 'Ein Google-Apps-Script sendet täglich um 17:00 Uhr automatisch E-Mail-Erinnerungen für alle morgigen Termine (Datei seed/erinnerung.gs). Patienten ohne E-Mail stehen hier zum Anrufen:',
-    en: 'A Google Apps Script automatically sends e-mail reminders for all of tomorrow’s appointments daily at 17:00 (file seed/erinnerung.gs). Patients without e-mail are listed here to be called:',
-    ar: 'يرسل سكربت Google Apps تلقائيًا رسائل تذكير يومية الساعة 17:00 لجميع مواعيد الغد (الملف seed/erinnerung.gs). المرضى بدون بريد إلكتروني مدرجون هنا للاتصال بهم:',
-  },
-  morgen: { de: 'Morgen', en: 'Tomorrow', ar: 'غدًا' },
-  termine: { de: 'Termine', en: 'appointments', ar: 'مواعيد' },
-  uhr: { de: 'Uhr', en: '', ar: '' },
-  erinnert: { de: '✓ erinnert', en: '✓ reminded', ar: '✓ تم التذكير' },
-  offen: { de: 'offen', en: 'pending', ar: 'قيد الانتظار' },
-  demoSenden: { de: 'Demo: Erinnerungen jetzt als gesendet markieren', en: 'Demo: mark reminders as sent now', ar: 'تجريبي: وضع علامة "أُرسلت" على التذكيرات الآن' },
-  demoTitel: { de: 'Demo-Daten', en: 'Demo data', ar: 'بيانات تجريبية' },
-  demoText: {
-    de: 'Setzt Patienten, Termine und Anfragen auf den Vorführ-Stand zurück (fiktive Daten, Termine relativ zu heute). Ideal direkt vor der Präsentation beim Zahnarzt.',
-    en: 'Resets patients, appointments and requests to the demo state (fictional data, appointments relative to today). Ideal right before the presentation.',
-    ar: 'يعيد المرضى والمواعيد والطلبات إلى حالة العرض (بيانات وهمية، مواعيد نسبةً إلى اليوم). مثالي قبل العرض مباشرة.',
-  },
-  demoFrage: { de: 'Alle Daten auf den Demo-Stand zurücksetzen?', en: 'Reset all data to the demo state?', ar: 'إعادة تعيين جميع البيانات إلى حالة العرض؟' },
-  demoKnopf: { de: 'Demo-Daten zurücksetzen', en: 'Reset demo data', ar: 'إعادة تعيين البيانات التجريبية' },
-  erledigt: { de: '✓ Erledigt!', en: '✓ Done!', ar: '✓ تم!' },
-  // Globale Konfiguration
-  globalTitel: { de: 'Globale Einstellungen', en: 'Global settings', ar: 'الإعدادات العامة' },
-  globalHinweis: { de: 'Gespeichert in der Datenbank (settings/global) – gilt sofort für die ganze Verwaltung. Werte im Mail-Dienst (Apps Script) ggf. mit anpassen.', en: 'Stored in the database (settings/global) – applies immediately to the whole admin. Adjust the mail service (Apps Script) values accordingly if needed.', ar: 'محفوظة في قاعدة البيانات وتسري فورًا على الإدارة كلها.' },
-  gLokal: { de: 'Lokalisierung & Standards', en: 'Localisation & standards', ar: 'اللغة والمعايير' },
-  gSprache: { de: 'Standardsprache', en: 'Default language', ar: 'اللغة الافتراضية' },
-  gWaehrung: { de: 'Währung', en: 'Currency', ar: 'العملة' },
-  gDatum: { de: 'Datumsformat', en: 'Date format', ar: 'صيغة التاريخ' },
-  gFristen: { de: 'Automatisierung & Fristen', en: 'Automation & deadlines', ar: 'الأتمتة والمهل' },
-  gStorno: { de: 'Stornierungsfrist (Stunden)', en: 'Cancellation deadline (hours)', ar: 'مهلة الإلغاء (ساعات)' },
-  gGebuehr: { de: 'Ausfallgebühr (€)', en: 'No-show fee (€)', ar: 'رسوم الإلغاء (€)' },
-  gFeedback: { de: 'Feedback-Versand nach (Stunden)', en: 'Feedback e-mail after (hours)', ar: 'إرسال الملاحظات بعد (ساعات)' },
-  gKatalog: { de: 'Kataloge & Praxisdaten', en: 'Catalogues & practice data', ar: 'الكتالوجات وبيانات العيادة' },
-  gModus: { de: 'Abrechnungskatalog', en: 'Billing catalogue', ar: 'كتالوج الفوترة' },
-  gName: { de: 'Praxisname', en: 'Practice name', ar: 'اسم العيادة' },
-  gAnschrift: { de: 'Anschrift', en: 'Address', ar: 'العنوان' },
-  gTelefon: { de: 'Telefon', en: 'Phone', ar: 'الهاتف' },
-  gEmail: { de: 'E-Mail', en: 'E-mail', ar: 'البريد الإلكتروني' },
-  gBank: { de: 'Bank', en: 'Bank', ar: 'البنك' },
-  gIban: { de: 'IBAN (für Rechnungs-PDF)', en: 'IBAN (for invoice PDF)', ar: 'IBAN (لفاتورة PDF)' },
-  gSpeichern: { de: 'Einstellungen speichern', en: 'Save settings', ar: 'حفظ الإعدادات' },
-  gGespeichert: { de: '✓ Gespeichert', en: '✓ Saved', ar: '✓ تم الحفظ' },
-  // Wochenplan Pausen & Abwesenheiten
-  wpTitel: { de: 'Wochenplan: Pausen & Abwesenheiten', en: 'Weekly plan: breaks & absences', ar: 'الخطة الأسبوعية: الاستراحات والغياب' },
-  wpHinweis: {
-    de: 'Diese Zeiten wiederholen sich jede Woche und sind für Patienten online NICHT buchbar (Mittagspause, Besprechung, Fortbildung …). Sie gelten sofort für die Online-Buchung und die interne Terminvergabe.',
-    en: 'These times repeat every week and are NOT bookable online for patients (lunch break, meeting, training …). They apply immediately to online booking and internal scheduling.',
-    ar: 'تتكرر هذه الأوقات أسبوعيًا ولا يمكن للمرضى حجزها عبر الإنترنت. تسري فورًا على الحجز الإلكتروني والمواعيد الداخلية.',
-  },
-  wpTag: { de: 'Wochentag', en: 'Weekday', ar: 'اليوم' },
-  von: { de: 'Von', en: 'From', ar: 'من' },
-  bis: { de: 'Bis', en: 'Until', ar: 'إلى' },
-  wpGrund: { de: 'Grund', en: 'Reason', ar: 'السبب' },
-  wpGrundPlatzhalter: { de: 'z. B. Mittagspause', en: 'e.g. lunch break', ar: 'مثال: استراحة الغداء' },
-  wpHinzu: { de: '+ Pause eintragen', en: '+ Add break', ar: '+ إضافة استراحة' },
-  wpKeine: { de: 'Keine wiederkehrenden Pausen eingetragen.', en: 'No recurring breaks entered.', ar: 'لا استراحات متكررة.' },
-  // Öffnungszeiten
-  ozTitel: { de: 'Öffnungszeiten', en: 'Opening hours', ar: 'ساعات العمل' },
-  ozHinweis: {
-    de: 'Diese Zeitfenster bestimmen, wann Patienten online buchen können – sie gelten sofort für die Webseite und die interne Terminvergabe. Ein Tag ohne Zeitfenster ist online nicht buchbar (z. B. „nur telefonisch erreichbar").',
-    en: 'These time windows define when patients can book online – they apply immediately to the website and internal scheduling. A day without windows cannot be booked online (e.g. "reachable by phone only").',
-    ar: 'تحدد هذه الفترات متى يمكن للمرضى الحجز عبر الإنترنت – وتسري فورًا على الموقع والمواعيد الداخلية. اليوم بدون فترات لا يمكن حجزه عبر الإنترنت.',
-  },
-  ozGeschlossen: { de: 'online nicht buchbar', en: 'not bookable online', ar: 'غير متاح للحجز' },
-  ozHinzu: { de: '+ Zeitfenster hinzufügen', en: '+ Add time window', ar: '+ إضافة فترة' },
-  ozSonntag: { de: 'Sonntag ist immer geschlossen.', en: 'Sunday is always closed.', ar: 'الأحد مغلق دائمًا.' },
-  ozTelefon: { de: '☎ telefonisch erreichbar', en: '☎ reachable by phone', ar: '☎ متاحون هاتفيًا' },
-  // Urlaub & Betriebsferien
-  ozUrlaubTitel: { de: 'Urlaub & Betriebsferien', en: 'Holidays & practice closure', ar: 'الإجازات والعطل' },
-  ozUrlaubHinweis: {
-    de: 'In diesen Zeiträumen können Patienten online KEINE Termine buchen – die Buchungsseite zeigt einen Urlaubs-Hinweis. Gilt auch für die interne Terminvergabe (Patiententermine).',
-    en: 'During these periods patients CANNOT book online – the booking page shows a holiday notice. Also applies to internal patient scheduling.',
-    ar: 'خلال هذه الفترات لا يمكن للمرضى الحجز عبر الإنترنت – وتعرض صفحة الحجز إشعار الإجازة.',
-  },
-  ozUrlaubHinzu: { de: '+ Urlaub eintragen', en: '+ Add holiday', ar: '+ إضافة إجازة' },
-  ozUrlaubKeiner: { de: 'Kein Urlaub eingetragen.', en: 'No holiday entered.', ar: 'لا إجازات مسجلة.' },
+// Einstellungen = EIN Bereich für Einstellungen UND Stammdaten (User-Wunsch):
+// Firmendaten · Mitarbeiter · Artikel · Textbausteine · Sätze · Arbeitszeiten ·
+// FastBill (mit Verbindungstest + API-Protokoll) · Daten.
+
+const REITER = [
+  { id: 'firma', label: 'Firmendaten' },
+  { id: 'mitarbeiter', label: 'Mitarbeiter' },
+  { id: 'artikel', label: 'Artikel' },
+  { id: 'bausteine', label: 'Textbausteine' },
+  { id: 'saetze', label: 'Sätze' },
+  { id: 'zeiten', label: 'Arbeitszeiten' },
+  { id: 'fastbill', label: 'FastBill' },
+  { id: 'daten', label: 'Daten' },
+]
+
+const WOCHENTAGE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
+
+const feld = 'w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500'
+const label = 'block text-xs font-semibold text-slate-500 mb-1'
+const karte = 'bg-white rounded-2xl border border-slate-200 shadow-sm p-5'
+
+function SpeichernKnopf({ onClick, gespeichert }) {
+  return (
+    <button onClick={onClick} className="px-4 py-2.5 rounded-xl bg-praxis-600 text-white text-sm font-bold hover:bg-praxis-700">
+      {gespeichert ? 'Gespeichert' : 'Speichern'}
+    </button>
+  )
 }
 
-// Halbe Stunden 07:00–20:00 für die Pausen-Auswahl
-const WP_ZEITEN = []
-for (let m = 7 * 60; m <= 20 * 60; m += 30) {
-  WP_ZEITEN.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`)
-}
+// ---------- Reiter: Firmendaten ----------
+function Firmendaten() {
+  const settings = useCollection('settings')
+  const global = settings.find((s) => s.id === 'global')
+  const einst = useEinstellungen()
+  const [d, setD] = useState(null)
+  const [ok, setOk] = useState(false)
+  const werte = d || einst
+  const set = (f) => (e) => { setOk(false); setD({ ...werte, [f]: e.target.value }) }
 
-export default function Einstellungen() {
-  useLang()
-  const appointments = useCollection('appointments')
-  // EIN Live-Abo auf settings für alle Karten (statt drei parallelen Listenern)
-  const settingsRows = useCollection('settings')
-  const [zurueckgesetzt, setZurueckgesetzt] = useState(false)
-  const [gVerbunden, setGVerbunden] = useState(kalenderVerbunden())
-  const modus = storeModus()
-
-  const morgen = addTage(heuteISO(), 1)
-  const morgige = appointments.filter((a) => a.datum === morgen && a.status === 'bestaetigt')
-
-  async function demoReset() {
-    if (!confirm(tr(T.demoFrage))) return
-    await withStore((s) => s.resetDemo())
-    setZurueckgesetzt(true)
-    setTimeout(() => setZurueckgesetzt(false), 4000)
-  }
-
-  async function erinnerungenMarkieren() {
-    await withStore(async (s) => {
-      for (const a of morgige) {
-        await s.update('appointments', a.id, { erinnerung: 'gesendet' })
-      }
-    })
+  async function speichern() {
+    await speichereSetting('global', { ...einst, ...werte }, Boolean(global))
+    setOk(true)
   }
 
   return (
-    <div className="p-4 lg:p-6 max-w-3xl space-y-5">
-      <h1 className="text-xl font-bold text-slate-900">{tr(T.titel)}</h1>
-
-      {/* Systemstatus */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h2 className="font-bold text-slate-800 text-sm mb-3">{tr(T.status)}</h2>
-        <div className="space-y-2.5 text-sm">
-          <p className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${modus === 'firebase' ? 'bg-praxis-500' : 'bg-amber-400'}`} />
-            {tr(T.daten)} <strong>{modus === 'firebase' ? tr(T.datenFirebase) : tr(T.datenLokal)}</strong>
-          </p>
-          <p className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${mailKonfiguriert() ? 'bg-praxis-500' : 'bg-amber-400'}`} />
-            {tr(T.mail)} <strong>{mailKonfiguriert() ? tr(T.mailAktiv) : tr(T.mailInaktiv)}</strong>
-          </p>
-          <p className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${gVerbunden ? 'bg-praxis-500' : 'bg-slate-300'}`} />
-            {tr(T.google)} <strong>
-              {gVerbunden ? tr(T.gVerbunden) : kalenderKonfiguriert() ? tr(T.gKonf) : tr(T.gDemo)}
-            </strong>
-            {kalenderKonfiguriert() && !gVerbunden && (
-              <button
-                onClick={async () => { await kalenderVerbinden(); setGVerbunden(true) }}
-                className="mx-2 text-praxis-700 font-semibold hover:underline"
-              >
-                {tr(T.verbinden)}
-              </button>
-            )}
-          </p>
+    <div className={karte}>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div><label className={label}>Firmenname</label><input className={feld} value={werte.praxisName || ''} onChange={set('praxisName')} /></div>
+        <div><label className={label}>Anschrift</label><input className={feld} value={werte.praxisAnschrift || ''} onChange={set('praxisAnschrift')} /></div>
+        <div><label className={label}>Telefon</label><input className={feld} value={werte.praxisTelefon || ''} onChange={set('praxisTelefon')} /></div>
+        <div><label className={label}>E-Mail</label><input className={feld} value={werte.praxisEmail || ''} onChange={set('praxisEmail')} /></div>
+        <div><label className={label}>Bank (für internen Eigendruck)</label><input className={feld} value={werte.bankName || ''} onChange={set('bankName')} placeholder="folgt später" /></div>
+        <div><label className={label}>IBAN</label><input className={feld} value={werte.iban || ''} onChange={set('iban')} placeholder="folgt später" /></div>
+        <div>
+          <label className={label}>USt-Standard für neue Kunden</label>
+          <select className={feld} value={werte.ustModusStandard || '13b'} onChange={set('ustModusStandard')}>
+            <option value="13b">§13b netto (Nachunternehmer)</option>
+            <option value="ust19">19 % USt (Privatkunden)</option>
+          </select>
         </div>
-        {modus === 'lokal' && (
-          <p className="mt-3 text-xs text-slate-400 leading-relaxed">{tr(T.lokalHinweis)}</p>
-        )}
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className={label}>Zahlungsziel (Tage)</label><input type="number" className={feld} value={werte.zahlungszielTage ?? 16} onChange={set('zahlungszielTage')} /></div>
+          <div><label className={label}>Sicherheitseinbehalt %</label><input type="number" className={feld} value={werte.sicherheitseinbehaltProzent ?? 10} onChange={set('sicherheitseinbehaltProzent')} /></div>
+        </div>
       </div>
-
-      {/* Termin-Erinnerungen */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h2 className="font-bold text-slate-800 text-sm mb-1 flex items-center gap-2">
-          <Icon name="bell" className="w-4 h-4 text-praxis-600" /> {tr(T.erinnerungTitel)}
-        </h2>
-        <p className="text-xs text-slate-500 mb-4 leading-relaxed">{tr(T.erinnerungText)}</p>
-        <p className="text-sm font-semibold text-slate-700 mb-2">{tr(T.morgen)} ({datumLok(morgen)}): {morgige.length} {tr(T.termine)}</p>
-        {morgige.length > 0 && (
-          <div className="space-y-1.5 mb-4">
-            {morgige.map((a) => (
-              <div key={a.id} className="flex items-center justify-between text-sm bg-slate-50 rounded-xl px-4 py-2.5">
-                <span>{a.start} {tr(T.uhr)} · {a.patientName} · {a.behandlung}</span>
-                <span className={`text-xs font-bold rounded-full px-2.5 py-1 ${
-                  a.erinnerung === 'gesendet' ? 'bg-praxis-100 text-praxis-800' : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {a.erinnerung === 'gesendet' ? tr(T.erinnert) : tr(T.offen)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-        {morgige.some((a) => a.erinnerung !== 'gesendet') && (
-          <button
-            onClick={erinnerungenMarkieren}
-            className="bg-praxis-600 hover:bg-praxis-700 text-white text-sm font-semibold px-4 py-2.5 rounded-full"
-          >
-            {tr(T.demoSenden)}
-          </button>
-        )}
-      </div>
-
-      {/* Öffnungszeiten: bestimmen die online buchbaren Zeitfenster */}
-      <Oeffnungszeiten settingsRows={settingsRows} />
-
-      {/* Wochenplan: wiederkehrende Pausen & Abwesenheiten (blocken die Buchung) */}
-      <Wochenplan settingsRows={settingsRows} />
-
-      {/* Globale Konfiguration (Modul 10) */}
-      <GlobaleEinstellungen settingsRows={settingsRows} />
-
-      {/* Demo-Daten */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h2 className="font-bold text-slate-800 text-sm mb-1">{tr(T.demoTitel)}</h2>
-        <p className="text-xs text-slate-500 mb-4">{tr(T.demoText)}</p>
-        <button
-          onClick={demoReset}
-          className="bg-white border border-red-200 text-red-600 hover:bg-red-50 text-sm font-semibold px-4 py-2.5 rounded-full"
-        >
-          {tr(T.demoKnopf)}
-        </button>
-        {zurueckgesetzt && <span className="mx-3 text-sm text-praxis-700 font-semibold">{tr(T.erledigt)}</span>}
-      </div>
+      <p className="text-xs text-slate-400 mt-3">Die offiziellen Rechnungen (inkl. E-Rechnung) erstellt FastBill – Bankdaten hier sind nur für den internen Eigendruck.</p>
+      <div className="mt-4"><SpeichernKnopf onClick={speichern} gespeichert={ok} /></div>
     </div>
   )
 }
 
-// Öffnungszeiten je Wochentag (settings/oeffnungszeiten, öffentlich lesbar – nur Uhrzeiten).
-// Quelle für Online-Buchung, interne Terminvergabe und Kalender-Kopfzeile.
-// Überlappende Fenster eines Tages zu einem zusammenfassen (verhindert doppelte Slots)
-function fensterZusammenfassen(liste) {
-  const sortiert = [...liste].sort((a, b) => a.von.localeCompare(b.von))
-  const out = []
-  for (const f of sortiert) {
-    const letztes = out[out.length - 1]
-    if (letztes && f.von <= letztes.bis) {
-      if (f.bis > letztes.bis) letztes.bis = f.bis
-    } else out.push({ ...f })
+// ---------- Reiter: Mitarbeiter ----------
+function Mitarbeiter() {
+  const users = useCollection('users')
+  const [neu, setNeu] = useState(false)
+  const leer = { name: '', email: '', rolle: 'mitarbeiter', farbe: '#f97316', stundensatzIntern: 25, aktiv: true }
+  const [d, setD] = useState(leer)
+
+  async function anlegen() {
+    if (!d.name.trim()) return
+    await withStore((s) => s.add('users', { ...d, stundensatzIntern: Number(d.stundensatzIntern) || 0 }))
+    setD(leer)
+    setNeu(false)
   }
-  return out
-}
-
-function Oeffnungszeiten({ settingsRows }) {
-  const doc = settingsRows.find((r) => r.id === 'oeffnungszeiten')
-  // Optimistischer Zwischenstand: schnelle Klicks rechnen auf dem zuletzt
-  // geschriebenen Stand weiter, statt auf dem alten Render (Race beim Doppel-Löschen)
-  const entwurfRef = useRef(null)
-  const angelegtRef = useRef(!!doc)
-  useEffect(() => { entwurfRef.current = null }, [doc])
-
-  const stand = entwurfRef.current || {
-    fenster: normalisiereFenster(doc?.fenster || null),
-    telefon: doc?.telefon || [5],
-    urlaub: doc?.urlaub || [],
-  }
-
-  const [tag, setTag] = useState(1)
-  const [von, setVon] = useState('08:00')
-  const [bis, setBis] = useState('12:00')
-  const [uVon, setUVon] = useState('')
-  const [uBis, setUBis] = useState('')
-  const [, neuZeichnen] = useState(0)
-
-  function speichern(neuerStand) {
-    entwurfRef.current = neuerStand
-    neuZeichnen((x) => x + 1)
-    const vorhanden = !!doc || angelegtRef.current
-    angelegtRef.current = true
-    speichereSetting('oeffnungszeiten', neuerStand, vorhanden)
-  }
-
-  function hinzufuegen() {
-    if (bis <= von) return
-    const fenster = { ...stand.fenster, [tag]: fensterZusammenfassen([...stand.fenster[tag], { von, bis }]) }
-    speichern({ ...stand, fenster })
-  }
-
-  function entfernen(t, index) {
-    const fenster = { ...stand.fenster, [t]: stand.fenster[t].filter((_, i) => i !== index) }
-    speichern({ ...stand, fenster })
-  }
-
-  function telefonWechseln(t) {
-    const telefon = stand.telefon.includes(t)
-      ? stand.telefon.filter((x) => x !== t)
-      : [...stand.telefon, t].sort((a, b) => a - b)
-    speichern({ ...stand, telefon })
-  }
-
-  function urlaubHinzufuegen() {
-    if (!uVon || !uBis || uBis < uVon) return
-    const urlaub = [...stand.urlaub, { von: uVon, bis: uBis }].sort((a, b) => a.von.localeCompare(b.von))
-    speichern({ ...stand, urlaub })
-    setUVon('')
-    setUBis('')
-  }
-
-  function urlaubEntfernen(index) {
-    speichern({ ...stand, urlaub: stand.urlaub.filter((_, i) => i !== index) })
-  }
-
-  const selectKlasse = 'rounded-xl border border-slate-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-praxis-500'
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6">
-      <h2 className="font-bold text-slate-800 text-sm mb-1">🕐 {tr(T.ozTitel)}</h2>
-      <p className="text-xs text-slate-500 mb-4 leading-relaxed">{tr(T.ozHinweis)}</p>
-
-      {/* Wochenübersicht Mo–Sa */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mb-4">
-        {[1, 2, 3, 4, 5, 6].map((t) => (
-          <div key={t} className="border border-slate-100 rounded-xl p-2.5 min-h-[76px]">
-            <p className="text-[11px] font-bold text-slate-500 mb-1.5">{tr(WOCHENTAGE[t])}</p>
-            {stand.fenster[t].length === 0 ? (
-              <>
-                <p className="text-[10px] text-slate-400 italic">{tr(T.ozGeschlossen)}</p>
-                {/* Geschlossene Tage können trotzdem telefonisch erreichbar sein */}
-                <label className="mt-1.5 flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={stand.telefon.includes(t)}
-                    onChange={() => telefonWechseln(t)}
-                    className="accent-praxis-600"
-                  />
-                  {tr(T.ozTelefon)}
-                </label>
-              </>
-            ) : (
-              stand.fenster[t].map((f, i) => (
-                <div key={i} className="flex items-center gap-1 bg-praxis-50 border border-praxis-200 rounded-lg px-2 py-1 mb-1">
-                  <span className="flex-1 min-w-0 block text-[10px] font-bold text-praxis-800" dir="ltr">{f.von}–{f.bis}</span>
-                  <button
-                    onClick={() => entfernen(t, i)}
-                    className="shrink-0 text-praxis-400 hover:text-red-600 text-xs font-bold"
-                    title="Löschen"
-                  >
-                    ×
+    <div className={karte}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
+          <thead><tr className="text-left text-xs uppercase text-slate-400 border-b border-slate-100">
+            <th className="py-2 pr-3">Name</th><th className="py-2 pr-3">E-Mail (Login)</th><th className="py-2 pr-3">Rolle</th>
+            <th className="py-2 pr-3">Farbe</th><th className="py-2 pr-3">Std.-Satz intern</th><th className="py-2 pr-3">Aktiv</th><th></th>
+          </tr></thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id} className="border-b border-slate-50">
+                <td className="py-2 pr-3">
+                  <input className={feld} defaultValue={u.name} onBlur={(e) => withStore((s) => s.update('users', u.id, { name: e.target.value }))} />
+                </td>
+                <td className="py-2 pr-3">
+                  <input className={feld} defaultValue={u.email} onBlur={(e) => withStore((s) => s.update('users', u.id, { email: e.target.value }))} />
+                </td>
+                <td className="py-2 pr-3">
+                  <select className={feld} defaultValue={u.rolle} onChange={(e) => withStore((s) => s.update('users', u.id, { rolle: e.target.value }))}>
+                    <option value="admin">Büro/Admin</option>
+                    <option value="mitarbeiter">Monteur</option>
+                  </select>
+                </td>
+                <td className="py-2 pr-3">
+                  <input type="color" className="w-10 h-9 rounded-lg border border-slate-200" defaultValue={u.farbe || '#f97316'}
+                    onChange={(e) => withStore((s) => s.update('users', u.id, { farbe: e.target.value }))} />
+                </td>
+                <td className="py-2 pr-3">
+                  <input type="number" className={`${feld} !w-24`} defaultValue={u.stundensatzIntern ?? 0}
+                    onBlur={(e) => withStore((s) => s.update('users', u.id, { stundensatzIntern: Number(e.target.value) || 0 }))} />
+                </td>
+                <td className="py-2 pr-3">
+                  <button onClick={() => withStore((s) => s.update('users', u.id, { aktiv: u.aktiv === false }))}
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold ${u.aktiv !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                    {u.aktiv !== false ? 'aktiv' : 'inaktiv'}
                   </button>
-                </div>
-              ))
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Neues Zeitfenster */}
-      <div className="flex flex-wrap items-end gap-2.5 bg-slate-50 rounded-xl p-3.5">
-        <label className="block text-xs font-medium text-slate-600">{tr(T.wpTag)}
-          <select value={tag} onChange={(e) => setTag(Number(e.target.value))} className={`mt-1 block ${selectKlasse}`}>
-            {[1, 2, 3, 4, 5, 6].map((t) => <option key={t} value={t}>{tr(WOCHENTAGE[t])}</option>)}
-          </select>
-        </label>
-        <label className="block text-xs font-medium text-slate-600">{tr(T.von)}
-          <select value={von} onChange={(e) => { setVon(e.target.value); if (bis <= e.target.value) setBis(WP_ZEITEN[WP_ZEITEN.indexOf(e.target.value) + 2] || '20:00') }} className={`mt-1 block ${selectKlasse}`} dir="ltr">
-            {WP_ZEITEN.slice(0, -1).map((z) => <option key={z}>{z}</option>)}
-          </select>
-        </label>
-        <label className="block text-xs font-medium text-slate-600">{tr(T.bis)}
-          <select value={bis} onChange={(e) => setBis(e.target.value)} className={`mt-1 block ${selectKlasse}`} dir="ltr">
-            {WP_ZEITEN.filter((z) => z > von).map((z) => <option key={z}>{z}</option>)}
-          </select>
-        </label>
-        <button onClick={hinzufuegen} className="bg-praxis-600 hover:bg-praxis-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl">
-          {tr(T.ozHinzu)}
-        </button>
-      </div>
-      <p className="mt-2.5 text-[11px] text-slate-400">{tr(T.ozSonntag)}</p>
-
-      {/* Urlaub & Betriebsferien: sperren die Online-Buchung komplett */}
-      <div className="mt-5 border-t border-slate-100 pt-4">
-        <p className="text-sm font-bold text-slate-800 mb-1">🏖 {tr(T.ozUrlaubTitel)}</p>
-        <p className="text-xs text-slate-500 mb-3 leading-relaxed">{tr(T.ozUrlaubHinweis)}</p>
-        {stand.urlaub.length === 0 ? (
-          <p className="text-xs text-slate-400 mb-3">{tr(T.ozUrlaubKeiner)}</p>
-        ) : (
-          <div className="flex flex-wrap gap-2 mb-3">
-            {stand.urlaub.map((u, i) => (
-              <span key={i} className="flex items-center gap-2 bg-sky-50 border border-sky-200 rounded-full px-3.5 py-1.5 text-xs font-semibold text-sky-800">
-                🏖 {datumLok(u.von, { day: '2-digit', month: '2-digit', year: 'numeric' })} – {datumLok(u.bis, { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                <button onClick={() => urlaubEntfernen(i)} className="text-sky-400 hover:text-red-600 font-bold" title="Löschen">×</button>
-              </span>
+                </td>
+                <td className="py-2 text-right">
+                  <button onClick={() => confirm(`${u.name} löschen?`) && withStore((s) => s.remove('users', u.id))}
+                    className="text-slate-300 hover:text-red-500"><Icon name="x" className="w-4 h-4" /></button>
+                </td>
+              </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+      {neu ? (
+        <div className="mt-4 bg-slate-50 rounded-2xl p-4 grid sm:grid-cols-4 gap-3">
+          <input className={feld} placeholder="Name" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
+          <input className={feld} placeholder="E-Mail" value={d.email} onChange={(e) => setD({ ...d, email: e.target.value })} />
+          <select className={feld} value={d.rolle} onChange={(e) => setD({ ...d, rolle: e.target.value })}>
+            <option value="mitarbeiter">Monteur</option><option value="admin">Büro/Admin</option>
+          </select>
+          <div className="flex gap-2">
+            <button onClick={anlegen} className="flex-1 px-3 py-2 rounded-xl bg-praxis-600 text-white text-sm font-bold">Anlegen</button>
+            <button onClick={() => setNeu(false)} className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm">×</button>
           </div>
-        )}
-        <div className="flex flex-wrap items-end gap-2.5 bg-slate-50 rounded-xl p-3.5">
-          <label className="block text-xs font-medium text-slate-600">{tr(T.von)}
-            <input type="date" value={uVon} onChange={(e) => { setUVon(e.target.value); if (uBis && uBis < e.target.value) setUBis(e.target.value) }}
-              className={`mt-1 block ${selectKlasse}`} dir="ltr" />
-          </label>
-          <label className="block text-xs font-medium text-slate-600">{tr(T.bis)}
-            <input type="date" value={uBis} min={uVon || undefined} onChange={(e) => setUBis(e.target.value)}
-              className={`mt-1 block ${selectKlasse}`} dir="ltr" />
-          </label>
-          <button onClick={urlaubHinzufuegen} disabled={!uVon || !uBis}
-            className="bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white text-sm font-bold px-4 py-2.5 rounded-xl">
-            {tr(T.ozUrlaubHinzu)}
-          </button>
         </div>
+      ) : (
+        <button onClick={() => setNeu(true)} className="mt-4 text-sm text-praxis-600 font-medium">+ Mitarbeiter</button>
+      )}
+      <p className="text-xs text-slate-400 mt-3">
+        Im Lokal-Modus melden sich alle mit den Demo-Zugängen an – echte Logins je Mitarbeiter kommen mit dem Firebase-Go-Live.
+      </p>
+    </div>
+  )
+}
+
+// ---------- Reiter: Artikel ----------
+function Artikel() {
+  const katalog = useCollection('katalog')
+  const [neu, setNeu] = useState(false)
+  const leer = { code: '', name: '', einheit: 'Stück', preis: 0, ekPreis: 0, kategorie: '' }
+  const [d, setD] = useState(leer)
+  const [meldung, setMeldung] = useState(null)
+  const [laeuft, setLaeuft] = useState(false)
+
+  async function anlegen() {
+    if (!d.name.trim()) return
+    await withStore((s) => s.add('katalog', { ...d, preis: Number(d.preis) || 0, ekPreis: Number(d.ekPreis) || 0, lieferant: '', fastbillArticleId: null }))
+    setD(leer)
+    setNeu(false)
+  }
+
+  async function vonFastbill() {
+    setLaeuft(true); setMeldung(null)
+    try {
+      const erg = await ladeArtikelVonFastbill()
+      setMeldung(erg.simuliert
+        ? { art: 'info', text: 'Simuliert – FastBill-Zugang fehlt (Reiter FastBill).' }
+        : { art: 'ok', text: `FastBill-Artikel geladen: ${erg.neu} neu, ${erg.aktualisiert} aktualisiert.` })
+    } catch (e) { setMeldung({ art: 'fehler', text: e.message }) }
+    setLaeuft(false)
+  }
+
+  async function zuFastbill() {
+    const offen = katalog.filter((a) => !a.fastbillArticleId)
+    if (!offen.length) { setMeldung({ art: 'info', text: 'Alle Artikel sind bereits verknüpft.' }); return }
+    if (!confirm(`${offen.length} Artikel zu FastBill übertragen? (Rate-Limit: max. ~50 Aufrufe/Stunde)`)) return
+    setLaeuft(true); setMeldung(null)
+    let n = 0
+    try {
+      for (const a of offen) {
+        const erg = await syncArtikel(a)
+        if (erg.simuliert) { setMeldung({ art: 'info', text: 'Simuliert – FastBill-Zugang fehlt.' }); setLaeuft(false); return }
+        n++
+        setMeldung({ art: 'ok', text: `Übertrage … ${n}/${offen.length}` })
+      }
+      setMeldung({ art: 'ok', text: `${n} Artikel zu FastBill übertragen.` })
+    } catch (e) { setMeldung({ art: 'fehler', text: `Nach ${n} Artikeln: ${e.message}` }) }
+    setLaeuft(false)
+  }
+
+  return (
+    <div className={karte}>
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button onClick={vonFastbill} disabled={laeuft} className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-medium disabled:opacity-50">Aus FastBill laden</button>
+        <button onClick={zuFastbill} disabled={laeuft} className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-medium disabled:opacity-50">Alle zu FastBill übertragen</button>
+        <button onClick={() => setNeu(true)} className="px-3 py-2 rounded-xl bg-praxis-600 text-white text-sm font-bold">+ Artikel</button>
+      </div>
+      {meldung && (
+        <p className={`mb-3 text-sm rounded-xl px-3 py-2 border ${meldung.art === 'ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : meldung.art === 'fehler' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>{meldung.text}</p>
+      )}
+      {neu && (
+        <div className="mb-4 bg-slate-50 rounded-2xl p-4 grid sm:grid-cols-6 gap-2">
+          <input className={feld} placeholder="Code" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} />
+          <input className={`${feld} sm:col-span-2`} placeholder="Name" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
+          <input className={feld} placeholder="Einheit" value={d.einheit} onChange={(e) => setD({ ...d, einheit: e.target.value })} />
+          <input type="number" step="0.1" className={feld} placeholder="Preis €" value={d.preis} onChange={(e) => setD({ ...d, preis: e.target.value })} />
+          <div className="flex gap-2">
+            <button onClick={anlegen} className="flex-1 px-3 py-2 rounded-xl bg-praxis-600 text-white text-sm font-bold">OK</button>
+            <button onClick={() => setNeu(false)} className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm">×</button>
+          </div>
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[720px]">
+          <thead><tr className="text-left text-xs uppercase text-slate-400 border-b border-slate-100">
+            <th className="py-2 pr-3">Code</th><th className="py-2 pr-3">Name</th><th className="py-2 pr-3">Einheit</th>
+            <th className="py-2 pr-3 text-right">Preis</th><th className="py-2 pr-3 text-right">EK</th><th className="py-2 pr-3">Kategorie</th><th className="py-2 pr-3">FastBill</th><th></th>
+          </tr></thead>
+          <tbody>
+            {katalog.map((a) => (
+              <tr key={a.id} className="border-b border-slate-50">
+                <td className="py-1.5 pr-3 text-slate-400">{a.code}</td>
+                <td className="py-1.5 pr-3">
+                  <input className={feld} defaultValue={a.name} onBlur={(e) => withStore((s) => s.update('katalog', a.id, { name: e.target.value }))} />
+                </td>
+                <td className="py-1.5 pr-3">
+                  <input className={`${feld} !w-24`} defaultValue={a.einheit} onBlur={(e) => withStore((s) => s.update('katalog', a.id, { einheit: e.target.value }))} />
+                </td>
+                <td className="py-1.5 pr-3 text-right">
+                  <input type="number" step="0.1" className={`${feld} !w-24 text-right`} defaultValue={a.preis}
+                    onBlur={(e) => withStore((s) => s.update('katalog', a.id, { preis: Number(e.target.value) || 0 }))} />
+                </td>
+                <td className="py-1.5 pr-3 text-right">
+                  <input type="number" step="0.1" className={`${feld} !w-24 text-right`} defaultValue={a.ekPreis}
+                    onBlur={(e) => withStore((s) => s.update('katalog', a.id, { ekPreis: Number(e.target.value) || 0 }))} />
+                </td>
+                <td className="py-1.5 pr-3">{a.kategorie || '–'}</td>
+                <td className="py-1.5 pr-3">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${a.fastbillArticleId ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                    {a.fastbillArticleId ? 'verknüpft' : '—'}
+                  </span>
+                </td>
+                <td className="py-1.5 text-right">
+                  <button onClick={() => confirm(`${a.name} löschen?`) && withStore((s) => s.remove('katalog', a.id))}
+                    className="text-slate-300 hover:text-red-500"><Icon name="x" className="w-4 h-4" /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-slate-400 mt-3">FastBill ist für Artikel und Dienstleistungen führend – hier liegt der Arbeits-Spiegel. CSV-Massenimport: Seite „Import".</p>
+    </div>
+  )
+}
+
+// ---------- Reiter: Textbausteine ----------
+function Bausteine() {
+  const bausteine = useCollection('bausteine')
+  const [neu, setNeu] = useState(false)
+  const [d, setD] = useState({ titel: '', text: '' })
+
+  return (
+    <div className={karte}>
+      {bausteine.map((b) => (
+        <div key={b.id} className="mb-3 bg-slate-50 rounded-2xl p-3">
+          <div className="flex items-center gap-2 mb-1.5">
+            <input className={`${feld} font-semibold`} defaultValue={b.titel} onBlur={(e) => withStore((s) => s.update('bausteine', b.id, { titel: e.target.value }))} />
+            <button onClick={() => confirm('Baustein löschen?') && withStore((s) => s.remove('bausteine', b.id))}
+              className="text-slate-300 hover:text-red-500"><Icon name="x" className="w-4 h-4" /></button>
+          </div>
+          <textarea rows={2} className={feld} defaultValue={b.text} onBlur={(e) => withStore((s) => s.update('bausteine', b.id, { text: e.target.value }))} />
+        </div>
+      ))}
+      {neu ? (
+        <div className="bg-slate-50 rounded-2xl p-3 space-y-2">
+          <input className={feld} placeholder="Titel" value={d.titel} onChange={(e) => setD({ ...d, titel: e.target.value })} />
+          <textarea rows={2} className={feld} placeholder="Text" value={d.text} onChange={(e) => setD({ ...d, text: e.target.value })} />
+          <div className="flex gap-2">
+            <button onClick={async () => { if (d.titel.trim()) { await withStore((s) => s.add('bausteine', d)); setD({ titel: '', text: '' }); setNeu(false) } }}
+              className="px-3 py-2 rounded-xl bg-praxis-600 text-white text-sm font-bold">Anlegen</button>
+            <button onClick={() => setNeu(false)} className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm">Abbrechen</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setNeu(true)} className="text-sm text-praxis-600 font-medium">+ Textbaustein</button>
+      )}
+    </div>
+  )
+}
+
+// ---------- Reiter: Sätze ----------
+function Saetze() {
+  const settings = useCollection('settings')
+  const global = settings.find((s) => s.id === 'global')
+  const einst = useEinstellungen()
+  const [d, setD] = useState(null)
+  const [ok, setOk] = useState(false)
+  const werte = d || einst
+  const set = (f) => (e) => { setOk(false); setD({ ...werte, [f]: e.target.value }) }
+
+  return (
+    <div className={karte}>
+      <div className="grid sm:grid-cols-3 gap-3 max-w-xl">
+        <div><label className={label}>Facharbeiter €/Std</label><input type="number" step="0.5" className={feld} value={werte.regieFacharbeiter ?? 35} onChange={set('regieFacharbeiter')} /></div>
+        <div><label className={label}>Helfer €/Std</label><input type="number" step="0.5" className={feld} value={werte.regieHelfer ?? 31} onChange={set('regieHelfer')} /></div>
+        <div><label className={label}>Fahrtkosten €/km</label><input type="number" step="0.05" className={feld} value={werte.kmSatz ?? 0.5} onChange={set('kmSatz')} /></div>
+      </div>
+      <p className="text-xs text-slate-400 mt-3">Diese Sätze werden in Regieberichten und Spesen vorbelegt (vgl. Nachunternehmervertrag: Facharbeiter 35 €, Helfer 31 €).</p>
+      <div className="mt-4">
+        <SpeichernKnopf gespeichert={ok} onClick={async () => {
+          await speichereSetting('global', {
+            ...einst, regieFacharbeiter: Number(werte.regieFacharbeiter) || 35,
+            regieHelfer: Number(werte.regieHelfer) || 31, kmSatz: Number(werte.kmSatz) || 0.5,
+          }, Boolean(global))
+          setOk(true)
+        }} />
       </div>
     </div>
   )
 }
 
-// Wochenplan: wiederkehrende Pausen/Abwesenheiten (settings/pausen, öffentlich lesbar,
-// enthält NUR Wochentag + Uhrzeiten + Grund). Blockt Online-Buchung + Terminvergabe.
-function Wochenplan({ settingsRows }) {
-  const doc = settingsRows.find((r) => r.id === 'pausen')
-  // Gleiches optimistisches Muster wie bei den Öffnungszeiten (schnelle Doppel-Klicks)
-  const entwurfRef = useRef(null)
-  const angelegtRef = useRef(!!doc)
-  useEffect(() => { entwurfRef.current = null }, [doc])
-  const eintraege = entwurfRef.current || doc?.eintraege || []
+// ---------- Reiter: Arbeitszeiten ----------
+function Arbeitszeiten() {
+  const settings = useCollection('settings')
+  const oeff = settings.find((s) => s.id === 'oeffnungszeiten')
+  const pausenDoc = settings.find((s) => s.id === 'pausen')
+  const [ok, setOk] = useState(false)
 
-  const [tag, setTag] = useState(1)
-  const [von, setVon] = useState('12:00')
-  const [bis, setBis] = useState('13:00')
-  const [grund, setGrund] = useState('')
-  const [, neuZeichnen] = useState(0)
+  const fenster = oeff?.fenster || {}
+  const urlaub = oeff?.urlaub || []
+  const pausen = pausenDoc?.eintraege || []
 
-  function speichern(neueEintraege) {
-    entwurfRef.current = neueEintraege
-    neuZeichnen((x) => x + 1)
-    const vorhanden = !!doc || angelegtRef.current
-    angelegtRef.current = true
-    speichereSetting('pausen', { eintraege: neueEintraege }, vorhanden)
+  async function setzeFenster(tag, von, bis, aktivieren) {
+    const neu = { ...fenster }
+    if (aktivieren) neu[tag] = [{ von: von || '07:00', bis: bis || '17:00' }]
+    else delete neu[tag]
+    await speichereSetting('oeffnungszeiten', { fenster: neu, telefon: oeff?.telefon || [], urlaub }, Boolean(oeff))
+    setOk(true)
   }
-
-  function hinzufuegen() {
-    if (bis <= von) return
-    const neu = [...eintraege, { tag: Number(tag), von, bis, grund: grund.trim() || 'Pause' }]
-    neu.sort((a, b) => a.tag - b.tag || a.von.localeCompare(b.von))
-    speichern(neu)
-    setGrund('')
-  }
-
-  const selectKlasse = 'rounded-xl border border-slate-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-praxis-500'
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6">
-      <h2 className="font-bold text-slate-800 text-sm mb-1">🗓 {tr(T.wpTitel)}</h2>
-      <p className="text-xs text-slate-500 mb-4 leading-relaxed">{tr(T.wpHinweis)}</p>
-
-      {/* Wochenübersicht Mo–Sa */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mb-4">
-        {[1, 2, 3, 4, 5, 6].map((t) => {
-          const tages = eintraege.filter((e) => e.tag === t)
+    <div className="space-y-4">
+      <div className={karte}>
+        <p className="text-sm font-bold text-slate-700 mb-3">Arbeitszeiten je Wochentag (Raster für den Kalender)</p>
+        {[1, 2, 3, 4, 5, 6].map((tag) => {
+          const f = fenster[tag]?.[0]
           return (
-            <div key={t} className="border border-slate-100 rounded-xl p-2.5 min-h-[76px]">
-              <p className="text-[11px] font-bold text-slate-500 mb-1.5">{tr(WOCHENTAGE[t])}</p>
-              {tages.length === 0 ? (
-                <p className="text-[10px] text-slate-300">–</p>
-              ) : (
-                tages.map((e, i) => (
-                  <div key={i} className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-1">
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-[10px] font-bold text-amber-800" dir="ltr">{e.von}–{e.bis}</span>
-                      <span className="block text-[10px] text-amber-700 truncate">{e.grund}</span>
-                    </span>
-                    <button
-                      onClick={() => speichern(eintraege.filter((x) => x !== e))}
-                      className="shrink-0 text-amber-400 hover:text-red-600 text-xs font-bold"
-                      title="Löschen"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))
+            <div key={tag} className="flex items-center gap-3 mb-2">
+              <label className="w-10 text-sm font-semibold">{WOCHENTAGE[tag]}</label>
+              <input type="checkbox" checked={Boolean(f)} onChange={(e) => setzeFenster(tag, f?.von, f?.bis, e.target.checked)} />
+              {f && (
+                <>
+                  <input type="time" className={`${feld} !w-32`} defaultValue={f.von}
+                    onBlur={(e) => setzeFenster(tag, e.target.value, f.bis, true)} />
+                  <span className="text-slate-400">–</span>
+                  <input type="time" className={`${feld} !w-32`} defaultValue={f.bis}
+                    onBlur={(e) => setzeFenster(tag, f.von, e.target.value, true)} />
+                </>
               )}
             </div>
           )
         })}
       </div>
-      {eintraege.length === 0 && <p className="text-xs text-slate-400 mb-3">{tr(T.wpKeine)}</p>}
 
-      {/* Neue Pause eintragen */}
-      <div className="flex flex-wrap items-end gap-2.5 bg-slate-50 rounded-xl p-3.5">
-        <label className="block text-xs font-medium text-slate-600">{tr(T.wpTag)}
-          <select value={tag} onChange={(e) => setTag(e.target.value)} className={`mt-1 block ${selectKlasse}`}>
-            {[1, 2, 3, 4, 5, 6].map((t) => <option key={t} value={t}>{tr(WOCHENTAGE[t])}</option>)}
-          </select>
-        </label>
-        <label className="block text-xs font-medium text-slate-600">{tr(T.von) || 'Von'}
-          <select value={von} onChange={(e) => { setVon(e.target.value); if (bis <= e.target.value) setBis(WP_ZEITEN[WP_ZEITEN.indexOf(e.target.value) + 2] || '20:00') }} className={`mt-1 block ${selectKlasse}`} dir="ltr">
-            {WP_ZEITEN.slice(0, -1).map((z) => <option key={z}>{z}</option>)}
-          </select>
-        </label>
-        <label className="block text-xs font-medium text-slate-600">{tr(T.bis) || 'Bis'}
-          <select value={bis} onChange={(e) => setBis(e.target.value)} className={`mt-1 block ${selectKlasse}`} dir="ltr">
-            {WP_ZEITEN.filter((z) => z > von).map((z) => <option key={z}>{z}</option>)}
-          </select>
-        </label>
-        <label className="block text-xs font-medium text-slate-600 flex-1 min-w-40">{tr(T.wpGrund)}
-          <input value={grund} onChange={(e) => setGrund(e.target.value)} placeholder={tr(T.wpGrundPlatzhalter)}
-            className={`mt-1 block w-full ${selectKlasse}`} />
-        </label>
-        <button onClick={hinzufuegen} className="bg-praxis-600 hover:bg-praxis-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl">
-          {tr(T.wpHinzu)}
-        </button>
+      <div className={karte}>
+        <p className="text-sm font-bold text-slate-700 mb-3">Betriebsferien / Urlaub</p>
+        {urlaub.map((u, i) => (
+          <div key={i} className="flex items-center gap-2 mb-2">
+            <input type="date" className={`${feld} !w-40`} defaultValue={u.von}
+              onBlur={(e) => speichereSetting('oeffnungszeiten', { fenster, telefon: oeff?.telefon || [], urlaub: urlaub.map((x, j) => j === i ? { ...x, von: e.target.value } : x) }, Boolean(oeff))} />
+            <span className="text-slate-400">–</span>
+            <input type="date" className={`${feld} !w-40`} defaultValue={u.bis}
+              onBlur={(e) => speichereSetting('oeffnungszeiten', { fenster, telefon: oeff?.telefon || [], urlaub: urlaub.map((x, j) => j === i ? { ...x, bis: e.target.value } : x) }, Boolean(oeff))} />
+            <button onClick={() => speichereSetting('oeffnungszeiten', { fenster, telefon: oeff?.telefon || [], urlaub: urlaub.filter((_, j) => j !== i) }, Boolean(oeff))}
+              className="text-slate-300 hover:text-red-500"><Icon name="x" className="w-4 h-4" /></button>
+          </div>
+        ))}
+        <button onClick={() => speichereSetting('oeffnungszeiten', { fenster, telefon: oeff?.telefon || [], urlaub: [...urlaub, { von: '', bis: '' }] }, Boolean(oeff))}
+          className="text-sm text-praxis-600 font-medium">+ Zeitraum</button>
+      </div>
+
+      <div className={karte}>
+        <p className="text-sm font-bold text-slate-700 mb-3">Wiederkehrende Pausen (schraffiert im Kalender)</p>
+        {pausen.map((p, i) => (
+          <div key={i} className="flex items-center gap-2 mb-2">
+            <select className={`${feld} !w-24`} defaultValue={p.tag}
+              onChange={(e) => speichereSetting('pausen', { eintraege: pausen.map((x, j) => j === i ? { ...x, tag: Number(e.target.value) } : x) }, Boolean(pausenDoc))}>
+              {[1, 2, 3, 4, 5, 6].map((t) => <option key={t} value={t}>{WOCHENTAGE[t]}</option>)}
+            </select>
+            <input type="time" className={`${feld} !w-28`} defaultValue={p.von}
+              onBlur={(e) => speichereSetting('pausen', { eintraege: pausen.map((x, j) => j === i ? { ...x, von: e.target.value } : x) }, Boolean(pausenDoc))} />
+            <span className="text-slate-400">–</span>
+            <input type="time" className={`${feld} !w-28`} defaultValue={p.bis}
+              onBlur={(e) => speichereSetting('pausen', { eintraege: pausen.map((x, j) => j === i ? { ...x, bis: e.target.value } : x) }, Boolean(pausenDoc))} />
+            <input className={feld} placeholder="Grund" defaultValue={p.grund}
+              onBlur={(e) => speichereSetting('pausen', { eintraege: pausen.map((x, j) => j === i ? { ...x, grund: e.target.value } : x) }, Boolean(pausenDoc))} />
+            <button onClick={() => speichereSetting('pausen', { eintraege: pausen.filter((_, j) => j !== i) }, Boolean(pausenDoc))}
+              className="text-slate-300 hover:text-red-500"><Icon name="x" className="w-4 h-4" /></button>
+          </div>
+        ))}
+        <button onClick={() => speichereSetting('pausen', { eintraege: [...pausen, { tag: 1, von: '12:00', bis: '12:30', grund: 'Pause' }] }, Boolean(pausenDoc))}
+          className="text-sm text-praxis-600 font-medium">+ Pause</button>
+      </div>
+      {ok && <p className="text-xs text-emerald-600">Gespeichert.</p>}
+    </div>
+  )
+}
+
+// ---------- Reiter: FastBill ----------
+function FastBill() {
+  const settings = useCollection('settings')
+  const apilog = useCollection('apilog')
+  const integ = settings.find((s) => s.id === 'integrationen')
+  const [d, setD] = useState(null)
+  const [zeigeKey, setZeigeKey] = useState(false)
+  const [test, setTest] = useState(null)
+  const [testet, setTestet] = useState(false)
+  const werte = d || { fastbillEmail: integ?.fastbillEmail || '', fastbillApiKey: integ?.fastbillApiKey || '', proxyUrl: integ?.proxyUrl || '' }
+
+  async function speichern() {
+    await speichereSetting('integrationen', werte, Boolean(integ))
+    setD(null)
+  }
+
+  async function testen() {
+    setTestet(true)
+    setTest(null)
+    const erg = await pruefeVerbindung()
+    setTest(erg)
+    setTestet(false)
+  }
+
+  const logSortiert = [...apilog].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 20)
+
+  return (
+    <div className="space-y-4">
+      <div className={karte}>
+        <p className="text-sm font-bold text-slate-700 mb-3">FastBill-Zugang</p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div><label className={label}>Konto-E-Mail</label>
+            <input className={feld} value={werte.fastbillEmail} onChange={(e) => setD({ ...werte, fastbillEmail: e.target.value })} placeholder="Login-E-Mail des FastBill-Kontos" /></div>
+          <div><label className={label}>API-Key</label>
+            <div className="flex gap-2">
+              <input type={zeigeKey ? 'text' : 'password'} className={feld} value={werte.fastbillApiKey}
+                onChange={(e) => setD({ ...werte, fastbillApiKey: e.target.value })} placeholder="aus FastBill → Einstellungen → API" />
+              <button onClick={() => setZeigeKey(!zeigeKey)} className="px-3 rounded-xl bg-slate-100 text-xs">{zeigeKey ? 'verbergen' : 'zeigen'}</button>
+            </div></div>
+          <div className="sm:col-span-2"><label className={label}>Proxy-URL (optional)</label>
+            <input className={feld} value={werte.proxyUrl} onChange={(e) => setD({ ...werte, proxyUrl: e.target.value })}
+              placeholder="leer lassen = Dev-Proxy; in Produktion die GAS-Proxy-URL eintragen" /></div>
+        </div>
+        <p className="text-xs text-slate-400 mt-2">
+          Zugang kann auch über <code>admin/.env.local</code> kommen (VITE_FASTBILL_EMAIL / VITE_FASTBILL_API_KEY) – Werte hier überschreiben das.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button onClick={speichern} className="px-4 py-2.5 rounded-xl bg-praxis-600 text-white text-sm font-bold hover:bg-praxis-700">Speichern</button>
+          <button onClick={testen} disabled={testet} className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm font-medium disabled:opacity-50">
+            {testet ? 'Teste Verbindung …' : 'Verbindung testen'}
+          </button>
+          {test && (
+            <span className={`text-sm px-3 py-1.5 rounded-xl border ${
+              test.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : test.simuliert ? 'bg-amber-50 border-amber-200 text-amber-700'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              {test.ok ? `Verbunden – ${test.anzahl} Kunde(n) gefunden` : test.simuliert ? 'Simuliert – kein Zugang hinterlegt' : `Fehler: ${test.fehler}`}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className={karte}>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-bold text-slate-700">API-Protokoll (letzte 20)</p>
+          <button onClick={async () => { if (confirm('Protokoll leeren?')) await withStore(async (s) => { for (const e of apilog) await s.remove('apilog', e.id) }) }}
+            className="text-xs text-slate-400 hover:text-red-500">Protokoll leeren</button>
+        </div>
+        {logSortiert.length === 0 ? <p className="text-sm text-slate-400">Noch keine API-Aufrufe.</p> : (
+          <table className="w-full text-sm">
+            <thead><tr className="text-left text-xs uppercase text-slate-400 border-b border-slate-100">
+              <th className="py-1.5 pr-3">Zeit</th><th className="py-1.5 pr-3">Service</th><th className="py-1.5 pr-3">Status</th><th className="py-1.5">Fehler</th>
+            </tr></thead>
+            <tbody>
+              {logSortiert.map((e) => (
+                <tr key={e.id} className="border-b border-slate-50">
+                  <td className="py-1.5 pr-3 text-slate-400">{new Date(e.createdAt).toLocaleString('de-DE')}</td>
+                  <td className="py-1.5 pr-3 font-mono text-xs">{e.service}</td>
+                  <td className="py-1.5 pr-3">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      e.status === 'ok' ? 'bg-emerald-100 text-emerald-700' : e.status === 'fehler' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                    }`}>{e.status}</span>
+                  </td>
+                  <td className="py-1.5 text-xs text-red-600">{e.fehlerText || ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
 }
 
-// Zentrale Konfiguration – nichts hardcodiert, alles in settings/global
-function GlobaleEinstellungen({ settingsRows }) {
-  const globalRow = settingsRows.find((r) => r.id === 'global')
-  const gespeicherte = { ...EINSTELLUNGEN_DEFAULTS, ...(globalRow || {}) }
-  const [form, setForm] = useState(null)
-  const [ok, setOk] = useState(false)
-
-  useEffect(() => {
-    if (form === null) setForm(gespeicherte)
-  }, [gespeicherte, form])
-
-  if (!form) return null
-
-  const feld = (key) => ({
-    value: form[key] ?? '',
-    onChange: (e) => setForm({ ...form, [key]: e.target.type === 'number' ? Number(e.target.value) : e.target.value }),
-    className: 'mt-1 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500',
-  })
-
-  async function speichern() {
-    await speichereSetting('global', { ...EINSTELLUNGEN_DEFAULTS, ...form }, !!globalRow)
-    setOk(true)
-    setTimeout(() => setOk(false), 3000)
-  }
-
-  const gruppe = (titel, inhalt) => (
-    <div className="mt-5 first:mt-0">
-      <p className="text-xs font-bold text-praxis-700 uppercase tracking-wide mb-2">{titel}</p>
-      <div className="grid sm:grid-cols-3 gap-3">{inhalt}</div>
+// ---------- Reiter: Daten ----------
+function Daten() {
+  const modus = storeModus()
+  return (
+    <div className={karte}>
+      <p className="text-sm mb-2">
+        Datenhaltung:{' '}
+        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${modus === 'firebase' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+          {modus === 'firebase' ? 'Firebase Firestore (online, alle Geräte)' : 'Lokaler Demo-Modus (nur dieser Browser)'}
+        </span>
+      </p>
+      <p className="text-xs text-slate-400 mb-4">
+        Für den Betrieb auf allen Geräten (Büro + Monteure gleichzeitig) wird später Firebase aktiviert (Konto nasirdada.98@gmail.com) – die Oberfläche bleibt exakt gleich.
+      </p>
+      <button
+        onClick={async () => {
+          if (!confirm('Wirklich ALLE Daten löschen und die Demo-Daten neu einspielen?')) return
+          await withStore((s) => s.resetDemo())
+          location.reload()
+        }}
+        className="px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-bold hover:bg-red-100"
+      >
+        Demo-Daten zurücksetzen
+      </button>
     </div>
   )
+}
 
+export default function Einstellungen() {
+  const [reiter, setReiter] = useState('firma')
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6">
-      <h2 className="font-bold text-slate-800 text-sm mb-1">⚙ {tr(T.globalTitel)}</h2>
-      <p className="text-xs text-slate-500 mb-4">{tr(T.globalHinweis)}</p>
-
-      {gruppe(tr(T.gLokal), (
-        <>
-          <label className="block text-xs font-medium text-slate-600">{tr(T.gSprache)}
-            <select {...feld('standardSprache')} className={feld('standardSprache').className + ' bg-white'}>
-              <option value="de">Deutsch</option><option value="en">English</option><option value="ar">العربية</option>
-            </select>
-          </label>
-          <label className="block text-xs font-medium text-slate-600">{tr(T.gWaehrung)}
-            <select {...feld('waehrung')} className={feld('waehrung').className + ' bg-white'}>
-              <option value="EUR">EUR €</option><option value="CHF">CHF</option><option value="USD">USD $</option>
-            </select>
-          </label>
-          <label className="block text-xs font-medium text-slate-600">{tr(T.gDatum)}
-            <select {...feld('datumsformat')} className={feld('datumsformat').className + ' bg-white'}>
-              <option value="TT.MM.JJJJ">TT.MM.JJJJ</option><option value="JJJJ-MM-TT">JJJJ-MM-TT</option><option value="MM/TT/JJJJ">MM/TT/JJJJ</option>
-            </select>
-          </label>
-        </>
-      ))}
-
-      {gruppe(tr(T.gFristen), (
-        <>
-          <label className="block text-xs font-medium text-slate-600">{tr(T.gStorno)}
-            <input type="number" min="1" {...feld('stornoFristStunden')} dir="ltr" />
-          </label>
-          <label className="block text-xs font-medium text-slate-600">{tr(T.gGebuehr)}
-            <input type="number" min="0" {...feld('ausfallGebuehr')} dir="ltr" />
-          </label>
-          <label className="block text-xs font-medium text-slate-600">{tr(T.gFeedback)}
-            <input type="number" min="0" {...feld('feedbackVerzoegerungStunden')} dir="ltr" />
-          </label>
-        </>
-      ))}
-
-      {gruppe(tr(T.gKatalog), (
-        <>
-          <label className="block text-xs font-medium text-slate-600">{tr(T.gModus)}
-            <select {...feld('katalogModus')} className={feld('katalogModus').className + ' bg-white'}>
-              <option value="GOZ">GOZ (privat)</option><option value="BEMA">BEMA (gesetzlich)</option>
-            </select>
-          </label>
-          <label className="block text-xs font-medium text-slate-600 sm:col-span-2">{tr(T.gName)}
-            <input type="text" {...feld('praxisName')} />
-          </label>
-          <label className="block text-xs font-medium text-slate-600 sm:col-span-2">{tr(T.gAnschrift)}
-            <input type="text" {...feld('praxisAnschrift')} />
-          </label>
-          <label className="block text-xs font-medium text-slate-600">{tr(T.gTelefon)}
-            <input type="text" {...feld('praxisTelefon')} dir="ltr" />
-          </label>
-          <label className="block text-xs font-medium text-slate-600">{tr(T.gEmail)}
-            <input type="email" {...feld('praxisEmail')} dir="ltr" />
-          </label>
-          <label className="block text-xs font-medium text-slate-600">{tr(T.gBank)}
-            <input type="text" {...feld('bankName')} />
-          </label>
-          <label className="block text-xs font-medium text-slate-600">{tr(T.gIban)}
-            <input type="text" {...feld('iban')} dir="ltr" />
-          </label>
-        </>
-      ))}
-
-      <div className="mt-5 flex items-center gap-3">
-        <button onClick={speichern} className="bg-praxis-600 hover:bg-praxis-700 text-white text-sm font-bold px-5 py-2.5 rounded-full">
-          {tr(T.gSpeichern)}
-        </button>
-        {ok && <span className="text-sm font-semibold text-praxis-700">{tr(T.gGespeichert)}</span>}
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto">
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold text-slate-900">Einstellungen & Stammdaten</h1>
+        <p className="text-sm text-slate-500">Firmendaten, Mitarbeiter, Artikel, Sätze und Integrationen an einem Ort</p>
       </div>
+      <div className="flex gap-1.5 flex-wrap mb-5">
+        {REITER.map((r) => (
+          <button key={r.id} onClick={() => setReiter(r.id)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${reiter === r.id ? 'bg-praxis-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            {r.label}
+          </button>
+        ))}
+      </div>
+      {reiter === 'firma' && <Firmendaten />}
+      {reiter === 'mitarbeiter' && <Mitarbeiter />}
+      {reiter === 'artikel' && <Artikel />}
+      {reiter === 'bausteine' && <Bausteine />}
+      {reiter === 'saetze' && <Saetze />}
+      {reiter === 'zeiten' && <Arbeitszeiten />}
+      {reiter === 'fastbill' && <FastBill />}
+      {reiter === 'daten' && <Daten />}
     </div>
   )
 }

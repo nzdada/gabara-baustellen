@@ -27,6 +27,7 @@ const NAV = [
   { to: '/berichte', label: 'Berichte', icon: 'bericht' },
   { to: '/anfragen', label: 'Anfragen', icon: 'inbox' },
   { to: '/abrechnung', label: 'Abrechnung', icon: 'euro' },
+  { to: '/dashboard', label: 'Dashboard', icon: 'chat' },
   { to: '/import', label: 'Import', icon: 'upload' },
   { to: '/einstellungen', label: 'Einstellungen', icon: 'bell' },
 ]
@@ -234,7 +235,7 @@ export default function App() {
         <Route path="/kalender" element={<Kalender user={user} />} />
         <Route path="/termine" element={<Termine user={user} />} />
         <Route path="/kunden" element={<Kunden />} />
-        <Route path="/berichte" element={<Berichte />} />
+        <Route path="/berichte" element={<Berichte user={user} />} />
         <Route path="/anfragen" element={<Anfragen user={user} />} />
         <Route path="/abrechnung" element={<Abrechnung />} />
         <Route path="/dashboard" element={<Dashboard />} />
