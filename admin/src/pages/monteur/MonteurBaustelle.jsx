@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '@shared/ui.jsx'
 import { euro } from '@shared/format.js'
+import { heuteISO } from '@shared/slots.js'
 import { useCollection, useWhere, withStore } from '../../hooks.js'
 import BerichtForm from '../../components/BerichtForm.jsx'
 import SpesenForm from '../../components/SpesenForm.jsx'
@@ -32,7 +33,7 @@ function IstFeld({ position, user }) {
     withStore((s) => s.update('lvpositionen', position.id, {
       istMenge: Number(neu) || 0,
       istVon: user?.name || '',
-      istAm: new Date().toISOString().slice(0, 10),
+      istAm: heuteISO(),
     }))
   }
 
@@ -85,7 +86,8 @@ export default function MonteurBaustelle({ user }) {
   const ist = wertbar.reduce((s, p) => s + (p.istMenge || 0) * (p.einheitspreis || 0), 0)
   const prozent = soll > 0 ? Math.min(100, Math.round((ist / soll) * 100)) : 0
 
-  const meineBerichte = berichte.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  // Kopie sortieren – das Array aus useWhere ist React-State und darf nicht mutiert werden
+  const meineBerichte = [...berichte].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
 
   if (!projekt) {
     return <div className="p-6 text-center text-slate-400">Baustelle nicht gefunden.</div>

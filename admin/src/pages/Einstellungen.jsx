@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useCollection, withStore, speichereSetting, useEinstellungen } from '../hooks.js'
 import { storeModus } from '@shared/store.js'
 import { Icon } from '@shared/ui.jsx'
+import { FeldLabel } from '../components/InfoHinweis.jsx'
+import { HINWEIS } from '../hinweise.js'
+import { TEAM_FARBEN, teamsAus } from '@shared/teams.js'
 import { pruefeVerbindung, ladeArtikelVonFastbill, syncArtikel } from '@shared/fastbill.js'
 
 // Einstellungen = EIN Bereich für Einstellungen UND Stammdaten (User-Wunsch):
@@ -44,7 +47,12 @@ function Firmendaten() {
   const set = (f) => (e) => { setOk(false); setD({ ...werte, [f]: e.target.value }) }
 
   async function speichern() {
-    await speichereSetting('global', { ...einst, ...werte }, Boolean(global))
+    // Zahlenfelder als Number ablegen – sonst rechnen Rechnung/Druck mit Strings
+    await speichereSetting('global', {
+      ...einst, ...werte,
+      zahlungszielTage: Number(werte.zahlungszielTage) || 16,
+      sicherheitseinbehaltProzent: Number(werte.sicherheitseinbehaltProzent) || 0,
+    }, Boolean(global))
     setOk(true)
   }
 
@@ -52,35 +60,43 @@ function Firmendaten() {
     <div className={karte}>
       <div className="grid sm:grid-cols-2 gap-3">
         <div><label className={label}>Firmenname</label><input className={feld} value={werte.praxisName || ''} onChange={set('praxisName')} /></div>
-        <div><label className={label}>Anschrift</label><input className={feld} value={werte.praxisAnschrift || ''} onChange={set('praxisAnschrift')} /></div>
+        <div><label className={label}><FeldLabel info={HINWEIS.einstAnschrift}>Anschrift</FeldLabel></label><input className={feld} value={werte.praxisAnschrift || ''} onChange={set('praxisAnschrift')} /></div>
         <div><label className={label}>Telefon</label><input className={feld} value={werte.praxisTelefon || ''} onChange={set('praxisTelefon')} /></div>
         <div><label className={label}>E-Mail</label><input className={feld} value={werte.praxisEmail || ''} onChange={set('praxisEmail')} /></div>
-        <div><label className={label}>Bank (für internen Eigendruck)</label><input className={feld} value={werte.bankName || ''} onChange={set('bankName')} placeholder="folgt später" /></div>
-        <div><label className={label}>IBAN</label><input className={feld} value={werte.iban || ''} onChange={set('iban')} placeholder="folgt später" /></div>
+        {/* Bankdaten werden hier nicht mehr gepflegt: Rechnungen entstehen
+            ausschließlich in FastBill, dort stehen auch die Zahlungsangaben. */}
         <div>
-          <label className={label}>USt-Standard für neue Kunden</label>
+          <label className={label}><FeldLabel info={HINWEIS.einstUstStandard}>USt-Standard für neue Kunden</FeldLabel></label>
           <select className={feld} value={werte.ustModusStandard || '13b'} onChange={set('ustModusStandard')}>
             <option value="13b">§13b netto (Nachunternehmer)</option>
             <option value="ust19">19 % USt (Privatkunden)</option>
           </select>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div><label className={label}>Zahlungsziel (Tage)</label><input type="number" className={feld} value={werte.zahlungszielTage ?? 16} onChange={set('zahlungszielTage')} /></div>
+          <div><label className={label}><FeldLabel info={HINWEIS.einstZahlungsziel}>Zahlungsziel (Tage)</FeldLabel></label><input type="number" className={feld} value={werte.zahlungszielTage ?? 16} onChange={set('zahlungszielTage')} /></div>
           <div><label className={label}>Sicherheitseinbehalt %</label><input type="number" className={feld} value={werte.sicherheitseinbehaltProzent ?? 10} onChange={set('sicherheitseinbehaltProzent')} /></div>
         </div>
       </div>
-      <p className="text-xs text-slate-400 mt-3">Die offiziellen Rechnungen (inkl. E-Rechnung) erstellt FastBill – Bankdaten hier sind nur für den internen Eigendruck.</p>
+      <p className="text-xs text-slate-400 mt-3">
+        Rechnungen (inkl. E-Rechnung, Nummernvergabe, Versand und Zahlungsangaben) erstellt
+        ausschließlich FastBill. Die Daten hier gelten für Berichte, Protokolle und Arbeitsaufträge.
+      </p>
       <div className="mt-4"><SpeichernKnopf onClick={speichern} gespeichert={ok} /></div>
     </div>
   )
 }
 
 // ---------- Reiter: Mitarbeiter ----------
+// team          -> Farbcodierung/Legende im Kalender (shared/teams.js)
+// qualifikation -> bestimmt den Regie-Stundensatz im Bericht (Reiter „Sätze")
 function Mitarbeiter() {
   const users = useCollection('users')
+  const einst = useEinstellungen()
   const [neu, setNeu] = useState(false)
-  const leer = { name: '', email: '', rolle: 'mitarbeiter', farbe: '#f97316', stundensatzIntern: 25, aktiv: true }
+  const leer = { name: '', email: '', rolle: 'mitarbeiter', team: '', farbe: TEAM_FARBEN[1].wert, qualifikation: 'facharbeiter', stundensatzIntern: 25, aktiv: true }
   const [d, setD] = useState(leer)
+
+  const teams = useMemo(() => teamsAus(users), [users])
 
   async function anlegen() {
     if (!d.name.trim()) return
@@ -89,13 +105,28 @@ function Mitarbeiter() {
     setNeu(false)
   }
 
+  const satzVon = (u) => (u.qualifikation === 'helfer' ? (einst.regieHelfer ?? 31) : (einst.regieFacharbeiter ?? 35))
+
   return (
     <div className={karte}>
+      {teams.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Teams im Kalender</span>
+          {teams.map((t) => (
+            <span key={t.name} className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5 border border-slate-200">
+              <span className="w-3 h-3 rounded-full ring-1 ring-black/10" style={{ backgroundColor: t.farbe }} />
+              {t.name} <span className="text-slate-400">({t.mitglieder.length})</span>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[640px]">
+        <table className="w-full text-sm min-w-[900px]">
           <thead><tr className="text-left text-xs uppercase text-slate-400 border-b border-slate-100">
             <th className="py-2 pr-3">Name</th><th className="py-2 pr-3">E-Mail (Login)</th><th className="py-2 pr-3">Rolle</th>
-            <th className="py-2 pr-3">Farbe</th><th className="py-2 pr-3">Std.-Satz intern</th><th className="py-2 pr-3">Aktiv</th><th></th>
+            <th className="py-2 pr-3"><FeldLabel info={HINWEIS.einstTeam}>Team</FeldLabel></th><th className="py-2 pr-3">Farbe</th>
+            <th className="py-2 pr-3"><FeldLabel info={HINWEIS.einstQualifikation}>Qualifikation</FeldLabel></th><th className="py-2 pr-3">Regie €/Std</th>
+            <th className="py-2 pr-3"><FeldLabel info={HINWEIS.einstStundensatzIntern}>Std.-Satz intern</FeldLabel></th><th className="py-2 pr-3">Aktiv</th><th></th>
           </tr></thead>
           <tbody>
             {users.map((u) => (
@@ -113,9 +144,25 @@ function Mitarbeiter() {
                   </select>
                 </td>
                 <td className="py-2 pr-3">
-                  <input type="color" className="w-10 h-9 rounded-lg border border-slate-200" defaultValue={u.farbe || '#f97316'}
-                    onChange={(e) => withStore((s) => s.update('users', u.id, { farbe: e.target.value }))} />
+                  <input className={`${feld} !w-32`} placeholder="z. B. Team 1" defaultValue={u.team || ''}
+                    onBlur={(e) => withStore((s) => s.update('users', u.id, { team: e.target.value }))} />
                 </td>
+                <td className="py-2 pr-3">
+                  <select className={`${feld} !w-32`} defaultValue={u.farbe || TEAM_FARBEN[1].wert}
+                    style={{ color: u.farbe || TEAM_FARBEN[1].wert, fontWeight: 700 }}
+                    onChange={(e) => withStore((s) => s.update('users', u.id, { farbe: e.target.value }))}>
+                    {TEAM_FARBEN.map((f) => <option key={f.id} value={f.wert}>{f.label}</option>)}
+                    {!TEAM_FARBEN.some((f) => f.wert === u.farbe) && u.farbe && <option value={u.farbe}>{u.farbe}</option>}
+                  </select>
+                </td>
+                <td className="py-2 pr-3">
+                  <select className={`${feld} !w-36`} defaultValue={u.qualifikation || 'facharbeiter'}
+                    onChange={(e) => withStore((s) => s.update('users', u.id, { qualifikation: e.target.value }))}>
+                    <option value="facharbeiter">Facharbeiter</option>
+                    <option value="helfer">Helfer/Azubi</option>
+                  </select>
+                </td>
+                <td className="py-2 pr-3 whitespace-nowrap font-semibold text-slate-600">{satzVon(u)} €</td>
                 <td className="py-2 pr-3">
                   <input type="number" className={`${feld} !w-24`} defaultValue={u.stundensatzIntern ?? 0}
                     onBlur={(e) => withStore((s) => s.update('users', u.id, { stundensatzIntern: Number(e.target.value) || 0 }))} />
@@ -136,22 +183,38 @@ function Mitarbeiter() {
         </table>
       </div>
       {neu ? (
-        <div className="mt-4 bg-slate-50 rounded-2xl p-4 grid sm:grid-cols-4 gap-3">
+        <div className="mt-4 bg-slate-50 rounded-2xl p-4 grid sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <input className={feld} placeholder="Name" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
           <input className={feld} placeholder="E-Mail" value={d.email} onChange={(e) => setD({ ...d, email: e.target.value })} />
           <select className={feld} value={d.rolle} onChange={(e) => setD({ ...d, rolle: e.target.value })}>
             <option value="mitarbeiter">Monteur</option><option value="admin">Büro/Admin</option>
           </select>
+          <input className={feld} placeholder="Team (z. B. Team 1)" value={d.team} onChange={(e) => setD({ ...d, team: e.target.value })} />
+          <select className={feld} value={d.qualifikation} onChange={(e) => setD({ ...d, qualifikation: e.target.value })}>
+            <option value="facharbeiter">Facharbeiter</option><option value="helfer">Helfer/Azubi</option>
+          </select>
           <div className="flex gap-2">
             <button onClick={anlegen} className="flex-1 px-3 py-2 rounded-xl bg-praxis-600 text-white text-sm font-bold">Anlegen</button>
             <button onClick={() => setNeu(false)} className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm">×</button>
+          </div>
+          <div className="sm:col-span-3 lg:col-span-6">
+            <span className="text-xs font-semibold text-slate-500">Team-Farbe im Kalender</span>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {TEAM_FARBEN.map((f) => (
+                <button key={f.id} type="button" title={f.label} onClick={() => setD({ ...d, farbe: f.wert })}
+                  className={`w-8 h-8 rounded-full ${d.farbe === f.wert ? 'ring-2 ring-offset-2 ring-slate-900' : 'ring-1 ring-black/10'}`}
+                  style={{ backgroundColor: f.wert }} />
+              ))}
+            </div>
           </div>
         </div>
       ) : (
         <button onClick={() => setNeu(true)} className="mt-4 text-sm text-praxis-600 font-medium">+ Mitarbeiter</button>
       )}
       <p className="text-xs text-slate-400 mt-3">
-        Im Lokal-Modus melden sich alle mit den Demo-Zugängen an – echte Logins je Mitarbeiter kommen mit dem Firebase-Go-Live.
+        <strong>Team</strong> steuert Farbe und Legende im Kalender · <strong>Qualifikation</strong> bestimmt den Stundensatz
+        im Regiebericht (Sätze im Reiter „Sätze"). Im Lokal-Modus melden sich alle mit den Demo-Zugängen an –
+        echte Logins je Mitarbeiter kommen mit dem Firebase-Go-Live.
       </p>
     </div>
   )
@@ -228,7 +291,7 @@ function Artikel() {
         <table className="w-full text-sm min-w-[720px]">
           <thead><tr className="text-left text-xs uppercase text-slate-400 border-b border-slate-100">
             <th className="py-2 pr-3">Code</th><th className="py-2 pr-3">Name</th><th className="py-2 pr-3">Einheit</th>
-            <th className="py-2 pr-3 text-right">Preis</th><th className="py-2 pr-3 text-right">EK</th><th className="py-2 pr-3">Kategorie</th><th className="py-2 pr-3">FastBill</th><th></th>
+            <th className="py-2 pr-3 text-right">Preis</th><th className="py-2 pr-3 text-right"><FeldLabel info={HINWEIS.einstEkPreis} ausrichtung="rechts">EK</FeldLabel></th><th className="py-2 pr-3">Kategorie</th><th className="py-2 pr-3">FastBill</th><th></th>
           </tr></thead>
           <tbody>
             {katalog.map((a) => (
@@ -316,9 +379,9 @@ function Saetze() {
   return (
     <div className={karte}>
       <div className="grid sm:grid-cols-3 gap-3 max-w-xl">
-        <div><label className={label}>Facharbeiter €/Std</label><input type="number" step="0.5" className={feld} value={werte.regieFacharbeiter ?? 35} onChange={set('regieFacharbeiter')} /></div>
+        <div><label className={label}><FeldLabel info={HINWEIS.einstRegieSaetze}>Facharbeiter €/Std</FeldLabel></label><input type="number" step="0.5" className={feld} value={werte.regieFacharbeiter ?? 35} onChange={set('regieFacharbeiter')} /></div>
         <div><label className={label}>Helfer €/Std</label><input type="number" step="0.5" className={feld} value={werte.regieHelfer ?? 31} onChange={set('regieHelfer')} /></div>
-        <div><label className={label}>Fahrtkosten €/km</label><input type="number" step="0.05" className={feld} value={werte.kmSatz ?? 0.5} onChange={set('kmSatz')} /></div>
+        <div><label className={label}><FeldLabel info={HINWEIS.einstKmSatz}>Fahrtkosten €/km</FeldLabel></label><input type="number" step="0.05" className={feld} value={werte.kmSatz ?? 0.5} onChange={set('kmSatz')} /></div>
       </div>
       <p className="text-xs text-slate-400 mt-3">Diese Sätze werden in Regieberichten und Spesen vorbelegt (vgl. Nachunternehmervertrag: Facharbeiter 35 €, Helfer 31 €).</p>
       <div className="mt-4">
@@ -460,9 +523,14 @@ function FastBill() {
                 onChange={(e) => setD({ ...werte, fastbillApiKey: e.target.value })} placeholder="aus FastBill → Einstellungen → API" />
               <button onClick={() => setZeigeKey(!zeigeKey)} className="px-3 rounded-xl bg-slate-100 text-xs">{zeigeKey ? 'verbergen' : 'zeigen'}</button>
             </div></div>
-          <div className="sm:col-span-2"><label className={label}>Proxy-URL (optional)</label>
+          <div className="sm:col-span-2"><label className={label}>Proxy-URL – NUR für Produktion (sonst LEER lassen!)</label>
             <input className={feld} value={werte.proxyUrl} onChange={(e) => setD({ ...werte, proxyUrl: e.target.value })}
-              placeholder="leer lassen = Dev-Proxy; in Produktion die GAS-Proxy-URL eintragen" /></div>
+              placeholder="leer lassen! Erst beim Go-Live kommt hier die https://script.google.com/…-Adresse rein" />
+            {werte.proxyUrl && !/^(https?:\/\/|\/)/i.test(werte.proxyUrl.trim()) && (
+              <p className="mt-1 text-xs text-red-600">
+                Das ist keine gültige Adresse (muss mit https:// beginnen) – der Wert wird ignoriert. Feld am besten leeren und speichern.
+              </p>
+            )}</div>
         </div>
         <p className="text-xs text-slate-400 mt-2">
           Zugang kann auch über <code>admin/.env.local</code> kommen (VITE_FASTBILL_EMAIL / VITE_FASTBILL_API_KEY) – Werte hier überschreiben das.

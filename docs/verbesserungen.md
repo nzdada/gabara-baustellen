@@ -20,7 +20,7 @@ Zwei Prüfungen: **Produkt/UX** (Handwerker-Software-Blick) und **Baurecht**
 | ✅ | Reklamation: Rüge-Zugang, Frist, gerügt-durch | § 13 Abs. 5 VOB/B (Verjährung der Nachbesserung) |
 | ⏳ | EXIF-Aufnahmezeit der Fotos sichern (vor Kompression auslesen) | Original-Aufnahmezeit als zusätzlicher Beweis (Aufwand: mittel) |
 | ⏳ | Vertragsnummer/-datum am Projekt + auf jedem Dokument („Vertragsgrundlage: NU-Vertrag vom …") | Zuordnung Dokument → Vertrag (Aufwand: klein, V1.1) |
-| ⏳ | Eigendruck-Rechnung: Steuernummer/USt-IdNr. + § 48b-Hinweis | Nur Fallback – offiziell rechnet FastBill (Aufwand: klein) |
+| ✖ | ~~Eigendruck-Rechnung: Steuernummer/USt-IdNr. + § 48b-Hinweis~~ | **Entfallen 01.08.2026** – Eigendruck auf Wunsch entfernt, Rechnungs-PDF kommt nur aus FastBill |
 
 ## Produkt-/UX-Prüfung
 

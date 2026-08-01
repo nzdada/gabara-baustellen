@@ -19,15 +19,16 @@ import Abrechnung from './pages/Abrechnung.jsx'
 import MonteurApp from './pages/monteur/MonteurApp.jsx'
 import { useCollection } from './hooks.js'
 
+// Reihenfolge = Sichtbarkeit: Kalender ist die Startseite der Verwaltung.
 const NAV = [
-  { to: '/', label: 'Übersicht', icon: 'home', exakt: true },
+  { to: '/', label: 'Kalender', icon: 'calendar', exakt: true },
   { to: '/projekte', label: 'Projekte', icon: 'folder' },
-  { to: '/kalender', label: 'Kalender', icon: 'calendar' },
   { to: '/termine', label: 'Termine', icon: 'list' },
-  { to: '/kunden', label: 'Kunden', icon: 'users' },
   { to: '/berichte', label: 'Berichte', icon: 'bericht' },
-  { to: '/anfragen', label: 'Anfragen', icon: 'inbox' },
+  { to: '/kunden', label: 'Kunden', icon: 'users' },
   { to: '/abrechnung', label: 'Abrechnung', icon: 'euro' },
+  { to: '/uebersicht', label: 'Übersicht', icon: 'home' },
+  { to: '/anfragen', label: 'Anfragen', icon: 'inbox' },
   { to: '/dashboard', label: 'Dashboard', icon: 'chat' },
   { to: '/import', label: 'Import', icon: 'upload' },
   { to: '/einstellungen', label: 'Einstellungen', icon: 'bell' },
@@ -52,22 +53,23 @@ function piepton() {
   } catch (e) { /* Autoplay-Richtlinie o. ä. – Ton ist optional */ }
 }
 
-// Toast oben rechts: neue Webseiten-Anfragen UND neu eingereichte Berichte
+// Toast oben rechts: neue Webseiten-Anfragen UND neu eingereichte Berichte.
+// WICHTIG: useCollection startet mit [] und liefert die echten Daten erst danach.
+// Ohne Zeitschranke gälten deshalb beim Mounten (z. B. Rückkehr aus der
+// Monteur-Ansicht) ALLE vorhandenen Einträge als "neu" -> Fehlalarm.
+// Darum zusätzlich zum Bekannt-Set: nur melden, was NACH dem Mounten entstand.
 function LiveToast() {
   const requests = useCollection('requests')
   const berichte = useCollection('berichte')
   const navigate = useNavigate()
-  const bekannteAnfragen = useRef(null)
-  const bekannteBerichte = useRef(null)
+  const seit = useRef(Date.now())
+  const bekannteAnfragen = useRef(new Set())
+  const bekannteBerichte = useRef(new Set())
   const [toast, setToast] = useState(null)
 
   useEffect(() => {
     const offene = requests.filter((r) => r.status === 'neu')
-    if (bekannteAnfragen.current === null) {
-      bekannteAnfragen.current = new Set(offene.map((r) => r.id))
-      return
-    }
-    const frische = offene.filter((r) => !bekannteAnfragen.current.has(r.id))
+    const frische = offene.filter((r) => !bekannteAnfragen.current.has(r.id) && (r.createdAt || 0) > seit.current)
     offene.forEach((r) => bekannteAnfragen.current.add(r.id))
     if (frische.length > 0) {
       const r = frische[frische.length - 1]
@@ -78,11 +80,7 @@ function LiveToast() {
 
   useEffect(() => {
     const eingereicht = berichte.filter((b) => b.status === 'eingereicht')
-    if (bekannteBerichte.current === null) {
-      bekannteBerichte.current = new Set(eingereicht.map((b) => b.id))
-      return
-    }
-    const frische = eingereicht.filter((b) => !bekannteBerichte.current.has(b.id))
+    const frische = eingereicht.filter((b) => !bekannteBerichte.current.has(b.id) && (b.eingereichtAm || 0) > seit.current)
     eingereicht.forEach((b) => bekannteBerichte.current.add(b.id))
     if (frische.length > 0) {
       const b = frische[frische.length - 1]
@@ -237,10 +235,11 @@ export default function App() {
   return (
     <Layout user={user}>
       <Routes>
-        <Route path="/" element={<Uebersicht user={user} />} />
+        <Route path="/" element={<Kalender user={user} />} />
+        <Route path="/kalender" element={<Navigate to="/" replace />} />
+        <Route path="/uebersicht" element={<Uebersicht user={user} />} />
         <Route path="/projekte" element={<Projekte />} />
         <Route path="/projekte/:id" element={<ProjektDetail user={user} />} />
-        <Route path="/kalender" element={<Kalender user={user} />} />
         <Route path="/termine" element={<Termine user={user} />} />
         <Route path="/kunden" element={<Kunden />} />
         <Route path="/berichte" element={<Berichte user={user} />} />

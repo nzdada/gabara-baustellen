@@ -3,8 +3,23 @@ import { PRAXIS } from '@shared/praxis.js'
 import { Icon } from '@shared/ui.jsx'
 
 // Impressum + Datenschutzerklärung (Pflichtseiten).
-// WICHTIG: Vor dem Echtbetrieb Geschäftsführer, Registerangaben und USt-IdNr.
-// der Gabara Service GmbH ergänzen/prüfen (Platzhalter unten).
+// Angaben übernommen von https://gabara-service.de/impressum (Stand 01.08.2026).
+
+// Vertretung, Steuer- und Registerangaben zentral – nur hier pflegen.
+const FIRMA = {
+  geschaeftsfuehrer: 'Salman Haj Hussein',
+  ustIdNr: 'DE351189636',
+  steuernummer: '10312700595',
+  mailZweit: 'gabara.service@gmail.com',
+}
+
+// ACHTUNG – NOCH OFFEN: Handelsregister und Registernummer.
+// Für eine GmbH sind "Registergericht + Registernummer" nach § 5 Abs. 1 Nr. 4 DDG
+// (früher TMG) PFLICHTANGABEN. Sie stehen weder im Impressum noch in der
+// Datenschutzerklärung von gabara-service.de. Sobald bekannt hier eintragen,
+// z. B. { gericht: 'Amtsgericht Augsburg', nummer: 'HRB 12345' } – der Block
+// erscheint dann automatisch auf der Seite.
+const REGISTER = { gericht: '', nummer: '' }
 
 function Rahmen({ titel, children }) {
   return (
@@ -41,17 +56,40 @@ export function Impressum() {
       <h2>Kontakt</h2>
       <p>
         Telefon: {PRAXIS.telefon}<br />
-        E-Mail: {PRAXIS.email}
+        E-Mail: {PRAXIS.email}<br />
+        E-Mail: {FIRMA.mailZweit}
       </p>
       <h2>Vertreten durch</h2>
-      <p>Geschäftsführung der Gabara Service GmbH <em>(Name vor Veröffentlichung ergänzen)</em></p>
-      <h2>Registereintrag / Umsatzsteuer</h2>
+      <p>Geschäftsführer: {FIRMA.geschaeftsfuehrer}</p>
+      {REGISTER.gericht && REGISTER.nummer && (
+        <>
+          <h2>Registereintrag</h2>
+          <p>
+            Eintragung im Handelsregister<br />
+            Registergericht: {REGISTER.gericht}<br />
+            Registernummer: {REGISTER.nummer}
+          </p>
+        </>
+      )}
+      <h2>Umsatzsteuer</h2>
       <p>
-        Handelsregister und USt-IdNr. werden vor Veröffentlichung ergänzt.<br />
-        Bei Bauleistungen an Unternehmer gilt die Steuerschuldnerschaft des Leistungsempfängers gemäß § 13b UStG.
+        Umsatzsteuer-Identifikationsnummer gemäß § 27 a UStG: {FIRMA.ustIdNr}<br />
+        Steuernummer: {FIRMA.steuernummer}
+      </p>
+      <p>
+        Bei Bauleistungen an Unternehmer gilt die Steuerschuldnerschaft des Leistungsempfängers
+        gemäß § 13b UStG.
       </p>
       <h2>Verantwortlich für den Inhalt</h2>
-      <p>Gabara Service GmbH (Anschrift wie oben)</p>
+      <p>
+        {FIRMA.geschaeftsfuehrer}<br />
+        {PRAXIS.name}, {PRAXIS.strasse}, {PRAXIS.plzOrt}
+      </p>
+      <h2>Verbraucherstreitbeilegung</h2>
+      <p>
+        Wir sind nicht verpflichtet und nicht bereit, an Streitbeilegungsverfahren vor einer
+        Verbraucherschlichtungsstelle teilzunehmen.
+      </p>
     </Rahmen>
   )
 }
@@ -61,7 +99,8 @@ export function Datenschutz() {
     <Rahmen titel="Datenschutzerklärung">
       <h2>Verantwortlicher</h2>
       <p>
-        {PRAXIS.name}, {PRAXIS.strasse}, {PRAXIS.plzOrt} · Telefon {PRAXIS.telefon} · {PRAXIS.email}
+        {PRAXIS.name}, vertreten durch {FIRMA.geschaeftsfuehrer}<br />
+        {PRAXIS.strasse}, {PRAXIS.plzOrt} · Telefon {PRAXIS.telefon} · {PRAXIS.email}
       </p>
       <h2>Anfrageformular</h2>
       <p>

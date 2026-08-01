@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useWhere, withStore } from '../hooks.js'
 import { euro } from '@shared/format.js'
 import { Icon } from '@shared/ui.jsx'
+import { FeldLabel } from './InfoHinweis.jsx'
+import { HINWEIS } from '../hinweise.js'
 
 // Hierarchischer LV-Editor: eine Zeile je Position/Titel, Einrückung über die OZ.
 // Inline-Edit nach dem SummaryEditor-Muster: lokaler Draft + 600 ms Debounce + Blur-Flush.
@@ -140,12 +142,12 @@ export default function LvEditor({ projektId, kompakt = false }) {
             <tr className="border-b border-slate-100 text-left">
               <th className={`${th} w-28`}>OZ</th>
               <th className={th}>Kurztext</th>
-              <th className={`${th} w-24 text-right`}>Menge</th>
+              <th className={`${th} w-24 text-right`}><FeldLabel info={HINWEIS.lvMenge}>Menge</FeldLabel></th>
               <th className={`${th} w-16`}>ME</th>
-              <th className={`${th} w-24 text-right`}>EP (€)</th>
+              <th className={`${th} w-24 text-right`}><FeldLabel info={HINWEIS.lvEp}>EP (€)</FeldLabel></th>
               <th className={`${th} w-28 text-right`}>Gesamt</th>
-              {!kompakt && <th className={`${th} w-24 text-right`}>Ist</th>}
-              {!kompakt && <th className={`${th} w-14 text-right`}>%</th>}
+              {!kompakt && <th className={`${th} w-24 text-right`}><FeldLabel info={HINWEIS.lvIst}>Ist</FeldLabel></th>}
+              {!kompakt && <th className={`${th} w-14 text-right`}><FeldLabel info={HINWEIS.lvProzent} ausrichtung="rechts">%</FeldLabel></th>}
               {!kompakt && <th className={`${th} w-20 text-right`}></th>}
             </tr>
           </thead>

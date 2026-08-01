@@ -1,34 +1,37 @@
-// Projekt-Status: bewusst SCHLICHT – 6 Stufen + Archiv.
-// Alte, feinere Stati (aus früheren Daten) werden über ALT_ZUORDNUNG abgebildet.
+// Projekt-Status: 5 feste Stufen (Vorgabe Gabara, Stand 08/2026).
+// Alte/feinere Stati aus früheren Daten werden über ALT_ZUORDNUNG abgebildet,
+// damit bestehende Projekte nach dem Update nicht "statuslos" dastehen.
 
 export const PROJEKT_STATUS = [
-  { id: 'neu', label: 'Neu / Anfrage', farbe: '#64748b' },
-  { id: 'angebot', label: 'Angebot', farbe: '#6366f1' },
-  { id: 'beauftragt', label: 'Beauftragt', farbe: '#d946ef' },
-  { id: 'inUmsetzung', label: 'In Arbeit', farbe: '#f97316' },
-  { id: 'abrechnung', label: 'Abrechnung', farbe: '#10b981' },
+  { id: 'offen', label: 'Offen', farbe: '#64748b' },
+  { id: 'beauftragt', label: 'Beauftragt', farbe: '#6366f1' },
+  { id: 'inArbeit', label: 'In Arbeit', farbe: '#f97316' },
+  { id: 'abrechnung', label: 'Abrechnung', farbe: '#0ea5e9' },
   { id: 'abgeschlossen', label: 'Abgeschlossen', farbe: '#22c55e' },
-  { id: 'archiviert', label: 'Archiv', farbe: '#94a3b8' },
 ]
 
-// Alt-Stati (feinere Pipeline der ersten Version) -> neue schlichte Stufen
+// Alt-Stati (frühere Pipelines) -> neue 5 Stufen
 const ALT_ZUORDNUNG = {
-  vorOrtTermin: 'neu',
-  detailgespraech: 'angebot',
+  neu: 'offen',
+  angebot: 'offen',
+  vorOrtTermin: 'offen',
+  detailgespraech: 'offen',
   auftragsvergabe: 'beauftragt',
   auftragsbestaetigung: 'beauftragt',
-  umsetzungsbeginn: 'inUmsetzung',
+  umsetzungsbeginn: 'inArbeit',
+  inUmsetzung: 'inArbeit',
+  reklamation: 'inArbeit',
   kundenrechnung: 'abrechnung',
-  reklamation: 'inUmsetzung',
+  archiviert: 'abgeschlossen',
 }
 
 export function normalisiereStatus(id) {
-  return ALT_ZUORDNUNG[id] || id
+  return ALT_ZUORDNUNG[id] || id || 'offen'
 }
 
-export const OFFENE_STATI = ['neu', 'angebot', 'beauftragt', 'inUmsetzung', 'abrechnung']
+export const OFFENE_STATI = ['offen', 'beauftragt', 'inArbeit', 'abrechnung']
 
-// Offen = weder abgeschlossen noch archiviert (versteht auch Alt-Stati)
+// Offen = alles außer abgeschlossen (versteht auch Alt-Stati)
 export function istOffen(status) {
   return OFFENE_STATI.includes(normalisiereStatus(status))
 }

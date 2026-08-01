@@ -24,10 +24,15 @@ async function zugang() {
     envEmail = import.meta.env.VITE_FASTBILL_EMAIL || ''
     envKey = import.meta.env.VITE_FASTBILL_API_KEY || ''
   }
+  // Nur GÜLTIGE Proxy-URLs übernehmen (https://… für den GAS-Proxy oder /… für
+  // einen eigenen Pfad). Alles andere (z. B. versehentlich eingetragene Hinweise
+  // wie "admin/.env.local") wird ignoriert -> eingebauter Dev-Proxy greift.
+  const roh = (integ.proxyUrl || '').trim()
+  const proxyUrl = /^(https?:\/\/|\/)/i.test(roh) ? roh : '/fastbill-api/api.php'
   return {
     email: integ.fastbillEmail || envEmail,
     key: integ.fastbillApiKey || envKey,
-    proxyUrl: integ.proxyUrl || '/fastbill-api/api.php',
+    proxyUrl,
   }
 }
 

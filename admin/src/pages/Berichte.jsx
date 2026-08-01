@@ -29,7 +29,6 @@ const SPESEN_TYP = { fahrt: 'Fahrt', hotel: 'Hotel', sonstig: 'Sonstig' }
 export default function Berichte({ user }) {
   const berichte = useCollection('berichte')
   const spesen = useCollection('spesen')
-  const photos = useCollection('photos')
   const projekte = useCollection('projekte')
   const patients = useCollection('patients')
   const einst = useEinstellungen()
@@ -43,10 +42,14 @@ export default function Berichte({ user }) {
   const projektVon = (id) => projekte.find((p) => p.id === id)
   const kundeVon = (projekt) => patients.find((k) => k.id === projekt?.kundeId)
 
-  function drucken(b) {
+  // Fotos erst beim Drucken laden (gefiltert!) statt alle Fotos dauerhaft zu
+  // abonnieren – im Firebase-Modus spart das sehr viele Lesevorgänge.
+  async function drucken(b) {
     const projekt = projektVon(b.projektId)
     const kunde = kundeVon(projekt)
-    const fotos = photos.filter((p) => p.berichtId === b.id)
+    const fotos = await withStore((s) => (s.listWhere
+      ? s.listWhere('photos', 'berichtId', b.id)
+      : s.list('photos').then((alle) => alle.filter((p) => p.berichtId === b.id))))
     if (b.typ === 'abnahme') druckeAbnahme({ bericht: b, projekt, kunde, fotos, einst })
     else druckeRegiebericht({ bericht: b, projekt, kunde, fotos, einst })
   }

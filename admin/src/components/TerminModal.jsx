@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom'
 import Modal from './Modal.jsx'
 import TerminBilder from './TerminBilder.jsx'
 import { Icon } from '@shared/ui.jsx'
-import { withStore, useCollection } from '../hooks.js'
+import { withStore, useCollection, useEinstellungen, useWhere } from '../hooks.js'
 import { heuteISO, addTage } from '@shared/slots.js'
 import { kalenderVerbunden, eventLoeschen } from '@shared/googleCalendar.js'
+import { druckeArbeitsauftrag } from '../drucken.js'
 
 const STATUS_INFO = {
   bestaetigt: { label: 'Geplant', farbe: 'bg-praxis-100 text-praxis-800' },
@@ -29,6 +30,8 @@ function fmtDatum(iso) {
 export default function TerminModal({ termin, patient, user, onClose }) {
   const projekte = useCollection('projekte')
   const users = useCollection('users')
+  const einst = useEinstellungen()
+  const lvPositionen = useWhere('lvpositionen', 'projektId', termin.projektId || '')
   // Lokaler Spiegel, damit der Schalter sofort reagiert (termin-Prop ist ein Schnappschuss)
   const [erledigt, setErledigt] = useState(!!termin.erledigt)
   const [erledigtAm, setErledigtAm] = useState(termin.erledigtAm || '')
@@ -50,6 +53,22 @@ export default function TerminModal({ termin, patient, user, onClose }) {
   }
   const kat = KATEGORIE_INFO[termin.kategorie]
   const statusInfo = STATUS_INFO[status] || STATUS_INFO.bestaetigt
+
+  // Arbeitsauftrag als PDF: gewählte LV-Positionen des Termins als Aufgabenliste
+  function arbeitsauftragDrucken() {
+    const ids = termin.positionsIds || []
+    const gewaehlte = ids.length
+      ? lvPositionen.filter((p) => ids.includes(p.id))
+      : lvPositionen.filter((p) => p.typ === 'position')
+    druckeArbeitsauftrag({
+      termin,
+      projekt,
+      kunde: patient,
+      positionen: [...gewaehlte].sort((a, b) => (a.sort || 0) - (b.sort || 0)),
+      mitarbeiter: mitarbeiterIds.map((id) => users.find((u) => u.id === id)?.name).filter(Boolean),
+      einst,
+    })
+  }
 
   async function erledigtToggle() {
     const neu = !erledigt
@@ -84,7 +103,10 @@ export default function TerminModal({ termin, patient, user, onClose }) {
     setStatus(neu)
     await withStore(async (s) => {
       await s.update('appointments', termin.id, { status: neu })
-      if (s.mode === 'firebase') await s.schreibeSlot({ ...termin, status: neu })
+      if (s.mode !== 'firebase') return
+      // Abgesagt = Zeitfenster wieder freigeben (früher blieb der Slot belegt)
+      if (neu === 'abgesagt') await s.loescheSlot(termin.id)
+      else await s.schreibeSlot({ ...termin, status: neu })
     })
     if (neu === 'abgesagt' && termin.googleEventId && kalenderVerbunden()) {
       try { await eventLoeschen(termin.googleEventId) } catch (e) { /* Kalender nicht erreichbar */ }
@@ -205,6 +227,13 @@ export default function TerminModal({ termin, patient, user, onClose }) {
           >
             <Icon name="plus" className="w-4 h-4" />
             Kopieren (+1 Tag)
+          </button>
+          <button
+            onClick={arbeitsauftragDrucken}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl text-sm"
+          >
+            <Icon name="doc" className="w-4 h-4" />
+            Arbeitsauftrag (PDF)
           </button>
           {status !== 'abgesagt' ? (
             <button

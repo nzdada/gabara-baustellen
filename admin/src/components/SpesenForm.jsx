@@ -3,6 +3,7 @@ import Modal from './Modal.jsx'
 import { Icon } from '@shared/ui.jsx'
 import { berechneRoute } from '@shared/route.js'
 import { euro } from '@shared/format.js'
+import { heuteISO } from '@shared/slots.js'
 import { useCollection, useEinstellungen, withStore } from '../hooks.js'
 
 // Spesen-Erfassung: Hotel/Übernachtung, Fahrtkosten (mit automatischem
@@ -27,7 +28,7 @@ export default function SpesenForm({ projektId = '', spesen = null, user, onClos
   const [daten, setDaten] = useState(() => ({
     projektId: spesen?.projektId || projektId || '',
     typ: spesen?.typ || 'fahrt',
-    datum: spesen?.datum || new Date().toISOString().slice(0, 10),
+    datum: spesen?.datum || heuteISO(),
     mitarbeiterId: spesen?.mitarbeiterId || user?.userId || '',
     kommentar: spesen?.kommentar || '',
     betrag: spesen?.betrag ?? '',

@@ -4,13 +4,13 @@ import { Icon } from '@shared/ui.jsx'
 import { useLang, tr } from '@shared/i18n.js'
 
 const TT = {
-  titel: { de: 'Daten-Import aus dem Altsystem', en: 'Data import from your old system', ar: 'استيراد البيانات من النظام القديم' },
+  titel: { de: 'Kunden-Import aus dem Altsystem', en: 'Customer import from your old system', ar: 'استيراد العملاء من النظام القديم' },
   untertitel: {
-    de: 'Patientenliste als CSV-Datei exportieren (aus jedem Praxisprogramm oder Excel: „Speichern unter → CSV") und hier hochladen. Die Spalten werden automatisch erkannt – Sie können die Zuordnung anpassen.',
-    en: 'Export your patient list as a CSV file (from any practice software or Excel: “Save as → CSV”) and upload it here. Columns are detected automatically – you can adjust the mapping.',
-    ar: 'صدّر قائمة المرضى كملف CSV (من أي برنامج عيادة أو Excel: "حفظ باسم ← CSV") وارفعه هنا. تُكتشف الأعمدة تلقائيًا ويمكنك تعديل الربط.',
+    de: 'Kundenliste als CSV-Datei exportieren (aus der bisherigen Software oder Excel: „Speichern unter → CSV") und hier hochladen. Die Spalten werden automatisch erkannt – die Zuordnung lässt sich anpassen.',
+    en: 'Export your customer list as a CSV file (from your previous software or Excel: “Save as → CSV”) and upload it here. Columns are detected automatically – you can adjust the mapping.',
+    ar: 'صدّر قائمة العملاء كملف CSV وارفعه هنا. تُكتشف الأعمدة تلقائيًا ويمكنك تعديل الربط.',
   },
-  importiert: { de: 'Patienten importiert.', en: 'patients imported.', ar: 'مريضًا تم استيرادهم.' },
+  importiert: { de: 'Kunden importiert.', en: 'customers imported.', ar: 'عميلًا تم استيرادهم.' },
   uebersprungen: { de: 'übersprungen (leer oder bereits vorhanden).', en: 'skipped (empty or already existing).', ar: 'تم تخطيهم (فارغ أو موجود مسبقًا).' },
   waehlen: { de: 'CSV-Datei auswählen', en: 'Choose CSV file', ar: 'اختر ملف CSV' },
   trenner: { de: 'Trennzeichen ; , oder Tab – wird automatisch erkannt', en: 'Delimiter ; , or tab – detected automatically', ar: 'الفاصل ; أو , أو Tab – يُكتشف تلقائيًا' },
@@ -19,17 +19,18 @@ const TT = {
   nicht: { de: '– nicht importieren –', en: '– do not import –', ar: '– لا تستورد –' },
   spalte: { de: 'Spalte', en: 'Column', ar: 'عمود' },
   vorschau: { de: 'Vorschau (erste 5 Zeilen)', en: 'Preview (first 5 rows)', ar: 'معاينة (أول 5 صفوف)' },
-  importieren: { de: 'Patienten importieren', en: 'Import patients', ar: 'استيراد المرضى' },
+  importieren: { de: 'Kunden importieren', en: 'Import customers', ar: 'استيراد العملاء' },
   laeuft: { de: 'Importiere …', en: 'Importing …', ar: 'جارٍ الاستيراد …' },
-  pflichtFehlt: { de: 'Bitte mindestens Vor- und Nachname zuordnen.', en: 'Please map at least first and last name.', ar: 'يرجى ربط الاسم الأول واسم العائلة على الأقل.' },
-  dubletten: { de: 'Doppelte Patienten (gleicher Name + Telefon) werden automatisch übersprungen.', en: 'Duplicate patients (same name + phone) are skipped automatically.', ar: 'يتم تلقائيًا تخطي المرضى المكررين (نفس الاسم والهاتف).' },
+  pflichtFehlt: { de: 'Bitte mindestens Firma oder Nachname zuordnen.', en: 'Please map at least company or last name.', ar: 'يرجى ربط الشركة أو اسم العائلة على الأقل.' },
+  dubletten: { de: 'Doppelte Kunden (gleicher Name/Firma + Telefon) werden automatisch übersprungen.', en: 'Duplicate customers (same name/company + phone) are skipped automatically.', ar: 'يتم تلقائيًا تخطي العملاء المكررين.' },
   ziele: {
     vorname: { de: 'Vorname', en: 'First name', ar: 'الاسم الأول' },
     nachname: { de: 'Nachname', en: 'Last name', ar: 'اسم العائلة' },
-    geburtsdatum: { de: 'Geburtsdatum', en: 'Date of birth', ar: 'تاريخ الميلاد' },
+    firma: { de: 'Firma', en: 'Company', ar: 'الشركة' },
     telefon: { de: 'Telefon', en: 'Phone', ar: 'الهاتف' },
     email: { de: 'E-Mail', en: 'E-mail', ar: 'البريد الإلكتروني' },
-    versicherung: { de: 'Krankenkasse', en: 'Health insurance', ar: 'التأمين الصحي' },
+    strasse: { de: 'Straße und Nr.', en: 'Street', ar: 'الشارع' },
+    plzOrt: { de: 'PLZ und Ort', en: 'Postcode and town', ar: 'الرمز البريدي والمدينة' },
     notizen: { de: 'Notizen/Hinweise', en: 'Notes', ar: 'ملاحظات' },
   },
 }
@@ -65,28 +66,15 @@ function parseCSV(text) {
 }
 
 const ZIELE = [
-  { key: 'vorname', pflicht: true, muster: /vorname|first/i },
-  { key: 'nachname', pflicht: true, muster: /nachname|name|last/i },
-  { key: 'geburtsdatum', muster: /geb|birth/i },
+  { key: 'firma', muster: /firma|company|organisation|betrieb/i },
+  { key: 'vorname', muster: /vorname|first/i },
+  { key: 'nachname', muster: /nachname|name|last/i },
   { key: 'telefon', muster: /tel|phone|handy|mobil/i },
   { key: 'email', muster: /mail/i },
-  { key: 'versicherung', muster: /kasse|versich|kk/i },
+  { key: 'strasse', muster: /stra(ss|ß)e|adresse|anschrift|street/i },
+  { key: 'plzOrt', muster: /plz|ort|stadt|postleit|city|town/i },
   { key: 'notizen', muster: /notiz|hinweis|bemerk|anmerk/i },
 ]
-
-// Datum aus Altsystemen normalisieren: 03.05.1970 / 1970-05-03 / 3.5.70
-function normDatum(wert) {
-  const w = (wert || '').trim()
-  if (!w) return ''
-  if (/^\d{4}-\d{2}-\d{2}$/.test(w)) return w
-  const m = w.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/)
-  if (m) {
-    let jahr = Number(m[3])
-    if (jahr < 100) jahr += jahr > 26 ? 1900 : 2000
-    return `${jahr}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`
-  }
-  return w
-}
 
 export default function Import() {
   useLang()
@@ -129,24 +117,31 @@ export default function Import() {
         const vorhandene = await s.list('patients')
         for (const zeile of daten) {
           const wert = (key) => (mapping[key] !== undefined ? (zeile[mapping[key]] || '').trim() : '')
+          const firma = wert('firma')
           const vorname = wert('vorname')
           const nachname = wert('nachname')
-          if (!vorname && !nachname) { uebersprungen++; continue }
+          // Ein Kunde braucht mindestens eine Firma ODER einen Namen
+          if (!firma && !vorname && !nachname) { uebersprungen++; continue }
           const telefon = wert('telefon')
+          const kennung = (p) => `${p.firma || ''}|${p.vorname || ''}|${p.nachname || ''}`.toLowerCase()
+          const neuKennung = `${firma}|${vorname}|${nachname}`.toLowerCase()
           const doppelt = vorhandene.find(
-            (p) =>
-              p.vorname.toLowerCase() === vorname.toLowerCase() &&
-              p.nachname.toLowerCase() === nachname.toLowerCase() &&
-              (!telefon || (p.telefon || '').replace(/\D/g, '') === telefon.replace(/\D/g, ''))
+            (p) => kennung(p) === neuKennung
+              && (!telefon || (p.telefon || '').replace(/\D/g, '') === telefon.replace(/\D/g, ''))
           )
           if (doppelt) { uebersprungen++; continue }
           await s.add('patients', {
-            vorname, nachname,
-            geburtsdatum: normDatum(wert('geburtsdatum')),
+            firma, vorname, nachname,
+            ansprechpartner: `${vorname} ${nachname}`.trim(),
             telefon,
             email: wert('email'),
-            versicherung: wert('versicherung'),
+            strasse: wert('strasse'),
+            plzOrt: wert('plzOrt'),
+            // Abrechnungs-Standards wie bei neuen Kunden (§13b für Gewerbe)
+            typ: firma ? 'gu' : 'privat',
+            ustModus: firma ? '13b' : 'ust19',
             notizen: wert('notizen'),
+            fastbillCustomerId: null,
             createdAt: Date.now(),
           })
           neu++
@@ -159,7 +154,8 @@ export default function Import() {
     }
   }
 
-  const pflichtOk = ZIELE.filter((z) => z.pflicht).every((z) => mapping[z.key] !== undefined)
+  // Mindestens Firma ODER Nachname muss zugeordnet sein
+  const pflichtOk = mapping.firma !== undefined || mapping.nachname !== undefined
 
   return (
     <div className="p-4 lg:p-6 max-w-4xl">
@@ -226,7 +222,7 @@ export default function Import() {
                   <tr key={i} className="border-t border-slate-50">
                     {ZIELE.filter((z) => mapping[z.key] !== undefined).map((z) => (
                       <td key={z.key} className="px-3 py-2 text-slate-700">
-                        {z.key === 'geburtsdatum' ? normDatum(zeile[mapping[z.key]]) : zeile[mapping[z.key]]}
+                        {zeile[mapping[z.key]]}
                       </td>
                     ))}
                   </tr>

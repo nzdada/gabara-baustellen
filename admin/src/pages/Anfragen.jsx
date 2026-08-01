@@ -9,8 +9,8 @@ import { mailKonfiguriert, sendePatientenMail } from '@shared/mail.js'
 import { useLang, tr, datumLok } from '@shared/i18n.js'
 
 const T = {
-  titel: { de: 'Terminanfragen von der Webseite', en: 'Appointment requests from the website', ar: 'طلبات المواعيد من الموقع' },
-  untertitel: { de: 'Neue Online-Anfragen prüfen und mit einem Klick in einen festen Termin verwandeln.', en: 'Review new online requests and turn them into fixed appointments with one click.', ar: 'راجع الطلبات الجديدة وحوّلها إلى مواعيد ثابتة بنقرة واحدة.' },
+  titel: { de: 'Anfragen von der Webseite', en: 'Appointment requests from the website', ar: 'طلبات المواعيد من الموقع' },
+  untertitel: { de: 'Neue Anfragen prüfen, Kunden anlegen und als Baustelle weiterführen.', en: 'Review new online requests and turn them into fixed appointments with one click.', ar: 'راجع الطلبات الجديدة وحوّلها إلى مواعيد ثابتة بنقرة واحدة.' },
   leer: { de: 'Keine offenen Anfragen – alles erledigt!', en: 'No open requests – all done!', ar: 'لا توجد طلبات مفتوحة – كل شيء منجز!' },
   neu: { de: 'NEU', en: 'NEW', ar: 'جديد' },
   wunsch: { de: 'Wunsch:', en: 'Requested:', ar: 'المطلوب:' },
@@ -21,52 +21,47 @@ const T = {
   bestaetigt: { de: 'Bestätigt', en: 'Confirmed', ar: 'مؤكد' },
   abgelehnt: { de: 'Abgelehnt', en: 'Declined', ar: 'مرفوض' },
   uhr: { de: 'Uhr', en: '', ar: '' },
-  modalTitel: { de: 'Anfrage bestätigen', en: 'Confirm request', ar: 'تأكيد الطلب' },
-  zuordnen: { de: 'Patient zuordnen:', en: 'Assign patient:', ar: 'ربط المريض:' },
-  vorhanden: { de: 'Vorhandener Patient:', en: 'Existing patient:', ar: 'مريض موجود:' },
-  alsNeu: { de: 'Als Neupatient anlegen:', en: 'Create as new patient:', ar: 'إنشاء كمريض جديد:' },
-  wirdNeu: { de: 'wird als Neupatient angelegt', en: 'will be created as a new patient', ar: 'سيُسجَّل كمريض جديد' },
-  kasseUnbekannt: { de: 'Versicherung unbekannt', en: 'Insurance unknown', ar: 'التأمين غير معروف' },
-  anlegen: { de: 'Termin bestätigen & anlegen', en: 'Confirm & create appointment', ar: 'تأكيد وإنشاء الموعد' },
+  modalTitel: { de: 'Anfrage annehmen', en: 'Confirm request', ar: 'تأكيد الطلب' },
+  zuordnen: { de: 'Kunde zuordnen:', en: 'Assign patient:', ar: 'ربط المريض:' },
+  vorhanden: { de: 'Vorhandener Kunde:', en: 'Existing patient:', ar: 'مريض موجود:' },
+  alsNeu: { de: 'Als neuen Kunden anlegen:', en: 'Create as new patient:', ar: 'إنشاء كمريض جديد:' },
+  wirdNeu: { de: 'wird als neuer Kunde angelegt', en: 'will be created as a new patient', ar: 'سيُسجَّل كمريض جديد' },
+  fPlzOrt: { de: 'PLZ und Ort', en: 'Postcode and town', ar: 'الرمز البريدي والمدينة' },
+  anlegen: { de: 'Anfrage annehmen & Kunde anlegen', en: 'Confirm & create appointment', ar: 'تأكيد وإنشاء الموعد' },
   laedt: { de: 'Wird angelegt …', en: 'Creating …', ar: 'جارٍ الإنشاء …' },
-  hinweisKalender: { de: 'Der Termin erscheint sofort im Kalender', en: 'The appointment appears in the calendar immediately', ar: 'يظهر الموعد فورًا في التقويم' },
+  hinweisKalender: { de: 'Der Kunde steht danach für Projekte und Termine bereit', en: 'The appointment appears in the calendar immediately', ar: 'يظهر الموعد فورًا في التقويم' },
   hinweisGoogle: { de: ' und im Google Kalender', en: ' and in Google Calendar', ar: ' وفي تقويم جوجل' },
-  mailWird: { de: 'Der Patient erhält automatisch eine Bestätigungs-E-Mail an', en: 'The patient automatically receives a confirmation e-mail at', ar: 'سيتلقى المريض رسالة تأكيد تلقائيًا على' },
+  mailWird: { de: 'Der Kunde erhält automatisch eine Bestätigungs-E-Mail an', en: 'The patient automatically receives a confirmation e-mail at', ar: 'سيتلقى المريض رسالة تأكيد تلقائيًا على' },
   mailNichtKonf: { de: 'E-Mail-Versand noch nicht eingerichtet – der Mail-Dienst (seed/erinnerung.gs) muss einmalig als Web-App bereitgestellt und die URL in der App hinterlegt werden. Bis dahin bitte telefonisch bestätigen.', en: 'E-mail sending not set up yet – deploy the mail service (seed/erinnerung.gs) as a web app once and store its URL in the app. Until then please confirm by phone.', ar: 'إرسال البريد غير مفعّل بعد – انشر خدمة البريد مرة واحدة وأدخل الرابط في التطبيق. حتى ذلك الحين يرجى التأكيد هاتفيًا.' },
-  gesperrtWarnung: {
-    de: '⛔ Dieser Patient ist für die Online-Buchung GESPERRT (zu viele kurzfristige Absagen). Termin nur nach Rücksprache mit der Praxisleitung vergeben – Sperre im Dashboard aufhebbar.',
-    en: '⛔ This patient is BLOCKED for online booking (too many short-notice cancellations). Only book after consulting practice management – unblock via the dashboard.',
-    ar: '⛔ هذا المريض محظور من الحجز الإلكتروني (إلغاءات متأخرة كثيرة). لا يُمنح موعد إلا بعد مراجعة الإدارة.',
-  },
-  // Bearbeitbare Patientendaten im Bestätigen-Dialog
-  datenTitel: { de: 'Patientendaten prüfen & ergänzen', en: 'Check & complete patient data', ar: 'مراجعة بيانات المريض وإكمالها' },
+  // Bearbeitbare Kundendaten im Annehmen-Dialog
+  datenTitel: { de: 'Kundendaten prüfen & ergänzen', en: 'Check & complete patient data', ar: 'مراجعة بيانات المريض وإكمالها' },
   fVorname: { de: 'Vorname', en: 'First name', ar: 'الاسم الأول' },
   fNachname: { de: 'Nachname', en: 'Last name', ar: 'اسم العائلة' },
   fTelefon: { de: 'Telefon', en: 'Phone', ar: 'الهاتف' },
   fEmail: { de: 'E-Mail', en: 'E-mail', ar: 'البريد الإلكتروني' },
-  fGeburt: { de: 'Geburtsdatum', en: 'Date of birth', ar: 'تاريخ الميلاد' },
-  fKasse: { de: 'Versicherung', en: 'Insurance', ar: 'التأمين' },
+  fFirma: { de: 'Firma (optional)', en: 'Company (optional)', ar: 'الشركة (اختياري)' },
+  fStrasse: { de: 'Straße und Nr.', en: 'Street', ar: 'الشارع' },
   fNotiz: { de: 'Notiz', en: 'Note', ar: 'ملاحظة' },
-  fNotizPlatzhalter: { de: 'z. B. Angstpatient, Empfehlung, Allergie …', en: 'e.g. anxious patient, referral, allergy …', ar: 'مثال: مريض قلق، توصية، حساسية …' },
+  fNotizPlatzhalter: { de: 'z. B. Empfehlung, Zugang zur Baustelle, Ansprechpartner …', en: 'e.g. anxious patient, referral, allergy …', ar: 'مثال: مريض قلق، توصية، حساسية …' },
   // Ablehnen mit Grund
   ablehnenTitel: { de: 'Anfrage ablehnen', en: 'Decline request', ar: 'رفض الطلب' },
   ablehnenFrage: {
-    de: 'Warum lehnen wir ab? Der Grund wird dem Patienten in der Absage-Mail mitgeteilt.',
+    de: 'Warum sagen wir ab? Der Grund wird dem Kunden in der Absage-Mail mitgeteilt.',
     en: 'Why are we declining? The reason is included in the e-mail to the patient.',
     ar: 'لماذا نرفض؟ سيُذكر السبب في رسالة الرفض للمريض.',
   },
-  grundTelefon: { de: '📞 Telefonnummer stimmt nicht – Patient soll uns anrufen und den Termin bestätigen', en: '📞 Phone number incorrect – patient should call us to confirm', ar: '📞 رقم الهاتف غير صحيح – على المريض الاتصال بنا للتأكيد' },
-  grundAusgebucht: { de: '📅 Termin ist bereits ausgebucht', en: '📅 Time is already fully booked', ar: '📅 الوقت محجوز بالكامل' },
-  grundUrlaub: { de: '🏖 Praxis ist im Urlaub', en: '🏖 Practice is on holiday', ar: '🏖 العيادة في إجازة' },
+  grundTelefon: { de: '📞 Kontaktdaten unklar – Kunde soll uns bitte anrufen', en: '📞 Phone number incorrect – patient should call us to confirm', ar: '📞 رقم الهاتف غير صحيح – على المريض الاتصال بنا للتأكيد' },
+  grundAusgebucht: { de: '📅 Kein freier Termin – Auftragsbücher sind voll', en: '📅 Time is already fully booked', ar: '📅 الوقت محجوز بالكامل' },
+  grundUrlaub: { de: '🏖 Betriebsurlaub', en: '🏖 Practice is on holiday', ar: '🏖 العيادة في إجازة' },
   grundKeiner: { de: '✉ Ohne Grund (Standardtext)', en: '✉ No reason (standard text)', ar: '✉ بدون سبب (نص قياسي)' },
-  ablehnenSenden: { de: 'Ablehnen & Patient informieren', en: 'Decline & notify patient', ar: 'رفض وإبلاغ المريض' },
+  ablehnenSenden: { de: 'Absagen & Kunde informieren', en: 'Decline & notify patient', ar: 'رفض وإبلاغ المريض' },
   mGesendet: { de: '✉ Mail gesendet', en: '✉ e-mail sent', ar: '✉ أُرسل البريد' },
   mFehler: { de: '✉ Mail fehlgeschlagen', en: '✉ e-mail failed', ar: '✉ فشل الإرسال' },
   mKeineMail: { de: 'keine E-Mail', en: 'no e-mail', ar: 'لا بريد إلكتروني' },
   mNichtKonf: { de: '✉ Versand nicht eingerichtet', en: '✉ sending not set up', ar: '✉ الإرسال غير مفعّل' },
 }
 
-// Versucht die Patienten-Mail zu senden und liefert den Status für die Anzeige
+// Versucht die Kunden-Mail zu senden und liefert den Status für die Anzeige
 export async function mailSenden(typ, anfrage, extra = {}) {
   if (!anfrage.email) return 'keine-email'
   if (!mailKonfiguriert()) return 'nicht-konfiguriert'
@@ -136,7 +131,13 @@ export default function Anfragen({ user }) {
                     <span className="text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">{tr(T.neu)}</span>
                   </p>
                   <p className="text-sm text-slate-500 mt-0.5">
-                    {r.anliegen} · {tr(T.wunsch)} <span className="font-semibold text-slate-700">{datumLok(r.datum)}, {r.start} {tr(T.uhr)}</span> ({r.dauer} {tr(T.min)})
+                    {r.anliegen}
+                    {r.datum && r.start && (
+                      <> · {tr(T.wunsch)} <span className="font-semibold text-slate-700">{datumLok(r.datum)}, {r.start} {tr(T.uhr)}</span></>
+                    )}
+                    <span className="ml-2 text-xs text-slate-400">
+                      eingegangen {r.createdAt ? new Date(r.createdAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–'}
+                    </span>
                   </p>
                   <p className="text-sm text-slate-500 mt-0.5">
                     <Icon name="phone" className="w-3.5 h-3.5 inline mr-1" />{r.telefon}
@@ -170,7 +171,7 @@ export default function Anfragen({ user }) {
           <div className="space-y-2">
             {erledigte.map((r) => (
               <div key={r.id} className="bg-white rounded-xl border border-slate-100 px-4 py-3 flex items-center justify-between text-sm">
-                <span className="text-slate-600">{r.name} · {r.anliegen} · {datumLok(r.datum)}, {r.start} {tr(T.uhr)}</span>
+                <span className="text-slate-600">{r.name} · {r.anliegen}{r.datum && r.start ? ` · ${datumLok(r.datum)}, ${r.start}` : ''}</span>
                 <span className="flex items-center gap-1.5">
                   {r.mailStatus === 'gesendet' && (
                     <span className="text-[10px] font-bold rounded-full px-2 py-1 bg-sky-100 text-sky-700">{tr(T.mGesendet)}</span>
@@ -205,7 +206,7 @@ export default function Anfragen({ user }) {
   )
 }
 
-// Ablehnen mit wählbarem Grund – der Grund landet in der Absage-Mail des Patienten
+// Absagen mit wählbarem Grund – der Grund landet in der Absage-Mail des Kunden
 export function AblehnenModal({ anfrage, onClose }) {
   const [grund, setGrund] = useState('ausgebucht')
   const [laedt, setLaedt] = useState(false)
@@ -231,7 +232,11 @@ export function AblehnenModal({ anfrage, onClose }) {
       <div className="space-y-4">
         <div className="bg-slate-50 rounded-2xl p-4 text-sm">
           <p className="font-bold text-slate-900">{anfrage.name}</p>
-          <p className="text-slate-600 mt-0.5">{anfrage.anliegen} · {datumLok(anfrage.datum)}, {anfrage.start} {tr(T.uhr)}</p>
+          <p className="text-slate-600 mt-0.5">
+            {anfrage.anliegen}
+            {anfrage.datum && anfrage.start ? ` · ${datumLok(anfrage.datum)}, ${anfrage.start} ${tr(T.uhr)}` : ''}
+          </p>
+          {anfrage.telefon && <p className="text-slate-500 text-xs mt-0.5" dir="ltr">{anfrage.telefon}</p>}
         </div>
         <p className="text-sm text-slate-600">{tr(T.ablehnenFrage)}</p>
         <div className="space-y-2">
@@ -263,16 +268,19 @@ export function AblehnenModal({ anfrage, onClose }) {
   )
 }
 
-// Anfrage-Daten in bearbeitbare Patientenfelder aufteilen (Name -> Vor-/Nachname)
+// Anfrage-Daten in bearbeitbare Kundenfelder aufteilen (Name -> Vor-/Nachname)
 function datenAusAnfrage(anfrage) {
-  const teile = anfrage.name.trim().split(/\s+/)
+  // Name defensiv behandeln – eine Anfrage ohne Namen darf das Modal nicht abreißen
+  const teile = String(anfrage?.name || '').trim().split(/\s+/).filter(Boolean)
+  if (teile.length === 0) teile.push('')
   return {
     vorname: teile.slice(0, -1).join(' ') || teile[0],
     nachname: teile.length > 1 ? teile[teile.length - 1] : '',
     telefon: anfrage.telefon || '',
     email: anfrage.email || '',
-    geburtsdatum: '',
-    versicherung: '',
+    firma: '',
+    strasse: '',
+    plzOrt: '',
     notizen: '',
   }
 }
@@ -280,13 +288,13 @@ function datenAusAnfrage(anfrage) {
 function datenAusPatient(p) {
   return {
     vorname: p.vorname || '', nachname: p.nachname || '', telefon: p.telefon || '',
-    email: p.email || '', geburtsdatum: p.geburtsdatum || '', versicherung: p.versicherung || '',
+    email: p.email || '', firma: p.firma || '', strasse: p.strasse || '', plzOrt: p.plzOrt || '',
     notizen: p.notizen || '',
   }
 }
 
 export function BestaetigenModal({ anfrage, patients, onClose }) {
-  // Vorschlag: existiert die Telefonnummer schon, ist es wohl derselbe Patient
+  // Vorschlag: existiert die Telefonnummer schon, ist es wohl derselbe Kunde
   const vorschlag = useMemo(() => {
     const tel = normalisiereTelefon(anfrage.telefon)
     return patients.find(
@@ -297,7 +305,7 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
 
   const [modus, setModus] = useState(vorschlag ? 'vorhanden' : 'neu')
   const [laedt, setLaedt] = useState(false)
-  // Bearbeitbare Patientendaten – neue Infos aus dem Telefonat direkt mitnehmen
+  // Bearbeitbare Kundendaten – neue Infos aus dem Telefonat direkt mitnehmen
   const [daten, setDaten] = useState(() => (vorschlag ? datenAusPatient(vorschlag) : datenAusAnfrage(anfrage)))
 
   function moduswechsel(neuerModus) {
@@ -317,7 +325,7 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
         } else {
           const neu = {
             ...daten,
-            notizen: daten.notizen.trim() || 'Neupatient über Online-Buchung',
+            notizen: daten.notizen.trim() || 'Neukunde über die Webseite',
             createdAt: Date.now(),
           }
           const id = await s.add('patients', neu)
@@ -326,6 +334,7 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
         // Gabara-Anfragen haben KEINEN Wunschtermin (nur Name/Kontakt/Nachricht) –
         // dann wird hier nur der Kunde angelegt; Termine plant das Büro im Kalender.
         let terminId = null
+        let stornoToken = ''
         if (anfrage.datum && anfrage.start) {
           const termin = {
             patientId: patient.id,
@@ -347,6 +356,7 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
             stornoToken: crypto.randomUUID(),
             feedbackToken: crypto.randomUUID(),
           }
+          stornoToken = termin.stornoToken
           terminId = await s.add('appointments', termin)
           termin.id = terminId
           if (s.mode === 'firebase') await s.schreibeSlot(termin)
@@ -364,7 +374,7 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
         mailSenden(
           'bestaetigung',
           { ...anfrage, name: `${patient.vorname} ${patient.nachname}`.trim(), email: patient.email || anfrage.email },
-          { terminId, stornoToken: termin.stornoToken }
+          { terminId, stornoToken }
         )
           .then((mailStatus) => withStore((s2) => s2.update('requests', anfrage.id, { mailStatus })))
           .catch(() => {})
@@ -397,7 +407,7 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
               <input type="radio" name="patient-zuordnung" checked={modus === 'vorhanden'} onChange={() => moduswechsel('vorhanden')} className="mt-1 accent-teal-600" />
               <span className="text-sm">
                 <span className="font-semibold">{tr(T.vorhanden)}</span> {vorschlag.vorname} {vorschlag.nachname}
-                <span className="block text-xs text-slate-400">{vorschlag.telefon} · {vorschlag.versicherung || tr(T.kasseUnbekannt)}</span>
+                <span className="block text-xs text-slate-400">{[vorschlag.telefon, vorschlag.firma, vorschlag.plzOrt].filter(Boolean).join(' · ')}</span>
               </span>
             </label>
             <label className="flex items-start gap-3 bg-white border-2 rounded-xl p-3.5 cursor-pointer transition has-checked:border-praxis-500 border-slate-200">
@@ -414,8 +424,8 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
           </p>
         )}
 
-        {/* Patientendaten direkt bearbeiten – neue Infos (Geburtsdatum, Kasse, korrigierte
-            Nummer …) landen beim Bestätigen sofort in der Patientenakte */}
+        {/* Kundendaten direkt bearbeiten – neue Infos aus dem Telefonat (Firma,
+            Anschrift, korrigierte Nummer) landen sofort in der Kundenkartei */}
         <div>
           <p className="text-sm font-medium text-slate-700 mb-2">{tr(T.datenTitel)}</p>
           <div className="grid grid-cols-2 gap-2.5">
@@ -424,8 +434,9 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
               ['nachname', T.fNachname, 'text'],
               ['telefon', T.fTelefon, 'tel'],
               ['email', T.fEmail, 'email'],
-              ['geburtsdatum', T.fGeburt, 'date'],
-              ['versicherung', T.fKasse, 'text'],
+              ['firma', T.fFirma, 'text'],
+              ['strasse', T.fStrasse, 'text'],
+              ['plzOrt', T.fPlzOrt, 'text'],
             ].map(([key, label, typ]) => (
               <label key={key} className="block text-xs font-medium text-slate-500">
                 {tr(label)}
@@ -450,14 +461,9 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
           </label>
         </div>
 
-        {vorschlag?.gesperrt && (
-          <p className="text-sm font-semibold text-red-700 bg-red-50 border-2 border-red-300 rounded-xl px-4 py-3">
-            {tr(T.gesperrtWarnung)}
-          </p>
-        )}
         <button
           onClick={bestaetigen}
-          disabled={laedt || vorschlag?.gesperrt}
+          disabled={laedt}
           className="w-full bg-praxis-600 hover:bg-praxis-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl"
         >
           {laedt ? tr(T.laedt) : tr(T.anlegen)}

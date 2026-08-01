@@ -126,6 +126,11 @@ function lokalerStore() {
     async list(coll) {
       return [...db[coll]]
     },
+    // Einmaliger gefilterter Zugriff (kein Abo) – z. B. Fotos EINES Berichts
+    // für den PDF-Druck, ohne die ganze Collection dauerhaft zu abonnieren.
+    async listWhere(coll, feld, wert) {
+      return db[coll].filter((d) => d[feld] === wert)
+    },
     async add(coll, data) {
       const id = data.id || uuid()
       // Upsert wie im Firebase-Modus (setDoc): existiert die id schon, wird
@@ -138,6 +143,21 @@ function lokalerStore() {
       speichern()
       return id
     },
+    // Viele Dokumente in EINEM Schreibvorgang (LV-Import, Massen-Import):
+    // sonst wird im Lokal-Modus je Zeile die komplette DB serialisiert (O(n²)).
+    async addMany(coll, rows) {
+      const ids = []
+      for (const data of rows) {
+        const id = data.id || uuid()
+        ids.push(id)
+        const vorhanden = db[coll].some((d) => d.id === id)
+        db[coll] = vorhanden
+          ? db[coll].map((d) => (d.id === id ? { ...data, id } : d))
+          : [...db[coll], { ...data, id }]
+      }
+      speichern()
+      return ids
+    },
     async update(coll, id, patch) {
       db[coll] = db[coll].map((d) => (d.id === id ? { ...d, ...patch } : d))
       speichern()
@@ -145,6 +165,27 @@ function lokalerStore() {
     async remove(coll, id) {
       db[coll] = db[coll].filter((d) => d.id !== id)
       speichern()
+    },
+    // Mehrere Dokumente auf einmal löschen (Projekt inkl. Anhängen)
+    async removeMany(coll, ids) {
+      const weg = new Set(ids)
+      db[coll] = db[coll].filter((d) => !weg.has(d.id))
+      speichern()
+    },
+    // Fortlaufende Nummer aus settings/nummernkreis ziehen (feld: 'bericht'|'rechnung').
+    // Lokal genügt Lesen+Schreiben – ein Browser-Tab arbeitet single-threaded und
+    // der BroadcastChannel synchronisiert erst nach dem Speichern.
+    async naechsteNummer(feld) {
+      const jahr = new Date().getFullYear()
+      const vorhanden = db.settings.find((s) => s.id === 'nummernkreis')
+      const kreis = vorhanden?.[feld]?.jahr === jahr ? vorhanden[feld] : { jahr, laufend: 0 }
+      const laufend = (kreis.laufend || 0) + 1
+      const neu = { ...(vorhanden || {}), id: 'nummernkreis', [feld]: { jahr, laufend } }
+      db.settings = vorhanden
+        ? db.settings.map((s) => (s.id === 'nummernkreis' ? neu : s))
+        : [...db.settings, neu]
+      speichern()
+      return { jahr, laufend }
     },
     // Belegte Zeitfenster für die öffentliche Buchung (KEINE Patientendaten):
     // bestätigte/angefragte Termine + offene Web-Anfragen
@@ -201,7 +242,7 @@ async function firebaseStore() {
   const {
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
     collection, doc, onSnapshot, getDocs, getDoc,
-    addDoc, setDoc, updateDoc, deleteDoc, writeBatch, query, where,
+    addDoc, setDoc, updateDoc, deleteDoc, writeBatch, query, where, runTransaction,
   } = await import('firebase/firestore')
 
   const app = initializeApp(FIREBASE_CONFIG)
@@ -227,6 +268,11 @@ async function firebaseStore() {
     async list(coll) {
       return mapSnap(await getDocs(collection(dbf, coll)))
     },
+    // Einmalige where-Query (kein Abo) – spart bei großen Collections wie
+    // 'photos' sehr viele Lesevorgänge gegenüber einem Vollabo.
+    async listWhere(coll, feld, wert) {
+      return mapSnap(await getDocs(query(collection(dbf, coll), where(feld, '==', wert))))
+    },
     async add(coll, data) {
       if (data.id) {
         await setDoc(doc(dbf, coll, data.id), data)
@@ -235,11 +281,49 @@ async function firebaseStore() {
       const ref = await addDoc(collection(dbf, coll), data)
       return ref.id
     },
+    // Massen-Anlage per writeBatch (max. 500 Schreibvorgänge je Batch)
+    async addMany(coll, rows) {
+      const ids = []
+      for (let i = 0; i < rows.length; i += 400) {
+        const teil = rows.slice(i, i + 400)
+        const batch = writeBatch(dbf)
+        for (const data of teil) {
+          const ref = data.id ? doc(dbf, coll, data.id) : doc(collection(dbf, coll))
+          batch.set(ref, data)
+          ids.push(ref.id)
+        }
+        await batch.commit()
+      }
+      return ids
+    },
     async update(coll, id, patch) {
       await updateDoc(doc(dbf, coll, id), patch)
     },
     async remove(coll, id) {
       await deleteDoc(doc(dbf, coll, id))
+    },
+    async removeMany(coll, ids) {
+      for (let i = 0; i < ids.length; i += 400) {
+        const batch = writeBatch(dbf)
+        ids.slice(i, i + 400).forEach((id) => batch.delete(doc(dbf, coll, id)))
+        await batch.commit()
+      }
+    },
+    // Fortlaufende Nummer ATOMAR ziehen (feld: 'bericht'|'rechnung').
+    // runTransaction verhindert doppelte Berichtsnummern, wenn zwei Monteure
+    // gleichzeitig einreichen – bei gerichtsfesten Stundennachweisen entscheidend.
+    // Firestore wiederholt die Transaktion bei Konflikt automatisch.
+    async naechsteNummer(feld) {
+      const ref = doc(dbf, 'settings', 'nummernkreis')
+      return runTransaction(dbf, async (tx) => {
+        const snap = await tx.get(ref)
+        const daten = snap.exists() ? snap.data() : {}
+        const jahr = new Date().getFullYear()
+        const kreis = daten?.[feld]?.jahr === jahr ? daten[feld] : { jahr, laufend: 0 }
+        const laufend = (kreis.laufend || 0) + 1
+        tx.set(ref, { [feld]: { jahr, laufend } }, { merge: true })
+        return { jahr, laufend }
+      })
     },
     // Öffentliche Slots-Sammlung: enthält nur Datum/Uhrzeit, öffentlich lesbar
     subscribeSlots(cb) {
@@ -269,25 +353,38 @@ async function firebaseStore() {
     async addPublicRequest(data) {
       const anfrage = { ...data, status: 'neu', createdAt: Date.now() }
       const ref = await addDoc(collection(dbf, 'requests'), anfrage)
-      // Slot sofort als angefragt reservieren (nur Zeiten, keine Patientendaten!)
+      // Slot sofort als angefragt reservieren (nur Zeiten, keine Kundendaten!).
+      // Darf die Anfrage selbst nicht gefährden – sie ist der eigentliche Zweck.
       if (data.datum && data.start) {
-        await addDoc(collection(dbf, 'slots'), {
-          datum: data.datum,
-          start: data.start,
-          ende: endeAus(data.start, data.dauer || 30),
-          status: 'angefragt',
-        })
+        try {
+          await addDoc(collection(dbf, 'slots'), {
+            datum: data.datum,
+            start: data.start,
+            ende: endeAus(data.start, data.dauer || 30),
+            status: 'angefragt',
+          })
+        } catch (e) {
+          console.warn('Slot-Reservierung übersprungen:', e.code || e.message)
+        }
       }
       return ref.id
     },
-    // Slot-Pflege durch den Admin (bei Bestätigen/Absagen von Terminen)
+    // Slot-Pflege durch den Admin (bei Bestätigen/Absagen von Terminen).
+    // Slots sind eine reine NEBENSACHE (öffentliche Belegtzeiten, keine Kundendaten):
+    // Schlägt der Schreibvorgang fehl (z. B. Regeln noch nicht deployt), darf das
+    // NIEMALS das Anlegen/Ändern des Termins selbst scheitern lassen.
     async schreibeSlot(termin) {
-      await setDoc(doc(dbf, 'slots', termin.id), {
-        datum: termin.datum, start: termin.start, ende: termin.ende, status: 'belegt',
-      })
+      if (!termin?.id || !termin.datum || !termin.start) return
+      try {
+        await setDoc(doc(dbf, 'slots', termin.id), {
+          datum: termin.datum, start: termin.start, ende: termin.ende || termin.start, status: 'belegt',
+        })
+      } catch (e) {
+        console.warn('Slot konnte nicht geschrieben werden:', e.code || e.message)
+      }
     },
     async loescheSlot(idOderZeit) {
-      try { await deleteDoc(doc(dbf, 'slots', idOderZeit)) } catch (e) { /* schon weg */ }
+      try { await deleteDoc(doc(dbf, 'slots', idOderZeit)) } catch (e) { /* schon weg / keine Rechte */ }
     },
     async resetDemo() {
       const demo = erzeugeDemoDaten()

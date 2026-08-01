@@ -4,7 +4,10 @@ import { abmelden } from '@shared/auth.js'
 import { ZahnLogo, Icon } from '@shared/ui.jsx'
 import { euro } from '@shared/format.js'
 import { istOffen } from '@shared/projektstatus.js'
+import { teamFuerTermin } from '@shared/teams.js'
+import { heuteISO } from '@shared/slots.js'
 import { useCollection, withStore } from '../../hooks.js'
+import DatumWahl from '../../components/DatumWahl.jsx'
 import SpesenForm from '../../components/SpesenForm.jsx'
 import MonteurBaustelle from './MonteurBaustelle.jsx'
 
@@ -20,9 +23,8 @@ const KATEGORIE = {
   privat: { label: 'Privat', farbe: 'bg-slate-200 text-slate-600' },
 }
 
-function heuteIso() {
-  return new Date().toISOString().slice(0, 10)
-}
+// Lokales Datum – toISOString() waere UTC und nachts einen Tag zurueck
+const heuteIso = heuteISO
 
 function mapsLink(anschrift) {
   const q = [anschrift?.strasse, anschrift?.plzOrt].filter(Boolean).join(', ')
@@ -36,10 +38,18 @@ function istMeiner(termin, user) {
   return Boolean(termin.arzt && termin.arzt === user?.name)
 }
 
-function EinsatzKarte({ termin, projekt, onErledigt, onOeffnen }) {
+function EinsatzKarte({ termin, projekt, team, onErledigt, onOeffnen }) {
   const kat = KATEGORIE[termin.kategorie]
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4">
+    <div
+      className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 border-l-8"
+      style={team?.farbe ? { borderLeftColor: team.farbe } : undefined}
+    >
+      {team?.explizit && (
+        <p className="text-[11px] font-bold uppercase tracking-wide mb-0.5" style={{ color: team.farbe }}>
+          {team.name}
+        </p>
+      )}
       <div className="flex items-center justify-between gap-2">
         <p className="text-lg font-bold text-slate-900" dir="ltr">{termin.start} – {termin.ende} Uhr</p>
         {kat && <span className={`text-xs font-bold rounded-full px-2.5 py-1 ${kat.farbe}`}>{kat.label}</span>}
@@ -82,17 +92,32 @@ function EinsatzKarte({ termin, projekt, onErledigt, onOeffnen }) {
 function Heute({ user }) {
   const appointments = useCollection('appointments')
   const projekte = useCollection('projekte')
+  const users = useCollection('users')
   const navigate = useNavigate()
   const heute = heuteIso()
+  const [ansicht, setAnsicht] = useState('liste')  // liste | kalender
+  const [tag, setTag] = useState(heute)
 
-  const meine = useMemo(() => appointments
+  // Alle mir zugewiesenen Einsätze auf offenen Baustellen (Basis für beide Ansichten)
+  const alleMeine = useMemo(() => appointments
     .filter((t) => istMeiner(t, user) && t.status !== 'abgesagt' && t.kategorie !== 'privat')
     .filter((t) => {
       const p = projekte.find((x) => x.id === t.projektId)
       return !p || istOffen(p.status) // abgeschlossene Baustellen verschwinden vom Handy
     })
-    .filter((t) => t.datum >= heute || !t.erledigt)
-    .sort((a, b) => (a.datum + a.start).localeCompare(b.datum + b.start)), [appointments, projekte, user, heute])
+    .sort((a, b) => `${a.datum}${a.start || ''}`.localeCompare(`${b.datum}${b.start || ''}`)),
+    [appointments, projekte, user])
+
+  // Listenansicht blendet erledigte Alt-Termine aus, die Kalenderansicht zeigt alles
+  const meine = useMemo(() => alleMeine.filter((t) => t.datum >= heute || !t.erledigt), [alleMeine, heute])
+
+  const marker = useMemo(() => {
+    const m = {}
+    for (const t of alleMeine) m[t.datum] = (m[t.datum] || 0) + 1
+    return m
+  }, [alleMeine])
+
+  const desTages = useMemo(() => alleMeine.filter((t) => t.datum === tag), [alleMeine, tag])
 
   const gruppen = [
     ['Heute', meine.filter((t) => t.datum === heute)],
@@ -104,32 +129,73 @@ function Heute({ user }) {
     await withStore((s) => s.update('appointments', t.id, { erledigt: !t.erledigt, erledigtAm: !t.erledigt ? heute : '' }))
   }
 
+  const karte = (t) => (
+    <EinsatzKarte
+      termin={t}
+      projekt={projekte.find((p) => p.id === t.projektId)}
+      team={teamFuerTermin(t, users)}
+      onErledigt={() => erledigt(t)}
+      onOeffnen={() => navigate(`/monteur/baustelle/${t.projektId}`)}
+    />
+  )
+
   return (
-    <div className="p-4 space-y-5 pb-24">
-      {meine.length === 0 && (
-        <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center text-slate-400 mt-6">
-          <Icon name="calendar" className="w-9 h-9 mx-auto mb-2" />
-          Keine Einsätze zugewiesen. Das Büro plant deine Einsätze im Kalender.
-        </div>
-      )}
-      {gruppen.map(([titel, liste]) => liste.length > 0 && (
-        <div key={titel}>
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">{titel}</p>
-          <div className="space-y-3">
-            {liste.map((t) => (
-              <div key={t.id}>
-                <p className="text-xs text-slate-400 mb-1">{new Date(t.datum + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-                <EinsatzKarte
-                  termin={t}
-                  projekt={projekte.find((p) => p.id === t.projektId)}
-                  onErledigt={() => erledigt(t)}
-                  onOeffnen={() => navigate(`/monteur/baustelle/${t.projektId}`)}
-                />
+    <div className="p-4 space-y-4 pb-24">
+      {/* Umschalter Liste / Kalender */}
+      <div className="flex items-center gap-1 bg-white rounded-2xl border border-slate-200 p-1">
+        {[['liste', 'Liste', 'list'], ['kalender', 'Kalender', 'calendar']].map(([id, label, icon]) => (
+          <button
+            key={id}
+            onClick={() => setAnsicht(id)}
+            className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition ${
+              ansicht === id ? 'bg-praxis-600 text-white' : 'text-slate-500'
+            }`}
+          >
+            <Icon name={icon} className="w-4 h-4" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {ansicht === 'kalender' ? (
+        <>
+          <DatumWahl wert={tag} onWert={setTag} marker={marker} />
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+            {new Date(tag + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+          {desTages.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center text-slate-400">
+              <Icon name="calendar" className="w-9 h-9 mx-auto mb-2" />
+              An diesem Tag ist für dich nichts eingeplant.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {desTages.map((t) => <div key={t.id}>{karte(t)}</div>)}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {meine.length === 0 && (
+            <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center text-slate-400 mt-6">
+              <Icon name="calendar" className="w-9 h-9 mx-auto mb-2" />
+              Keine Einsätze zugewiesen. Das Büro plant deine Einsätze im Kalender.
+            </div>
+          )}
+          {gruppen.map(([titel, liste]) => liste.length > 0 && (
+            <div key={titel}>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">{titel}</p>
+              <div className="space-y-3">
+                {liste.map((t) => (
+                  <div key={t.id}>
+                    <p className="text-xs text-slate-400 mb-1">{new Date(t.datum + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                    {karte(t)}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      ))}
+            </div>
+          ))}
+        </>
+      )}
     </div>
   )
 }

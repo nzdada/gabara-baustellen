@@ -23,9 +23,4 @@ export const EINSTELLUNGEN_DEFAULTS = {
   regieFacharbeiter: 35,              // €/Std netto
   regieHelfer: 31,                    // €/Std netto
   kmSatz: 0.5,                        // €/km für Fahrtkosten
-  // Altlasten der Vorlage (werden von alten Seiten noch gelesen; ohne Wirkung)
-  stornoFristStunden: 24,
-  ausfallGebuehr: 0,
-  feedbackVerzoegerungStunden: 0,
-  katalogModus: 'GOZ',
 }

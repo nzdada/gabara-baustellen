@@ -4,7 +4,6 @@ import { Icon } from '@shared/ui.jsx'
 import { euro } from '@shared/format.js'
 import { useCollection, useEinstellungen, withStore } from '../hooks.js'
 import RechnungWizard from '../components/RechnungWizard.jsx'
-import { druckeRechnung } from '../drucken.js'
 import {
   syncKunde, erstelleFastbillRechnung, schliesseRechnungAb,
   sendeRechnungPerMail, holeRechnungStatus,
@@ -215,14 +214,17 @@ export default function Abrechnung() {
                       Status abgleichen
                     </button>
                   )}
-                  {r.dokumentUrl && (
+                  {/* Rechnungs-PDF kommt ausschließlich aus FastBill (dort liegen
+                      Nummer, E-Rechnung und Versand) – keinen Eigendruck anbieten. */}
+                  {r.dokumentUrl ? (
                     <a href={r.dokumentUrl} target="_blank" rel="noreferrer" className={`${knopf} bg-slate-100 text-slate-600 hover:bg-slate-200`}>
                       PDF (FastBill)
                     </a>
+                  ) : (
+                    <span className={`${knopf} text-slate-400`} title="Das PDF entsteht in FastBill – erst übertragen und abschließen, dann Status abgleichen.">
+                      PDF folgt aus FastBill
+                    </span>
                   )}
-                  <button onClick={() => druckeRechnung({ rechnung: r, projekt, kunde, einst })} className={`${knopf} bg-slate-100 text-slate-600 hover:bg-slate-200`}>
-                    Eigendruck
-                  </button>
                   {r.status === 'vorbereitet' && (
                     <button onClick={() => loeschen(r)} className={`${knopf} text-red-500 hover:bg-red-50`}>Löschen</button>
                   )}

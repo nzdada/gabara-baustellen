@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Icon } from '@shared/ui.jsx'
 import { useCollection } from '../hooks.js'
 import { istOffen } from '@shared/projektstatus.js'
+import { heuteISO } from '@shared/slots.js'
 
 // Startseite der Verwaltung: Karten-Grid nach HERO-Vorbild –
 // je Bereich eine Karte mit Kurzbeschreibung, Kennzahl und Absprung.
@@ -48,7 +49,7 @@ export default function Uebersicht({ user }) {
   const rechnungen = useCollection('rechnungen')
   const requests = useCollection('requests')
 
-  const heute = new Date().toISOString().slice(0, 10)
+  const heute = heuteISO()
   const offeneProjekte = projekte.filter((p) => istOffen(p.status)).length
   const termineHeute = appointments.filter((t) => t.datum === heute && !t.erledigt).length
   const eingereicht = berichte.filter((b) => b.status === 'eingereicht').length
@@ -83,7 +84,7 @@ export default function Uebersicht({ user }) {
           kennzahl={termineHeute}
           kennzahlLabel="heute"
           links={[
-            { to: '/kalender', label: 'Kalender', primaer: true },
+            { to: '/', label: 'Kalender', primaer: true },
             { to: '/termine', label: 'Terminliste' },
           ]}
         />

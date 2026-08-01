@@ -145,6 +145,7 @@ const PFADE = {
   foto: 'M4 8h3l2-2.5h6L17 8h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1zm8 9a3.5 3.5 0 100-7 3.5 3.5 0 000 7z',
   signatur: 'M3 20h18M5 16c2.5-5 4.5-7 5.5-6s-2.5 6-.5 6.5 4-3.5 5.5-3.5.5 3.5 2.5 3.5H21',
   bericht: 'M7 3h10a1 1 0 011 1v16a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1zm2 5h6m-6 4h6m-6 4h4',
+  info: 'M12 3a9 9 0 110 18 9 9 0 010-18zm0 4.5h.01M11 11h1v5h1',
 }
 
 export function Icon({ name, className = 'w-6 h-6', strokeWidth = 1.8 }) {

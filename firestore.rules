@@ -2,45 +2,97 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---------------------------------------------------------------
+    // Rollen-Helfer für den Go-Live.
+    // VORAUSSETZUNG: Das users-Dokument eines Mitarbeiters muss als
+    // Dokument-ID die Firebase-Auth-UID tragen (siehe Go-Live-Checkliste
+    // in docs/projekt-dokumentation.md §5). Solange das nicht der Fall
+    // ist, liefert istBuero() false – deshalb sind die schutzbedürftigen
+    // Bereiche unten mit "istBuero() || keinRollenmodell()" abgesichert,
+    // damit der Betrieb nicht bricht, bevor die UIDs gesetzt sind.
+    // ---------------------------------------------------------------
+    function angemeldet() {
+      return request.auth != null;
+    }
+    function eigenesProfil() {
+      return angemeldet() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function istBuero() {
+      return eigenesProfil()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rolle == 'admin';
+    }
+    // Übergangsphase: noch kein UID-basiertes Profil vorhanden -> wie bisher
+    // jeder Angemeldete. Sobald die UIDs gepflegt sind, greift die Rollenprüfung.
+    function keinRollenmodell() {
+      return angemeldet() && !eigenesProfil();
+    }
+    function darfVerwalten() {
+      return istBuero() || keinRollenmodell();
+    }
+
     // Anfragen von der öffentlichen Gabara-Webseite:
     // Jeder darf ANLEGEN (Formular), aber niemand ohne Login darf lesen/ändern.
     match /requests/{id} {
-      allow create: if request.resource.data.keys().hasOnly(['name', 'telefon', 'email', 'anliegen', 'anliegenId', 'nachricht', 'sprache', 'status', 'createdAt'])
+      allow create: if request.resource.data.keys().hasOnly(['name', 'telefon', 'email', 'anliegen', 'anliegenId', 'nachricht', 'sprache', 'status', 'createdAt', 'datum', 'start', 'dauer'])
                     && request.resource.data.keys().hasAll(['name', 'anliegen', 'status'])
                     && request.resource.data.status == 'neu'
                     && request.resource.data.name is string
                     && request.resource.data.name.size() > 1
                     && request.resource.data.name.size() < 120
-                    && request.resource.data.nachricht.size() < 3000;
-      allow read, update, delete: if request.auth != null;
+                    // Optionale Felder erst auf Existenz prüfen – ein fehlendes
+                    // 'nachricht' würde die Regel sonst zum Fehler bringen (= Ablehnung).
+                    && (!('nachricht' in request.resource.data)
+                        || (request.resource.data.nachricht is string && request.resource.data.nachricht.size() < 3000))
+                    && (!('email' in request.resource.data)
+                        || (request.resource.data.email is string && request.resource.data.email.size() < 200))
+                    && (!('telefon' in request.resource.data)
+                        || (request.resource.data.telefon is string && request.resource.data.telefon.size() < 60));
+      allow read, update, delete: if angemeldet();
+    }
+
+    // Belegte Zeitfenster (NUR Datum/Uhrzeit/Status – keine Kundendaten).
+    // Wird beim Anlegen/Ändern/Absagen von Terminen gepflegt. Fehlte bisher
+    // komplett -> jede Terminanlage wäre im Firebase-Modus an der Catch-all-
+    // Regel gescheitert (PERMISSION_DENIED).
+    match /slots/{id} {
+      allow read: if true;
+      allow write: if angemeldet();
     }
 
     // Interne Kern-Daten: nur mit Login (Gabara-Team).
-    // Rollen-Feinschnitt (admin vs. mitarbeiter) folgt beim Firebase-Go-Live.
-    match /patients/{id} { allow read, write: if request.auth != null; }
-    match /appointments/{id} { allow read, write: if request.auth != null; }
-    match /projekte/{id} { allow read, write: if request.auth != null; }
-    match /lvpositionen/{id} { allow read, write: if request.auth != null; }
-    match /berichte/{id} { allow read, write: if request.auth != null; }
-    match /spesen/{id} { allow read, write: if request.auth != null; }
+    match /patients/{id} { allow read, write: if angemeldet(); }
+    match /appointments/{id} { allow read, write: if angemeldet(); }
+    match /projekte/{id} { allow read, write: if angemeldet(); }
+    match /lvpositionen/{id} { allow read, write: if angemeldet(); }
+    match /berichte/{id} { allow read, write: if angemeldet(); }
+    match /spesen/{id} { allow read, write: if angemeldet(); }
     match /photos/{id} {
       // Größencheck NUR bei create/update – bei read/delete existiert
       // request.resource nicht (Zugriff darauf würde alles verweigern).
-      allow read, delete: if request.auth != null;
-      allow create, update: if request.auth != null
+      allow read, delete: if angemeldet();
+      allow create, update: if angemeldet()
         && (!('dataUrl' in request.resource.data) || request.resource.data.dataUrl.size() < 980000);
     }
-    match /rechnungen/{id} { allow read, write: if request.auth != null; }
-    match /apilog/{id} { allow read, write: if request.auth != null; }
-    match /users/{id} { allow read, write: if request.auth != null; }
-    match /katalog/{id} { allow read, write: if request.auth != null; }
-    match /bausteine/{id} { allow read, write: if request.auth != null; }
+    match /rechnungen/{id} { allow read, write: if angemeldet(); }
+    match /apilog/{id} { allow read, write: if angemeldet(); }
+    match /katalog/{id} { allow read, write: if angemeldet(); }
+    match /bausteine/{id} { allow read, write: if angemeldet(); }
+
+    // Mitarbeiterstamm: lesen darf jeder Angemeldete (Namen/Teams stehen in
+    // Kalender und Berichten). SCHREIBEN nur das Büro – sonst könnte sich ein
+    // Monteur selbst die Rolle 'admin' geben (Rechte-Eskalation).
+    match /users/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
 
     match /settings/{id} {
-      // Nur reine Zeit-Dokumente öffentlich lesbar (falls die Webseite sie je braucht);
-      // alles andere (global, integrationen mit FastBill-Zugang!) bleibt Team-intern.
-      allow read: if id in ['pausen', 'oeffnungszeiten'] || request.auth != null;
-      allow write: if request.auth != null;
+      // Nur reine Zeit-Dokumente öffentlich lesbar (falls die Webseite sie je braucht).
+      // 'integrationen' enthält den FastBill-API-Key -> ausschließlich Büro.
+      allow read: if id in ['pausen', 'oeffnungszeiten']
+                  || (angemeldet() && id != 'integrationen')
+                  || (id == 'integrationen' && darfVerwalten());
+      allow write: if id == 'integrationen' ? darfVerwalten() : angemeldet();
     }
 
     match /{document=**} {

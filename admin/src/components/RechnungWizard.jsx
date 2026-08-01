@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react'
 import Modal from './Modal.jsx'
 import { euro } from '@shared/format.js'
+import { heuteISO } from '@shared/slots.js'
+import InfoHinweis, { FeldLabel } from './InfoHinweis.jsx'
+import { HINWEIS } from '../hinweise.js'
 import { useCollection, withStore } from '../hooks.js'
 import { syncKunde, erstelleFastbillRechnung } from '@shared/fastbill.js'
 
@@ -34,13 +37,24 @@ export default function RechnungWizard({ onClose, projektIdVorbelegt = '' }) {
   const projekt = projekte.find((p) => p.id === projektId)
   const kunde = patients.find((k) => k.id === projekt?.kundeId)
 
+  // ALLE noch nicht vollständig abgerechneten LV-Positionen anbieten – nicht nur die,
+  // zu denen ein Monteur schon eine Ist-Menge gemeldet hat. Sonst stünde das Büro vor
+  // einer leeren Liste, obwohl es abrechnen darf (Wunsch des Auftraggebers).
   const lvOffen = useMemo(() => lvAlle
-    .filter((p) => p.projektId === projektId && p.typ === 'position' && (p.istMenge || 0) > (p.abgerechnetMenge || 0))
+    .filter((p) => p.projektId === projektId && p.typ === 'position')
+    .filter((p) => !p.flags?.bedarf && !p.flags?.nep)
+    .filter((p) => rund(Math.max(p.menge || 0, p.istMenge || 0) - (p.abgerechnetMenge || 0)) > 0)
     .sort((a, b) => (a.sort || 0) - (b.sort || 0)), [lvAlle, projektId])
   const regieFrei = useMemo(() => berichteAlle
     .filter((b) => b.projektId === projektId && b.typ === 'regie' && b.status === 'freigegeben'), [berichteAlle, projektId])
   const spesenOffen = useMemo(() => spesenAlle
     .filter((s) => s.projektId === projektId && s.status === 'eingereicht'), [spesenAlle, projektId])
+
+  // Vom Monteur gemeldet und noch nicht fakturiert
+  const istOffenVon = (p) => rund(Math.max(0, (p.istMenge || 0) - (p.abgerechnetMenge || 0)))
+  // Vertraglich noch offen (Obergrenze der Abrechnung)
+  const sollOffenVon = (p) => rund(Math.max(0, (p.menge || 0) - (p.abgerechnetMenge || 0)))
+  const grenzeVon = (p) => Math.max(istOffenVon(p), sollOffenVon(p))
 
   function projektWaehlen(id) {
     setProjektId(id)
@@ -49,8 +63,9 @@ export default function RechnungWizard({ onClose, projektIdVorbelegt = '' }) {
     setGewaehltSpesen({})
   }
 
-  // Beim Betreten von Schritt 2: LV-Auswahl mit Restmengen vorbelegen
-  const lvAuswahl = gewaehltLv ?? Object.fromEntries(lvOffen.map((p) => [p.id, rund((p.istMenge || 0) - (p.abgerechnetMenge || 0))]))
+  // Vorbelegung: das, was der Monteur gemeldet hat. Positionen ohne Meldung
+  // starten bei 0 – das Büro kann die Menge jederzeit selbst eintragen.
+  const lvAuswahl = gewaehltLv ?? Object.fromEntries(lvOffen.map((p) => [p.id, istOffenVon(p)]))
 
   function zuSchritt3() {
     const pos = []
@@ -76,11 +91,12 @@ export default function RechnungWizard({ onClose, projektIdVorbelegt = '' }) {
       if (!gewaehltSpesen[s.id]) continue
       pos.push({ quelle: 'spesen', quelleId: s.id, oz: 'Spesen', text: `${s.typ === 'fahrt' ? 'Fahrtkosten' : s.typ === 'hotel' ? 'Übernachtung' : 'Spesen'}${s.kommentar ? ` – ${s.kommentar}` : ''} (${new Date((s.datum || '') + 'T12:00:00').toLocaleDateString('de-DE')})`, menge: 1, einheit: 'psch', ep: s.betrag })
     }
-    if (!pos.length) { setFehler('Keine Positionen ausgewählt.'); return }
+    // Bewusst KEINE Blockade bei leerer Auswahl: im nächsten Schritt lassen sich
+    // freie Positionen ergänzen – eine Rechnung ist also immer möglich.
     setFehler('')
     setPositionen(pos)
     setTitel(`Abschlagsrechnung ${projekt?.name || ''}`)
-    setZeitraum({ von: projekt?.startDatum || '', bis: new Date().toISOString().slice(0, 10) })
+    setZeitraum({ von: projekt?.startDatum || '', bis: heuteISO() })
     if (einbehaltProzent === null) setEinbehaltProzent(kunde?.sicherheitseinbehaltProzent ?? 0)
     setSchritt(3)
   }
@@ -126,7 +142,13 @@ export default function RechnungWizard({ onClose, projektIdVorbelegt = '' }) {
 
       if (uebertragen) {
         let aktKunde = kunde
-        if (!aktKunde?.fastbillCustomerId) {
+        // Ohne Kunde kann FastBill keine Rechnung anlegen – Entwurf bleibt erhalten.
+        if (!aktKunde) {
+          setFehler('Dem Projekt ist kein Kunde zugeordnet – die Rechnung wurde lokal als „vorbereitet" gespeichert. Kunde im Projekt hinterlegen, dann in der Abrechnung übertragen.')
+          setLaeuft(false)
+          return
+        }
+        if (!aktKunde.fastbillCustomerId) {
           const r = await syncKunde(aktKunde)
           if (r.simuliert) {
             setFehler('Simuliert – kein FastBill-Zugang hinterlegt (Einstellungen → FastBill). Rechnung wurde lokal als "vorbereitet" gespeichert.')
@@ -184,38 +206,83 @@ export default function RechnungWizard({ onClose, projektIdVorbelegt = '' }) {
           </p>
 
           <div>
-            <p className="text-sm font-bold text-slate-700 mb-2">LV-Positionen mit offener Ist-Menge ({lvOffen.length})</p>
-            {lvOffen.length === 0 ? <p className="text-sm text-slate-400">Keine offenen Ist-Mengen.</p> : (
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs uppercase text-slate-400 border-b border-slate-100">
-                  <th className="py-2 pr-2"></th><th className="py-2 pr-2">OZ</th><th className="py-2 pr-2">Kurztext</th>
-                  <th className="py-2 pr-2 text-right">Restmenge</th><th className="py-2 pr-2">ME</th><th className="py-2 pr-2 text-right">EP</th><th className="py-2 text-right">Betrag</th>
-                </tr></thead>
-                <tbody>
-                  {lvOffen.map((p) => {
-                    const rest = rund((p.istMenge || 0) - (p.abgerechnetMenge || 0))
-                    const menge = lvAuswahl[p.id] ?? rest
-                    return (
-                      <tr key={p.id} className="border-b border-slate-50">
-                        <td className="py-1.5 pr-2">
-                          <input type="checkbox" checked={Number(menge) > 0}
-                            onChange={(e) => setGewaehltLv({ ...lvAuswahl, [p.id]: e.target.checked ? rest : 0 })} />
-                        </td>
-                        <td className="py-1.5 pr-2 text-slate-400">{p.oz}</td>
-                        <td className="py-1.5 pr-2">{p.kurztext}</td>
-                        <td className="py-1.5 pr-2 text-right">
-                          <input type="number" step="0.001" min="0" max={rest} value={menge}
-                            onChange={(e) => setGewaehltLv({ ...lvAuswahl, [p.id]: Math.min(Number(e.target.value) || 0, rest) })}
-                            className={`${feld} !w-24 text-right`} />
-                        </td>
-                        <td className="py-1.5 pr-2">{p.einheit}</td>
-                        <td className="py-1.5 pr-2 text-right">{euro(p.einheitspreis)}</td>
-                        <td className="py-1.5 text-right font-medium">{euro((Number(menge) || 0) * (p.einheitspreis || 0))}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+              <p className="text-sm font-bold text-slate-700">Leistungen aus dem Leistungsverzeichnis ({lvOffen.length})</p>
+              {lvOffen.length > 0 && (
+                <button
+                  onClick={() => setGewaehltLv(Object.fromEntries(lvOffen.map((p) => [p.id, sollOffenVon(p)])))}
+                  className="text-xs font-semibold text-praxis-700 hover:underline"
+                >
+                  Alles offene übernehmen (Soll)
+                </button>
+              )}
+            </div>
+            {lvOffen.length === 0 ? (
+              <p className="text-sm text-slate-400">
+                Für dieses Projekt ist im Leistungsverzeichnis nichts mehr offen – oder es wurde noch kein LV erfasst.
+                Regieberichte und Spesen unten lassen sich trotzdem abrechnen, ebenso freie Positionen im nächsten Schritt.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-slate-400 mb-2">
+                  Vorbelegt ist die vom Monteur gemeldete Menge. Ohne Meldung steht 0 – die Menge kann hier
+                  jederzeit selbst eingetragen werden (bis zur vertraglichen Restmenge).
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[680px]">
+                    <thead><tr className="text-left text-xs uppercase text-slate-400 border-b border-slate-100">
+                      <th className="py-2 pr-2"></th><th className="py-2 pr-2">OZ</th><th className="py-2 pr-2">Kurztext</th>
+                      <th className="py-2 pr-2 text-right"><FeldLabel info={HINWEIS.rechnungMonteur}>Monteur</FeldLabel></th>
+                      <th className="py-2 pr-2 text-right"><FeldLabel info={HINWEIS.rechnungRest}>Rest lt. LV</FeldLabel></th>
+                      <th className="py-2 pr-2 text-right"><FeldLabel info={HINWEIS.rechnungAbrechnen}>Abrechnen</FeldLabel></th><th className="py-2 pr-2">ME</th>
+                      <th className="py-2 pr-2 text-right">EP</th><th className="py-2 text-right">Betrag</th>
+                    </tr></thead>
+                    <tbody>
+                      {lvOffen.map((p) => {
+                        const istOffen = istOffenVon(p)
+                        const sollOffen = sollOffenVon(p)
+                        const grenze = grenzeVon(p)
+                        const menge = lvAuswahl[p.id] ?? istOffen
+                        const ueberIst = Number(menge) > istOffen
+                        return (
+                          <tr key={p.id} className="border-b border-slate-50">
+                            <td className="py-1.5 pr-2">
+                              <input type="checkbox" checked={Number(menge) > 0}
+                                onChange={(e) => setGewaehltLv({ ...lvAuswahl, [p.id]: e.target.checked ? (istOffen || sollOffen) : 0 })} />
+                            </td>
+                            <td className="py-1.5 pr-2 text-slate-400 whitespace-nowrap">{p.oz}</td>
+                            <td className="py-1.5 pr-2">{p.kurztext}</td>
+                            <td className="py-1.5 pr-2 text-right whitespace-nowrap">
+                              {istOffen > 0 ? (
+                                <span className="text-emerald-700 font-medium" title={`Vom Monteur gemeldet${p.istVon ? ` (${p.istVon})` : ''}`}>
+                                  {istOffen}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300" title="Noch keine Ist-Meldung vom Monteur">–</span>
+                              )}
+                            </td>
+                            <td className="py-1.5 pr-2 text-right text-slate-500 whitespace-nowrap">{sollOffen}</td>
+                            <td className="py-1.5 pr-2 text-right">
+                              <input type="number" step="0.001" min="0" max={grenze} value={menge}
+                                onChange={(e) => setGewaehltLv({ ...lvAuswahl, [p.id]: Math.min(Number(e.target.value) || 0, grenze) })}
+                                className={`${feld} !w-24 text-right ${ueberIst ? 'border-amber-300 bg-amber-50' : ''}`}
+                                title={ueberIst ? 'Mehr als vom Monteur gemeldet' : ''} />
+                            </td>
+                            <td className="py-1.5 pr-2">{p.einheit}</td>
+                            <td className="py-1.5 pr-2 text-right">{euro(p.einheitspreis)}</td>
+                            <td className="py-1.5 text-right font-medium">{euro((Number(menge) || 0) * (p.einheitspreis || 0))}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {lvOffen.some((p) => Number(lvAuswahl[p.id] ?? istOffenVon(p)) > istOffenVon(p)) && (
+                  <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    Gelb markierte Zeilen liegen über der vom Monteur gemeldeten Menge – bitte vor dem Übertragen prüfen.
+                  </p>
+                )}
+              </>
             )}
           </div>
 
@@ -262,11 +329,11 @@ export default function RechnungWizard({ onClose, projektIdVorbelegt = '' }) {
         <div className="space-y-4">
           <div className="grid sm:grid-cols-3 gap-3">
             <div className="sm:col-span-1">
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Titel</label>
+              <label className="block text-xs font-semibold text-slate-500 mb-1"><FeldLabel info={HINWEIS.rechnungTitel}>Titel</FeldLabel></label>
               <input type="text" className={`${feld} w-full`} value={titel} onChange={(e) => setTitel(e.target.value)} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Leistungszeitraum von</label>
+              <label className="block text-xs font-semibold text-slate-500 mb-1"><FeldLabel info={HINWEIS.rechnungZeitraum}>Leistungszeitraum von</FeldLabel></label>
               <input type="date" className={`${feld} w-full`} value={zeitraum.von} onChange={(e) => setZeitraum((z) => ({ ...z, von: e.target.value }))} />
             </div>
             <div>
@@ -307,6 +374,7 @@ export default function RechnungWizard({ onClose, projektIdVorbelegt = '' }) {
           </table>
           <button onClick={() => setPositionen((ps) => [...ps, { quelle: 'frei', quelleId: '', oz: '', text: '', menge: 1, einheit: 'psch', ep: 0 }])}
             className="text-sm text-praxis-600 font-medium">+ Freie Position</button>
+          <InfoHinweis text={HINWEIS.rechnungFrei} />
 
           <div className="bg-slate-50 rounded-2xl p-4 text-sm space-y-1.5">
             <div className="flex justify-between"><span>Nettobetrag</span><strong>{euro(netto)}</strong></div>
@@ -319,7 +387,7 @@ export default function RechnungWizard({ onClose, projektIdVorbelegt = '' }) {
               </>
             )}
             <div className="flex justify-between items-center">
-              <span className="flex items-center gap-2">Sicherheitseinbehalt
+              <span className="flex items-center gap-2"><FeldLabel info={HINWEIS.rechnungEinbehalt}>Sicherheitseinbehalt</FeldLabel>
                 <input type="number" step="1" min="0" max="20" className={`${feld} !w-16 text-right`} value={einbehaltProzent ?? 0}
                   onChange={(e) => setEinbehaltProzent(e.target.value)} /> %
               </span>

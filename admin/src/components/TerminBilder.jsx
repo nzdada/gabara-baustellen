@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { Icon } from '@shared/ui.jsx'
-import { useCollection, withStore } from '../hooks.js'
+import { useWhere, withStore } from '../hooks.js'
 import { useLang, tr } from '@shared/i18n.js'
 
 const T = {
@@ -36,7 +36,8 @@ async function komprimiere(file, maxKante = 1200, qualitaet = 0.72) {
 
 export default function TerminBilder({ termin, user, dunkel = false }) {
   useLang()
-  const photos = useCollection('photos')
+  // Gefiltertes Abo: lädt nur die Fotos DIESES Termins (statt aller Fotos)
+  const photos = useWhere('photos', 'terminId', termin.id)
   const kameraRef = useRef(null)
   const uploadRef = useRef(null)
   const [gross, setGross] = useState(null)
@@ -44,8 +45,8 @@ export default function TerminBilder({ termin, user, dunkel = false }) {
   const [fehler, setFehler] = useState('')
 
   const meine = useMemo(
-    () => photos.filter((p) => p.terminId === termin.id).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
-    [photos, termin.id]
+    () => [...photos].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
+    [photos]
   )
 
   async function dateienVerarbeiten(files) {
@@ -101,11 +102,6 @@ export default function TerminBilder({ termin, user, dunkel = false }) {
               {meine.length}
             </span>
           )}
-          <span className={`inline-flex items-center gap-1 text-[10px] font-bold rounded-full px-2 py-0.5 ${
-            dunkel ? 'text-praxis-300 bg-praxis-500/15' : 'text-praxis-700 bg-praxis-100'
-          }`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-praxis-500 animate-pulse" /> LIVE
-          </span>
         </p>
         <button onClick={() => kameraRef.current?.click()} disabled={laedt}
           className={`inline-flex items-center gap-1.5 text-sm font-semibold rounded-full px-4 py-2 disabled:opacity-50 ${knopf}`}>

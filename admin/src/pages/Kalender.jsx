@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useCollection } from '../hooks.js'
 import { Icon } from '@shared/ui.jsx'
+import { euro } from '@shared/format.js'
 import { heuteISO, addTage, wochentag, zuMinuten, fensterFuer, imUrlaub } from '@shared/slots.js'
 import { kalenderKonfiguriert, kalenderVerbunden, kalenderVerbinden } from '@shared/googleCalendar.js'
 import { useLang, tr, datumLok } from '@shared/i18n.js'
+import { istOffen, statusInfo } from '@shared/projektstatus.js'
+import { teamsAus, teamFuerTermin, monteurNamen, textAuf, STANDARD_FARBE } from '@shared/teams.js'
 import TerminModal from '../components/TerminModal.jsx'
 import NeuerTermin from '../components/NeuerTermin.jsx'
-import { BestaetigenModal, AblehnenModal } from './Anfragen.jsx'
 
 const T = {
   titel: { de: 'Terminkalender', en: 'Appointment calendar', ar: 'تقويم المواعيد' },
@@ -25,12 +28,6 @@ const T = {
     ar: 'Klick auf einen Einsatz öffnet die Details – Klick auf eine freie Fläche legt einen neuen Termin an.',
   },
   googleFehler: { de: 'Google-Kalender-Verbindung fehlgeschlagen:', en: 'Google Calendar connection failed:', ar: 'فشل الاتصال بتقويم جوجل:' },
-  anfragenTitel: { de: 'Neue Terminanfragen', en: 'New appointment requests', ar: 'طلبات مواعيد جديدة' },
-  wunsch: { de: 'Wunsch:', en: 'Requested:', ar: 'المطلوب:' },
-  bestaetigen: { de: 'Bestätigen', en: 'Confirm', ar: 'تأكيد' },
-  ablehnen: { de: 'Ablehnen', en: 'Decline', ar: 'رفض' },
-  alleAnfragen: { de: 'Alle Anfragen ansehen', en: 'View all requests', ar: 'عرض كل الطلبات' },
-  uhr: { de: 'Uhr', en: '', ar: '' },
 }
 
 const PX_PRO_30MIN = 26
@@ -40,35 +37,73 @@ function montagVon(iso) {
   return addTage(iso, wt === 0 ? -6 : 1 - wt)
 }
 
-const STATUS_FARBE = {
-  bestaetigt: 'bg-praxis-600 border-praxis-700 text-white',
-  abgeschlossen: 'bg-slate-300 border-slate-400 text-slate-700',
-  abgesagt: 'bg-red-100 border-red-200 text-red-500 line-through',
+function min(hhmm, fallback = 0) {
+  if (!hhmm || !/^\d{1,2}:\d{2}/.test(hhmm)) return fallback
+  return zuMinuten(hhmm)
+}
+
+// Überlappende Termine NEBENEINANDER darstellen: Termine eines Tages in
+// Cluster (= zusammenhängende Überschneidungen) zerlegen und je Cluster
+// Spalten vergeben. Ergebnis je Termin: { spalte, spalten } -> left/width.
+function spaltenLayout(termine) {
+  const eintraege = termine
+    .map((a) => {
+      const von = min(a.start)
+      return { a, von, bis: Math.max(min(a.ende, von + 30), von + 15) }
+    })
+    .sort((x, y) => x.von - y.von || x.bis - y.bis)
+
+  const ergebnis = []
+  let cluster = []
+  let clusterEnde = -1
+
+  function clusterAbschliessen() {
+    if (!cluster.length) return
+    const spaltenEnde = []
+    for (const e of cluster) {
+      let i = spaltenEnde.findIndex((ende) => ende <= e.von)
+      if (i === -1) { i = spaltenEnde.length; spaltenEnde.push(e.bis) }
+      else spaltenEnde[i] = e.bis
+      e.spalte = i
+    }
+    for (const e of cluster) ergebnis.push({ ...e, spalten: spaltenEnde.length })
+    cluster = []
+    clusterEnde = -1
+  }
+
+  for (const e of eintraege) {
+    if (cluster.length && e.von >= clusterEnde) clusterAbschliessen()
+    cluster.push(e)
+    clusterEnde = Math.max(clusterEnde, e.bis)
+  }
+  clusterAbschliessen()
+  return ergebnis
 }
 
 export default function Kalender({ user }) {
   useLang()
+  const navigate = useNavigate()
   const appointments = useCollection('appointments')
   const patients = useCollection('patients')
-  const requests = useCollection('requests')
+  const projekte = useCollection('projekte')
+  const users = useCollection('users')
+  const lvpositionen = useCollection('lvpositionen')
+  const berichte = useCollection('berichte')
   const settingsRows = useCollection('settings')
   const pausen = settingsRows.find((r) => r.id === 'pausen')?.eintraege || []
   const ozDoc = settingsRows.find((r) => r.id === 'oeffnungszeiten')
   const zeiten = ozDoc?.fenster || null
-  const telefonTage = ozDoc?.telefon || [5] // geschlossene Tage, die telefonisch erreichbar sind
+  const telefonTage = ozDoc?.telefon || [5]
   const urlaubListe = ozDoc?.urlaub || []
   const [montag, setMontag] = useState(() => montagVon(heuteISO()))
   const [gewaehlt, setGewaehlt] = useState(null)
-  const [neu, setNeu] = useState(false) // false | true | {datum, start} (Klick auf Zeitfenster)
-  const [bestaetige, setBestaetige] = useState(null)
-  const [ablehne, setAblehne] = useState(null)
+  const [neu, setNeu] = useState(false) // false | true | {datum, start} | {bearbeiten} | {projektId}
   const [gVerbunden, setGVerbunden] = useState(kalenderVerbunden())
+  const [nurTeam, setNurTeam] = useState('') // '' = alle Teams
 
-  const neueAnfragen = requests
-    .filter((r) => r.status === 'neu')
-    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+  const teams = useMemo(() => teamsAus(users), [users])
 
-  // Samstag nur zeigen, wenn er Öffnungszeiten hat oder dort Termine existieren
+  // Samstag nur zeigen, wenn er Arbeitszeiten hat oder dort Termine existieren
   const tage = useMemo(() => {
     const samstag = addTage(montag, 5)
     const mitSamstag = fensterFuer(samstag, zeiten).length > 0 || appointments.some((a) => a.datum === samstag)
@@ -78,23 +113,29 @@ export default function Kalender({ user }) {
 
   const proTag = useMemo(() => {
     const map = {}
-    for (const t of tage) map[t] = appointments.filter((a) => a.datum === t).sort((a, b) => a.start.localeCompare(b.start))
+    for (const t of tage) {
+      const desTages = appointments.filter((a) => {
+        if (a.datum !== t) return false
+        if (!nurTeam) return true
+        return teamFuerTermin(a, users).name === nurTeam
+      })
+      map[t] = spaltenLayout(desTages)
+    }
     return map
-  }, [appointments, tage])
+  }, [appointments, tage, nurTeam, users])
 
-  // Zeitraster folgt den konfigurierten Öffnungszeiten (und vorhandenen Terminen),
-  // Grundbereich 8–19 Uhr – so bleiben 07:00-Fenster und 20:00-Termine sichtbar
+  // Zeitraster folgt den Arbeitszeiten UND den vorhandenen Terminen (8–19 Uhr Grundbereich)
   const { START_STD, ENDE_STD } = useMemo(() => {
     let von = 8 * 60
     let bis = 19 * 60
     for (const t of tage) {
       for (const [fVon, fBis] of fensterFuer(t, zeiten)) {
-        von = Math.min(von, zuMinuten(fVon))
-        bis = Math.max(bis, zuMinuten(fBis))
+        von = Math.min(von, min(fVon, von))
+        bis = Math.max(bis, min(fBis, bis))
       }
-      for (const a of proTag[t] || []) {
-        von = Math.min(von, zuMinuten(a.start))
-        bis = Math.max(bis, zuMinuten(a.ende))
+      for (const e of proTag[t] || []) {
+        von = Math.min(von, e.von)
+        bis = Math.max(bis, e.bis)
       }
     }
     return { START_STD: Math.floor(von / 60), ENDE_STD: Math.ceil(bis / 60) }
@@ -153,6 +194,42 @@ export default function Kalender({ user }) {
         </div>
       </div>
 
+      {/* Team-Legende: Farben der Kolonnen; Klick filtert den Kalender */}
+      <div className="mb-3 bg-white rounded-2xl border border-slate-200 px-4 py-3 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mr-1">Teams</span>
+        <button
+          onClick={() => setNurTeam('')}
+          className={`text-xs font-semibold rounded-full px-3 py-1.5 border transition ${
+            nurTeam === '' ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'
+          }`}
+        >
+          Alle
+        </button>
+        {teams.length === 0 && (
+          <span className="text-xs text-slate-400">Keine aktiven Monteure – anlegen unter Einstellungen → Mitarbeiter.</span>
+        )}
+        {teams.map((t) => {
+          const aktiv = nurTeam === t.name
+          return (
+            <button
+              key={t.name}
+              onClick={() => setNurTeam(aktiv ? '' : t.name)}
+              title={t.mitglieder.map((m) => m.name).join(', ')}
+              className={`inline-flex items-center gap-2 text-xs font-semibold rounded-full px-3 py-1.5 border transition ${
+                aktiv ? 'text-white border-transparent' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-400'
+              }`}
+              style={aktiv ? { backgroundColor: t.farbe } : undefined}
+            >
+              <span className="w-3 h-3 rounded-full shrink-0 ring-1 ring-black/10" style={{ backgroundColor: t.farbe }} />
+              {t.name}
+              <span className={`text-[10px] font-bold ${aktiv ? 'text-white/70' : 'text-slate-400'}`}>
+                {t.mitglieder.length}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
         <div className="min-w-[720px]">
           {/* Kopfzeile */}
@@ -168,8 +245,7 @@ export default function Kalender({ user }) {
                 </p>
                 <p className="text-[10px] text-slate-400">
                   {(() => {
-                    // Terminanzahl hat Vorrang – auch an einem inzwischen geschlossenen Tag
-                    const anzahl = proTag[t]?.filter((a) => a.status !== 'abgesagt').length || 0
+                    const anzahl = proTag[t]?.filter((e) => e.a.status !== 'abgesagt').length || 0
                     if (anzahl > 0) return `${anzahl} ${tr(T.termine)}`
                     if (imUrlaub(t, urlaubListe)) return `🏖 ${tr(T.urlaub)}`
                     if (fensterFuer(t, zeiten).length > 0) return `0 ${tr(T.termine)}`
@@ -199,8 +275,7 @@ export default function Kalender({ user }) {
                 className={`relative border-l border-slate-100 cursor-pointer ${t === heute ? 'bg-praxis-50/40' : ''} ${fensterFuer(t, zeiten).length === 0 || imUrlaub(t, urlaubListe) ? 'bg-slate-50' : ''}`}
                 style={{ height: (ENDE_STD - START_STD) * 2 * PX_PRO_30MIN }}
                 onClick={(e) => {
-                  // Klick auf ein freies Zeitfenster -> neuen Termin mit Datum + Uhrzeit vorbelegen
-                  // (clientY relativ zur Spalte, damit auch Klicks auf Rasterlinien stimmen)
+                  // Klick auf eine freie Fläche -> neuer Termin mit Datum + Uhrzeit vorbelegt
                   const y = e.clientY - e.currentTarget.getBoundingClientRect().top
                   const minuten = START_STD * 60 + Math.floor(y / PX_PRO_30MIN) * 30
                   const start = `${String(Math.floor(minuten / 60)).padStart(2, '0')}:${String(minuten % 60).padStart(2, '0')}`
@@ -220,35 +295,60 @@ export default function Kalender({ user }) {
                     key={`pause-${i}`}
                     className="absolute inset-x-0 pointer-events-none bg-amber-100/70 border-y border-amber-200 flex items-center justify-center"
                     style={{
-                      top: ((zuMinuten(p.von) - START_STD * 60) / 30) * PX_PRO_30MIN,
-                      height: ((zuMinuten(p.bis) - zuMinuten(p.von)) / 30) * PX_PRO_30MIN,
+                      top: ((min(p.von) - START_STD * 60) / 30) * PX_PRO_30MIN,
+                      height: ((min(p.bis) - min(p.von)) / 30) * PX_PRO_30MIN,
                       backgroundImage: 'repeating-linear-gradient(45deg, rgba(217,119,6,0.08) 0 6px, transparent 6px 12px)',
                     }}
                   >
                     <span className="text-[9px] font-bold text-amber-700/80 truncate px-1">☕ {p.grund}</span>
                   </div>
                 ))}
-                {(proTag[t] || []).map((a) => {
-                  const top = ((zuMinuten(a.start) - START_STD * 60) / 30) * PX_PRO_30MIN
-                  const hoehe = ((zuMinuten(a.ende) - zuMinuten(a.start)) / 30) * PX_PRO_30MIN
+                {(proTag[t] || []).map(({ a, von, bis, spalte, spalten }) => {
+                  const top = ((von - START_STD * 60) / 30) * PX_PRO_30MIN
+                  const hoehe = Math.max(((bis - von) / 30) * PX_PRO_30MIN - 2, 26)
+                  const team = teamFuerTermin(a, users)
+                  const abgesagt = a.status === 'abgesagt'
+                  const farbe = a.intern ? '#475569' : abgesagt ? '#fecaca' : team.farbe || STANDARD_FARBE
+                  const schrift = abgesagt ? '#b91c1c' : textAuf(farbe)
+                  const namen = monteurNamen(a, users)
+                  const breite = 100 / spalten
                   return (
                     <button
                       key={a.id}
                       onClick={(e) => {
                         e.stopPropagation()
-                        // Interne Termine öffnen den Editor (Zeiten ändern / löschen)
                         if (a.intern) setNeu({ bearbeiten: a })
                         else setGewaehlt(a)
                       }}
-                      className={`absolute inset-x-1 rounded-lg border px-2 py-1 text-left overflow-hidden shadow-sm hover:brightness-110 transition ${
-                        a.intern ? 'bg-slate-600 border-slate-700 text-white' : STATUS_FARBE[a.status] || STATUS_FARBE.bestaetigt
-                      }`}
-                      style={a.intern
-                        ? { top: top + 1, height: Math.max(hoehe - 2, 20), backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.08) 0 6px, transparent 6px 12px)' }
-                        : { top: top + 1, height: Math.max(hoehe - 2, 20) }}
+                      className={`absolute rounded-lg border px-1.5 py-1 text-left overflow-hidden shadow-sm hover:brightness-110 hover:z-20 transition ${abgesagt ? 'line-through' : ''}`}
+                      style={{
+                        top: top + 1,
+                        height: hoehe,
+                        left: `calc(${spalte * breite}% + 2px)`,
+                        width: `calc(${breite}% - 4px)`,
+                        backgroundColor: farbe,
+                        borderColor: 'rgba(0,0,0,0.18)',
+                        color: schrift,
+                        ...(a.intern
+                          ? { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.10) 0 6px, transparent 6px 12px)' }
+                          : {}),
+                      }}
+                      title={`${a.start}–${a.ende} · ${team.name}${namen ? ` · ${namen}` : ''}\n${a.titel || a.behandlung || ''}`}
                     >
-                      <p className="text-[11px] font-bold leading-tight truncate">{a.start} · {a.patientName}</p>
-                      {hoehe > 34 && <p className="text-[10px] opacity-80 truncate">{a.behandlung} · {a.arzt}</p>}
+                      {/* Monteur GROSS + hervorgehoben, darüber klein das Team ausgeschrieben */}
+                      {team.explizit && (
+                        <p className="text-[9px] font-bold uppercase tracking-wide opacity-80 truncate leading-tight">
+                          {team.name}
+                        </p>
+                      )}
+                      <p className="text-[13px] font-extrabold leading-tight truncate">
+                        {namen || 'Nicht zugewiesen'}
+                      </p>
+                      {hoehe > 44 && (
+                        <p className="text-[10px] opacity-90 leading-tight truncate">
+                          {a.start}–{a.ende} · {a.titel || a.behandlung || ''}
+                        </p>
+                      )}
                     </button>
                   )
                 })}
@@ -260,49 +360,16 @@ export default function Kalender({ user }) {
 
       <p className="mt-3 text-xs text-slate-400">{tr(T.hinweis)}</p>
 
-      {/* Neue Online-Anfragen direkt unter dem Kalender – kein Seitenwechsel nötig */}
-      {neueAnfragen.length > 0 && (
-        <div className="mt-5 bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-3.5 border-b border-amber-100 bg-amber-50/60">
-            <Icon name="inbox" className="w-4 h-4 text-amber-600" />
-            <p className="font-bold text-sm text-slate-800">{tr(T.anfragenTitel)}</p>
-            <span className="bg-amber-400 text-praxis-900 text-xs font-bold rounded-full px-2 py-0.5">{neueAnfragen.length}</span>
-            <a href="#/anfragen" className="ml-auto rtl:ml-0 rtl:mr-auto text-xs font-semibold text-praxis-700 hover:underline">
-              {tr(T.alleAnfragen)} →
-            </a>
-          </div>
-          <div className="divide-y divide-slate-50">
-            {neueAnfragen.map((r) => (
-              <div key={r.id} className="px-5 py-3 flex flex-wrap items-center gap-3 text-sm">
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900 truncate">{r.name}</p>
-                  <p className="text-xs text-slate-400 truncate">
-                    {r.anliegen} · {tr(T.wunsch)} <span className="font-semibold text-slate-600">{datumLok(r.datum)}, {r.start} {tr(T.uhr)}</span>
-                    <span className="mx-2" dir="ltr">{r.telefon}</span>
-                  </p>
-                </div>
-                <button
-                  onClick={() => setBestaetige(r)}
-                  className="bg-praxis-600 hover:bg-praxis-700 text-white text-xs font-semibold px-3.5 py-2 rounded-full"
-                >
-                  {tr(T.bestaetigen)}
-                </button>
-                <button
-                  onClick={() => setAblehne(r)}
-                  className="bg-white border border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-600 text-xs font-semibold px-3.5 py-2 rounded-full"
-                >
-                  {tr(T.ablehnen)}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {bestaetige && (
-        <BestaetigenModal anfrage={bestaetige} patients={patients} onClose={() => setBestaetige(null)} />
-      )}
-      {ablehne && <AblehnenModal anfrage={ablehne} onClose={() => setAblehne(null)} />}
+      {/* Baustellen-Informationen mit Direkt-Aktionen (ersetzt die alten Terminanfragen) */}
+      <BaustellenPanel
+        projekte={projekte}
+        kunden={patients}
+        appointments={appointments}
+        lvpositionen={lvpositionen}
+        berichte={berichte}
+        onAufgabe={(projektId) => setNeu({ projektId })}
+        navigate={navigate}
+      />
 
       {gewaehlt && (
         <TerminModal
@@ -320,6 +387,151 @@ export default function Kalender({ user }) {
           bearbeiten={typeof neu === 'object' ? neu.bearbeiten || null : null}
           onClose={() => setNeu(false)}
         />
+      )}
+    </div>
+  )
+}
+
+// ---------- Baustellen-Panel unter dem Kalender ----------
+
+function BaustellenPanel({ projekte, kunden, appointments, lvpositionen, berichte, onAufgabe, navigate }) {
+  const [alleZeigen, setAlleZeigen] = useState(false)
+  const heute = heuteISO()
+
+  const zeilen = useMemo(() => {
+    const liste = projekte
+      .filter((p) => alleZeigen || istOffen(p.status))
+      .map((p) => {
+        const pos = lvpositionen.filter((x) => x.projektId === p.id && x.typ === 'position' && !x.flags?.bedarf && !x.flags?.nep)
+        const soll = pos.reduce((s, x) => s + (x.menge || 0) * (x.einheitspreis || 0), 0) || Number(p.projektvolumen) || 0
+        const ist = pos.reduce((s, x) => s + (x.istMenge || 0) * (x.einheitspreis || 0), 0)
+        const termine = appointments.filter((t) => t.projektId === p.id && t.status !== 'abgesagt')
+        const naechster = termine
+          .filter((t) => t.datum >= heute)
+          .sort((a, b) => `${a.datum}${a.start}`.localeCompare(`${b.datum}${b.start}`))[0]
+        const offeneBerichte = berichte.filter((b) => b.projektId === p.id && b.status === 'eingereicht').length
+        return {
+          p,
+          kunde: kunden.find((k) => k.id === p.kundeId),
+          soll,
+          ist,
+          prozent: soll > 0 ? Math.min(100, Math.round((ist / soll) * 100)) : 0,
+          offeneTermine: termine.filter((t) => !t.erledigt).length,
+          naechster,
+          offeneBerichte,
+        }
+      })
+    return liste.sort((a, b) => (a.p.nummer || '').localeCompare(b.p.nummer || ''))
+  }, [projekte, kunden, appointments, lvpositionen, berichte, alleZeigen, heute])
+
+  const knopf = 'inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5 border transition whitespace-nowrap'
+
+  return (
+    <div className="mt-5 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+        <Icon name="folder" className="w-4 h-4 text-praxis-700" />
+        <p className="font-bold text-sm text-slate-800">Baustellen</p>
+        <span className="bg-praxis-600 text-white text-xs font-bold rounded-full px-2 py-0.5">{zeilen.length}</span>
+        <button
+          onClick={() => setAlleZeigen(!alleZeigen)}
+          className="ml-auto text-xs font-semibold text-slate-500 hover:text-praxis-700"
+        >
+          {alleZeigen ? 'nur offene zeigen' : 'auch abgeschlossene zeigen'}
+        </button>
+        <button
+          onClick={() => navigate('/projekte')}
+          className="text-xs font-semibold text-praxis-700 hover:underline"
+        >
+          Alle Projekte →
+        </button>
+      </div>
+
+      {zeilen.length === 0 ? (
+        <p className="px-5 py-8 text-center text-sm text-slate-400">
+          Keine offenen Baustellen. Neue Baustelle anlegen unter Projekte → „Neues Projekt".
+        </p>
+      ) : (
+        <div className="divide-y divide-slate-50">
+          {zeilen.map(({ p, kunde, soll, ist, prozent, offeneTermine, naechster, offeneBerichte }) => {
+            const st = statusInfo(p.status)
+            return (
+              <div key={p.id} className="px-5 py-4 flex flex-wrap items-start gap-x-4 gap-y-3">
+                <div className="min-w-[240px] flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.farbe || st.farbe }} />
+                    <button
+                      onClick={() => navigate(`/projekte/${p.id}`)}
+                      className="font-semibold text-slate-900 hover:text-praxis-700 hover:underline text-left"
+                    >
+                      {p.name}
+                    </button>
+                    <span className="text-[11px] font-mono text-slate-400">{p.nummer}</span>
+                    <span
+                      className="text-[10px] font-bold rounded-full px-2 py-0.5"
+                      style={{ backgroundColor: `${st.farbe}1f`, color: st.farbe }}
+                    >
+                      {st.label}
+                    </span>
+                    {offeneBerichte > 0 && (
+                      <span className="text-[10px] font-bold rounded-full px-2 py-0.5 bg-sky-100 text-sky-700">
+                        {offeneBerichte} Bericht(e) zur Freigabe
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {kunde ? (kunde.firma || `${kunde.vorname || ''} ${kunde.nachname || ''}`.trim()) : 'kein Kunde'}
+                    {p.anschrift?.strasse ? ` · ${p.anschrift.strasse}` : ''}
+                    {p.anschrift?.plzOrt ? `, ${p.anschrift.plzOrt}` : ''}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    {naechster
+                      ? `Nächster Einsatz: ${new Date(naechster.datum + 'T12:00:00').toLocaleDateString('de-DE')} · ${naechster.start} Uhr`
+                      : 'Kein Einsatz geplant'}
+                    {offeneTermine > 0 ? ` · ${offeneTermine} offen` : ''}
+                  </p>
+                  {soll > 0 && (
+                    <div className="mt-2 max-w-xs">
+                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-praxis-600 rounded-full" style={{ width: `${prozent}%` }} />
+                      </div>
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        {prozent} % geleistet ({euro(ist)} von {euro(soll)})
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Direkt-Aktionen */}
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => onAufgabe(p.id)}
+                    className={`${knopf} bg-praxis-600 border-praxis-600 text-white hover:bg-praxis-700`}
+                  >
+                    <Icon name="plus" className="w-3.5 h-3.5" /> Aufgabe
+                  </button>
+                  <button
+                    onClick={() => navigate(`/projekte/${p.id}?bereich=regie`)}
+                    className={`${knopf} bg-white border-slate-200 text-slate-600 hover:border-praxis-400`}
+                  >
+                    <Icon name="bericht" className="w-3.5 h-3.5" /> Bericht
+                  </button>
+                  <button
+                    onClick={() => navigate(`/projekte/${p.id}?bereich=rechnungen`)}
+                    className={`${knopf} bg-white border-slate-200 text-slate-600 hover:border-praxis-400`}
+                  >
+                    <Icon name="euro" className="w-3.5 h-3.5" /> Abrechnung
+                  </button>
+                  <button
+                    onClick={() => navigate(`/projekte/${p.id}?bereich=lv`)}
+                    className={`${knopf} bg-white border-slate-200 text-slate-600 hover:border-praxis-400`}
+                  >
+                    <Icon name="list" className="w-3.5 h-3.5" /> LV
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       )}
     </div>
   )

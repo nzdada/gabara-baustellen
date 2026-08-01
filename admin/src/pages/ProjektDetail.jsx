@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { useCollection, useWhere, withStore } from '../hooks.js'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { useCollection, useEinstellungen, useWhere, withStore } from '../hooks.js'
 import { Icon } from '@shared/ui.jsx'
 import { euro } from '@shared/format.js'
 import { PROJEKT_STATUS, statusInfo } from '@shared/projektstatus.js'
 import LvEditor from '../components/LvEditor.jsx'
 import LvImport from '../components/LvImport.jsx'
 import RechnungWizard from '../components/RechnungWizard.jsx'
+import BerichtForm from '../components/BerichtForm.jsx'
 import Modal from '../components/Modal.jsx'
+import { druckeRegiebericht, druckeAbnahme } from '../drucken.js'
 
 // Projekt-Detailseite (#/projekte/:id): Dreispalter im HERO-Stil –
 // links Bereichs-Navigation, Mitte Inhalt, rechts Projektdaten-Panel.
@@ -110,11 +112,16 @@ function FeldTextarea({ wert, onWert, rows = 4, platzhalter = '' }) {
   )
 }
 
-export default function ProjektDetail() {
+// WICHTIG: `user` muss als Prop ankommen – sie wird an <BerichtDetail> weitergereicht.
+// (Fehlte früher: Klick auf eine Berichtskarte warf „user is not defined" und
+//  riss die ganze Seite ab.)
+export default function ProjektDetail({ user }) {
   const { id } = useParams()
+  const [suchParams, setSuchParams] = useSearchParams()
   const projekte = useCollection('projekte')
   const kunden = useCollection('patients')
   const users = useCollection('users')
+  const einst = useEinstellungen()
   const lv = useWhere('lvpositionen', 'projektId', id)
   const fotos = useWhere('photos', 'projektId', id)
   const berichte = useWhere('berichte', 'projektId', id)
@@ -125,11 +132,28 @@ export default function ProjektDetail() {
   const projekt = projekte.find((p) => p.id === id)
   const kunde = kunden.find((k) => k.id === projekt?.kundeId)
 
-  const [bereich, setBereich] = useState('uebersicht')
+  // Bereich kommt aus der URL (?bereich=regie) -> Direktsprung aus dem Kalender
+  const bereich = suchParams.get('bereich') || 'uebersicht'
+  const setBereich = (b) => setSuchParams(b === 'uebersicht' ? {} : { bereich: b }, { replace: true })
   const [zeigeImport, setZeigeImport] = useState(false)
   const [zeigeRechnungWizard, setZeigeRechnungWizard] = useState(false)
   const [vollbildFoto, setVollbildFoto] = useState(null)
   const [berichtId, setBerichtId] = useState(null)
+  const [neuerBericht, setNeuerBericht] = useState(null)   // 'regie'|'reklamation'|'abnahme'
+  const [bearbeiteBericht, setBearbeiteBericht] = useState(null)
+
+  function berichtDrucken(b) {
+    const bilder = fotos.filter((f) => f.berichtId === b.id)
+    if (b.typ === 'abnahme') druckeAbnahme({ bericht: b, projekt, kunde, fotos: bilder, einst })
+    else druckeRegiebericht({ bericht: b, projekt, kunde, fotos: bilder, einst })
+  }
+
+  // Klick auf eine Berichtskarte: Entwürfe direkt zum Bearbeiten öffnen,
+  // eingereichte/freigegebene in der Detail-Ansicht anzeigen.
+  function berichtOeffnen(b) {
+    if (b.status === 'entwurf') setBearbeiteBericht(b)
+    else setBerichtId(b.id)
+  }
 
   // LV-Summe = Σ Menge × EP aller echten Positionen (ohne Bedarf/NEP)
   const lvSumme = lv
@@ -343,31 +367,49 @@ export default function ProjektDetail() {
 
           {(bereich === 'regie' || bereich === 'reklamation' || bereich === 'abnahme') && (
             <div className="space-y-2.5">
-              <h2 className="font-bold text-slate-800">
-                {bereich === 'regie' ? 'Regieberichte' : bereich === 'reklamation' ? 'Reklamationen' : 'Abnahmen'}
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="font-bold text-slate-800">
+                  {bereich === 'regie' ? 'Regieberichte' : bereich === 'reklamation' ? 'Reklamationen' : 'Abnahmen'}
+                </h2>
+                <button
+                  onClick={() => setNeuerBericht(bereich)}
+                  className="inline-flex items-center gap-1.5 bg-praxis-600 hover:bg-praxis-700 text-white text-sm font-semibold px-4 py-2 rounded-full"
+                >
+                  <Icon name="plus" className="w-4 h-4" />
+                  {bereich === 'regie' ? 'Regiebericht' : bereich === 'reklamation' ? 'Reklamation' : 'Abnahme'}
+                </button>
+              </div>
               {berichte.filter((b) => b.typ === bereich).length === 0 && (
                 <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm text-slate-400">
-                  Noch keine Einträge. Berichte werden von den Monteuren auf der Baustelle erstellt.
+                  Noch keine Einträge. Berichte entstehen auf der Baustelle – oder hier im Büro über den Button oben.
                 </div>
               )}
               {berichte
                 .filter((b) => b.typ === bereich)
                 .sort((a, b) => (b.datum || '').localeCompare(a.datum || ''))
                 .map((b) => (
-                  <button
+                  <div
                     key={b.id}
-                    onClick={() => setBerichtId(b.id)}
-                    className="w-full text-left bg-white rounded-2xl border border-slate-200 hover:border-praxis-400 px-5 py-4 transition"
+                    className="bg-white rounded-2xl border border-slate-200 hover:border-praxis-400 px-5 py-4 transition"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-800">
-                        {datumDe(b.datum)} · {b.mitarbeiterName || '–'}
-                      </p>
-                      <StatusBadge status={b.status} />
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <button onClick={() => berichtOeffnen(b)} className="text-left min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-800">
+                          {b.nummer ? `${b.nummer} · ` : ''}{datumDe(b.datum)} · {b.mitarbeiterName || '–'}
+                        </p>
+                        {b.beschreibung && <p className="mt-1 text-sm text-slate-500 line-clamp-2">{b.beschreibung}</p>}
+                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <StatusBadge status={b.status} />
+                        <button
+                          onClick={() => berichtDrucken(b)}
+                          className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium hover:bg-slate-200 inline-flex items-center gap-1"
+                        >
+                          <Icon name="doc" className="w-3.5 h-3.5" /> PDF
+                        </button>
+                      </div>
                     </div>
-                    {b.beschreibung && <p className="mt-1 text-sm text-slate-500 line-clamp-2">{b.beschreibung}</p>}
-                  </button>
+                  </div>
                 ))}
             </div>
           )}
@@ -608,14 +650,33 @@ export default function ProjektDetail() {
 
       {/* Bericht-Detail-Modal */}
       {gewaehlterBericht && (
-        <BerichtDetail bericht={gewaehlterBericht} user={user} onClose={() => setBerichtId(null)} onFoto={setVollbildFoto} />
+        <BerichtDetail
+          bericht={gewaehlterBericht}
+          user={user}
+          onClose={() => setBerichtId(null)}
+          onFoto={setVollbildFoto}
+          onDrucken={() => berichtDrucken(gewaehlterBericht)}
+        />
+      )}
+
+      {/* Bericht neu erfassen / Entwurf bearbeiten */}
+      {neuerBericht && (
+        <BerichtForm typ={neuerBericht} projektId={id} user={user} onClose={() => setNeuerBericht(null)} />
+      )}
+      {bearbeiteBericht && (
+        <BerichtForm
+          typ={bearbeiteBericht.typ}
+          bericht={bearbeiteBericht}
+          user={user}
+          onClose={() => setBearbeiteBericht(null)}
+        />
       )}
     </div>
   )
 }
 
 // Detail-Ansicht eines Berichts: alle Felder, Vorher/Nachher-Fotos, Unterschrift, Freigabe
-function BerichtDetail({ bericht, user, onClose, onFoto }) {
+function BerichtDetail({ bericht, user, onClose, onFoto, onDrucken }) {
   const fotos = useWhere('photos', 'berichtId', bericht.id)
   const vorher = fotos.filter((f) => f.phase === 'vorher')
   const nachher = fotos.filter((f) => f.phase === 'nachher')
@@ -773,23 +834,31 @@ function BerichtDetail({ bericht, user, onClose, onFoto }) {
           </div>
         )}
 
-        {/* Freigabe-Workflow */}
-        {bericht.status === 'eingereicht' && (
-          <div className="flex gap-2 pt-1">
-            <button
-              onClick={() => setzeStatus('freigegeben')}
-              className="flex-1 bg-praxis-600 hover:bg-praxis-700 text-white font-bold py-3 rounded-xl"
-            >
-              Freigeben
-            </button>
-            <button
-              onClick={() => setzeStatus('entwurf')}
-              className="flex-1 bg-white border border-slate-200 hover:border-red-300 text-slate-600 hover:text-red-600 font-semibold py-3 rounded-xl"
-            >
-              Zurückweisen
-            </button>
-          </div>
-        )}
+        {/* Freigabe-Workflow + PDF */}
+        <div className="flex flex-wrap gap-2 pt-1">
+          {bericht.status === 'eingereicht' && (
+            <>
+              <button
+                onClick={() => setzeStatus('freigegeben')}
+                className="flex-1 min-w-[130px] bg-praxis-600 hover:bg-praxis-700 text-white font-bold py-3 rounded-xl"
+              >
+                Freigeben
+              </button>
+              <button
+                onClick={() => setzeStatus('entwurf')}
+                className="flex-1 min-w-[130px] bg-white border border-slate-200 hover:border-red-300 text-slate-600 hover:text-red-600 font-semibold py-3 rounded-xl"
+              >
+                Zurückweisen
+              </button>
+            </>
+          )}
+          <button
+            onClick={onDrucken}
+            className="flex-1 min-w-[130px] inline-flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl"
+          >
+            <Icon name="doc" className="w-4 h-4" /> PDF drucken
+          </button>
+        </div>
       </div>
     </Modal>
   )

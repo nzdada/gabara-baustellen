@@ -23,12 +23,19 @@ function aktuelleLokaleSession() {
   }
 }
 
-// users-Doc per E-Mail nachschlagen -> {name, rolle, id} oder null
-async function nutzerProfil(email) {
+// users-Doc nachschlagen -> {name, rolle, id} oder null.
+// Bevorzugt wird das Dokument, dessen ID die Firebase-Auth-UID ist – nur so
+// können die Firestore-Regeln die Rolle prüfen (siehe firestore.rules).
+// Fallback: Suche über die E-Mail (Demo-/Bestandsdaten mit eigenen IDs).
+async function nutzerProfil(email, uid = null) {
   try {
     const store = await getStore()
     const alle = await store.list('users')
-    return alle.find((u) => (u.email || '').toLowerCase() === email.toLowerCase()) || null
+    if (uid) {
+      const perUid = alle.find((u) => u.id === uid)
+      if (perUid) return perUid
+    }
+    return alle.find((u) => (u.email || '').toLowerCase() === (email || '').toLowerCase()) || null
   } catch (e) {
     return null
   }
@@ -55,7 +62,7 @@ export async function anmelden(email, passwort) {
   const { getAuth, signInWithEmailAndPassword } = await import('firebase/auth')
   const auth = getAuth(store.app)
   const cred = await signInWithEmailAndPassword(auth, email.trim(), passwort)
-  const profil = await nutzerProfil(cred.user.email)
+  const profil = await nutzerProfil(cred.user.email, cred.user.uid)
   return {
     email: cred.user.email,
     name: profil?.name || cred.user.displayName || cred.user.email,
@@ -88,7 +95,7 @@ export function beobachteAnmeldung(cb) {
     const auth = getAuth(store.app)
     unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) return cb(null)
-      const profil = await nutzerProfil(user.email)
+      const profil = await nutzerProfil(user.email, user.uid)
       cb({
         email: user.email,
         name: profil?.name || user.displayName || user.email,

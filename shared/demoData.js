@@ -10,8 +10,10 @@ const TEST_EMAIL = 'info@gabara-demo.de'
 
 // ---------- Helfer ----------
 
+// Lokales Datum – toISOString() rechnet nach UTC und liefert in Deutschland
+// abends/nachts das falsche Tagesdatum (Demo-Termine lägen dann einen Tag daneben).
 function iso(d) {
-  return d.toISOString().slice(0, 10)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function heutePlus(tage) {
@@ -37,10 +39,11 @@ export function erzeugeDemoDaten() {
   const jetzt = Date.now()
 
   // --- Mitarbeiter / Logins (E-Mails passend zu DEMO_ZUGAENGE in auth.js) ---
+  // team = Kolonne (Farbcodierung im Kalender), qualifikation = Regie-Stundensatz
   const users = [
-    { id: 'u-buero', email: 'buero@gabara-demo.de', name: 'Büro Gabara', rolle: 'admin', farbe: '#8B1A1A', stundensatzIntern: 0, aktiv: true },
-    { id: 'u-ahmad', email: 'monteur@gabara-demo.de', name: 'Ahmad Monteur', rolle: 'mitarbeiter', farbe: '#f97316', stundensatzIntern: 28, aktiv: true },
-    { id: 'u-samir', email: 'samir@gabara-demo.de', name: 'Samir Monteur', rolle: 'mitarbeiter', farbe: '#0ea5e9', stundensatzIntern: 25, aktiv: true },
+    { id: 'u-buero', email: 'buero@gabara-demo.de', name: 'Büro Gabara', rolle: 'admin', team: 'Büro', farbe: '#8B1A1A', qualifikation: 'facharbeiter', stundensatzIntern: 0, aktiv: true },
+    { id: 'u-ahmad', email: 'monteur@gabara-demo.de', name: 'Ahmad Monteur', rolle: 'mitarbeiter', team: 'Team 1', farbe: '#f97316', qualifikation: 'facharbeiter', stundensatzIntern: 28, aktiv: true },
+    { id: 'u-samir', email: 'samir@gabara-demo.de', name: 'Samir Monteur', rolle: 'mitarbeiter', team: 'Team 2', farbe: '#0ea5e9', qualifikation: 'helfer', stundensatzIntern: 25, aktiv: true },
   ]
 
   // --- Kunden (Spiegel; FastBill ist führend, fastbillCustomerId nach Sync) ---
@@ -70,7 +73,7 @@ export function erzeugeDemoDaten() {
     {
       id: 'p-iga', nummer: 'P-2026-001', name: 'IGA Augsburg – Barmer Büroflächen EG + 1. OG',
       kundeId: 'k-bothmer', anschrift: { strasse: 'Eserwallstraße 1-3', plzOrt: '86150 Augsburg' },
-      gewerk: 'Malerarbeiten', status: 'inUmsetzung',
+      gewerk: 'Malerarbeiten', status: 'inArbeit',
       startDatum: heutePlus(-14), endeDatum: heutePlus(14), projektvolumen: 7896,
       farbe: '#f97316',
       beschreibung: 'Nachunternehmer-Vertrag Bothmer vom 12.05.2026. Ausführung nach VOB DIN 18363. 2 Arbeitsschritte: Grundierung + Erstanstrich, danach Zweitanstrich; Zargen schleifen und lackieren.',
@@ -88,7 +91,7 @@ export function erzeugeDemoDaten() {
     {
       id: 'p-huber', nummer: 'P-2026-003', name: 'EFH Huber – Innenanstrich EG',
       kundeId: 'k-huber', anschrift: { strasse: 'Bgm.-Aurnhammer-Str. 12', plzOrt: '86199 Augsburg' },
-      gewerk: 'Malerarbeiten', status: 'angebot',
+      gewerk: 'Malerarbeiten', status: 'offen',
       startDatum: heutePlus(30), endeDatum: heutePlus(35), projektvolumen: 2400,
       farbe: '#10b981',
       beschreibung: 'Wohnzimmer, Flur und Küche streichen, ca. 180 m² Wand-/Deckenfläche. Angebot in Arbeit.',

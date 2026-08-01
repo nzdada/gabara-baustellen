@@ -4,6 +4,7 @@ import { Icon } from '@shared/ui.jsx'
 import { UnterschriftFeld, unterschriftAlsDataUrl } from '@shared/unterschrift.jsx'
 import { euro } from '@shared/format.js'
 import { useCollection, useWhere, useEinstellungen, withStore } from '../hooks.js'
+import { heuteISO } from '@shared/slots.js'
 
 // Berichts-Erfassung nach dem Aufbau der mam_solar-Feldprotokolle
 // (assets/protocols/work_order.md): nummerierte Abschnitts-Karten, getrennte
@@ -20,9 +21,8 @@ import { useCollection, useWhere, useEinstellungen, withStore } from '../hooks.j
 const TITEL = { regie: 'Regie-/Arbeitsbericht', reklamation: 'Reklamation / Schadensprotokoll', abnahme: 'Abnahmeprotokoll' }
 const NUMMER_PREFIX = { regie: 'RB', reklamation: 'RK', abnahme: 'AB' }
 
-function heuteIso() {
-  return new Date().toISOString().slice(0, 10)
-}
+// Lokales Datum (NICHT toISOString – das liefert UTC und nachts das Vortagsdatum)
+const heuteIso = heuteISO
 
 // Stunden aus Von/Bis (z. B. 07:00–15:30 -> 8.5)
 function dauerStunden(von, bis) {
@@ -31,6 +31,23 @@ function dauerStunden(von, bis) {
   const [h2, m2] = bis.split(':').map(Number)
   return Math.max(0, Math.round(((h2 * 60 + m2) - (h1 * 60 + m1)) / 6) / 10)
 }
+
+// Gegenrichtung: aus Von + Stundenzahl die Bis-Uhrzeit rechnen (07:00 + 8,5 -> 15:30)
+function bisAus(von, stunden) {
+  const std = Number(String(stunden).replace(',', '.'))
+  if (!von || !Number.isFinite(std) || std <= 0) return ''
+  const [h, m] = von.split(':').map(Number)
+  const gesamt = Math.round(h * 60 + m + std * 60)
+  const tagesMinuten = Math.min(gesamt, 23 * 60 + 59)
+  return `${String(Math.floor(tagesMinuten / 60)).padStart(2, '0')}:${String(tagesMinuten % 60).padStart(2, '0')}`
+}
+
+// Qualifikation eines Mitarbeiters aus den Stammdaten (Fallback: Facharbeiter)
+function qualiVon(user) {
+  return user?.qualifikation === 'helfer' ? 'helfer' : 'facharbeiter'
+}
+
+const QUALI_LABEL = { facharbeiter: 'Facharbeiter', helfer: 'Helfer/Azubi' }
 
 async function komprimiere(file, maxKante = 1200, qualitaet = 0.72) {
   const bitmap = await createImageBitmap(file)
@@ -42,15 +59,13 @@ async function komprimiere(file, maxKante = 1200, qualitaet = 0.72) {
   return canvas.toDataURL('image/jpeg', qualitaet)
 }
 
-// Fortlaufende Berichtsnummer vergeben (lokal; Firebase-Go-Live: runTransaction-TODO)
+// Fortlaufende Berichtsnummer vergeben. Der Zähler wird im Store ATOMAR
+// hochgezählt (Firebase: runTransaction) – zwei gleichzeitig einreichende
+// Monteure bekommen so garantiert verschiedene Nummern. Das ist beim
+// Stundennachweis nach § 15 Abs. 3 VOB/B beweisrelevant.
 async function neueBerichtsnummer(typ) {
   return withStore(async (s) => {
-    const settings = await s.list('settings')
-    const doc = settings.find((x) => x.id === 'nummernkreis') || { id: 'nummernkreis' }
-    const jahr = new Date().getFullYear()
-    const kreis = doc.bericht?.jahr === jahr ? doc.bericht : { jahr, laufend: 0 }
-    const laufend = (kreis.laufend || 0) + 1
-    await s.add('settings', { ...doc, id: 'nummernkreis', bericht: { jahr, laufend } })
+    const { jahr, laufend } = await s.naechsteNummer('bericht')
     return `${NUMMER_PREFIX[typ] || 'B'}-${jahr}-${String(laufend).padStart(3, '0')}`
   })
 }
@@ -89,7 +104,12 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
   const fotos = useWhere('photos', 'berichtId', draftId.current)
   const lvPositionen = useWhere('lvpositionen', 'projektId', bericht?.projektId || projektId || '')
 
-  const monteurName = users.find((u) => u.id === (bericht?.mitarbeiterId || user?.userId))?.name || user?.name || ''
+  const monteurUser = users.find((u) => u.id === (bericht?.mitarbeiterId || user?.userId))
+  const monteurName = monteurUser?.name || user?.name || ''
+
+  // Stundensatz kommt aus den Stammdaten (Einstellungen → Sätze), NICHT aus einem
+  // Dropdown im Bericht – die Qualifikation des Mitarbeiters entscheidet.
+  const satzFuer = (art) => Number(art === 'helfer' ? (einst.regieHelfer ?? 31) : (einst.regieFacharbeiter ?? 35)) || 0
 
   const [daten, setDaten] = useState(() => ({
     projektId: bericht?.projektId || projektId || '',
@@ -120,8 +140,20 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
     unterschriftFirma: bericht?.unterschriftFirma || '',
     // Arbeitszeit wie mam_solar: je Person mit Datum + Von/Bis
     stunden: bericht?.stunden?.length
-      ? bericht.stunden.map((z) => ({ name: z.name || '', datum: z.datum || bericht?.datum || heuteIso(), art: z.art || 'facharbeiter', von: z.von || '', bis: z.bis || '', anzahl: z.anzahl ?? 0, satz: z.satz ?? 35 }))
-      : (typ === 'regie' ? [{ name: monteurName, datum: heuteIso(), art: 'facharbeiter', von: '07:00', bis: '16:00', anzahl: dauerStunden('07:00', '16:00'), satz: einst.regieFacharbeiter || 35 }] : []),
+      ? bericht.stunden.map((z) => ({
+          userId: z.userId || '',
+          name: z.name || '', datum: z.datum || bericht?.datum || heuteIso(),
+          art: z.art || 'facharbeiter', von: z.von || '', bis: z.bis || '',
+          anzahl: z.anzahl ?? 0, satz: z.satz ?? 35,
+        }))
+      : (typ === 'regie'
+          ? [{
+              userId: monteurUser?.id || '', name: monteurName, datum: heuteIso(),
+              art: qualiVon(monteurUser), von: '07:00', bis: '16:00',
+              anzahl: dauerStunden('07:00', '16:00'),
+              satz: Number(qualiVon(monteurUser) === 'helfer' ? (einst.regieHelfer ?? 31) : (einst.regieFacharbeiter ?? 35)) || 0,
+            }]
+          : []),
     material: bericht?.material || [],
   }))
   const [kundeCanvas, setKundeCanvas] = useState(null)
@@ -137,7 +169,7 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
   const mitarbeiter = users.find((u) => u.id === daten.mitarbeiterId)
   const set = (feld) => (e) => setDaten((d) => ({ ...d, [feld]: e.target.value }))
 
-  const stundenSumme = daten.stunden.reduce((s, z) => s + (Number(z.anzahl) || 0) * (Number(z.satz) || 0), 0)
+  const stundenSumme = daten.stunden.reduce((s, z) => s + (Number(z.anzahl) || 0) * (Number(z.satz) || satzFuer(z.art)), 0)
   const materialSumme = daten.material.reduce((s, z) => s + (Number(z.menge) || 0) * (Number(z.preis) || 0), 0)
 
   const fotosVorher = fotos.filter((f) => f.phase === 'vorher')
@@ -232,7 +264,11 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
       eingereichtVon: status === 'eingereicht' ? (user?.name || '') : (bericht?.eingereichtVon || ''),
       ...(typ === 'regie' ? {
         angeordnetDurch: daten.angeordnetDurch, angeordnetAm: daten.angeordnetAm, anzeigeArt: daten.anzeigeArt,
-        stunden: daten.stunden.map((z) => ({ name: z.name, datum: z.datum, art: z.art, von: z.von, bis: z.bis, anzahl: Number(z.anzahl) || 0, satz: Number(z.satz) || 0 })),
+        stunden: daten.stunden.map((z) => ({
+          userId: z.userId || '', name: z.name, datum: z.datum, art: z.art,
+          von: z.von, bis: z.bis, anzahl: Number(z.anzahl) || 0,
+          satz: Number(z.satz) || satzFuer(z.art),
+        })),
         material: daten.material.map((z) => ({ artikelId: z.artikelId || '', name: z.name, menge: Number(z.menge) || 0, einheit: z.einheit || '', preis: Number(z.preis) || 0 })),
       } : {}),
       ...(typ === 'reklamation' ? {
@@ -462,58 +498,109 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
         {typ === 'regie' && (
           <Sektion nr={naechste()} titel="Arbeitszeit je Person (Stundenlohnzettel) & Material" pflicht erfuellt={stundenOk}>
             <p className="text-[11px] text-slate-400 mb-2">
-              Wie im MAM-Protokoll: je Person eine Zeile mit Datum und Von/Bis – Namen sind Pflicht (§ 15 Abs. 3 VOB/B).
+              Je Person eine Zeile mit Datum und Von/Bis – Namen sind Pflicht (§ 15 Abs. 3 VOB/B).
+              Der Stundensatz ergibt sich automatisch aus der Qualifikation des Mitarbeiters (Einstellungen → Sätze).
             </p>
-            <datalist id="monteur-namen">
-              {users.filter((u) => u.aktiv !== false).map((u) => <option key={u.id} value={u.name} />)}
-            </datalist>
-            {daten.stunden.map((z, i) => (
-              <div key={i} className="border border-slate-100 rounded-xl p-2.5 mb-2 grid grid-cols-2 sm:grid-cols-7 gap-2 items-end">
-                <div className="col-span-2">
-                  <label className={label}>Name *</label>
-                  <input list="monteur-namen" type="text" className={feld} value={z.name} disabled={gesperrt}
-                    onChange={(e) => setDaten((d) => ({ ...d, stunden: d.stunden.map((s, j) => j === i ? { ...s, name: e.target.value } : s) }))} />
-                </div>
-                <div>
-                  <label className={label}>Datum</label>
-                  <input type="date" className={feld} value={z.datum} disabled={gesperrt}
-                    onChange={(e) => setDaten((d) => ({ ...d, stunden: d.stunden.map((s, j) => j === i ? { ...s, datum: e.target.value } : s) }))} />
-                </div>
-                <div>
-                  <label className={label}>Von</label>
-                  <input type="time" className={feld} value={z.von} disabled={gesperrt}
-                    onChange={(e) => setDaten((d) => ({ ...d, stunden: d.stunden.map((s, j) => j === i ? { ...s, von: e.target.value, anzahl: dauerStunden(e.target.value, s.bis) || s.anzahl } : s) }))} />
-                </div>
-                <div>
-                  <label className={label}>Bis</label>
-                  <input type="time" className={feld} value={z.bis} disabled={gesperrt}
-                    onChange={(e) => setDaten((d) => ({ ...d, stunden: d.stunden.map((s, j) => j === i ? { ...s, bis: e.target.value, anzahl: dauerStunden(s.von, e.target.value) || s.anzahl } : s) }))} />
-                </div>
-                <div>
-                  <label className={label}>Std.</label>
-                  <input type="number" step="0.25" min="0" className={feld} value={z.anzahl} disabled={gesperrt}
-                    onChange={(e) => setDaten((d) => ({ ...d, stunden: d.stunden.map((s, j) => j === i ? { ...s, anzahl: e.target.value } : s) }))} />
-                </div>
-                <div className="flex items-end gap-1.5">
-                  <div className="flex-1">
-                    <label className={label}>Satz €</label>
-                    <select className={feld} value={z.art} disabled={gesperrt} onChange={(e) => {
-                      const art = e.target.value
-                      setDaten((d) => ({ ...d, stunden: d.stunden.map((s, j) => j === i ? { ...s, art, satz: art === 'helfer' ? (einst.regieHelfer || 31) : (einst.regieFacharbeiter || 35) } : s) }))
-                    }}>
-                      <option value="facharbeiter">FA {einst.regieFacharbeiter || 35}</option>
-                      <option value="helfer">HE {einst.regieHelfer || 31}</option>
+            {daten.stunden.map((z, i) => {
+              const gewaehlterUser = users.find((u) => u.id === z.userId) || users.find((u) => u.name && u.name === z.name)
+              const freiText = !gewaehlterUser
+              return (
+                <div key={i} className="border border-slate-100 rounded-xl p-2.5 mb-2 grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
+                  <div className="col-span-2">
+                    <label className={label}>Name *</label>
+                    {/* Natives Select: auf dem Handy öffnet der System-Auswahldialog –
+                        keine überlagernde Vorschlagsliste mehr, die das Feld verdeckt. */}
+                    <select
+                      className={feld}
+                      disabled={gesperrt}
+                      value={gewaehlterUser ? gewaehlterUser.id : '__frei'}
+                      onChange={(e) => {
+                        const wahl = e.target.value
+                        setDaten((d) => ({
+                          ...d,
+                          stunden: d.stunden.map((s, j) => {
+                            if (j !== i) return s
+                            if (wahl === '__frei') return { ...s, userId: '', name: '' }
+                            const u = users.find((x) => x.id === wahl)
+                            const art = qualiVon(u)
+                            return { ...s, userId: wahl, name: u?.name || '', art, satz: satzFuer(art) }
+                          }),
+                        }))
+                      }}
+                    >
+                      <option value="__frei">– Name eintippen –</option>
+                      {users.filter((u) => u.aktiv !== false).map((u) => (
+                        <option key={u.id} value={u.id}>{u.name}{u.team ? ` (${u.team})` : ''}</option>
+                      ))}
                     </select>
+                    {freiText && (
+                      <div className="mt-1.5 flex gap-1.5">
+                        <input
+                          type="text" className={feld} placeholder="Vor- und Nachname" value={z.name} disabled={gesperrt}
+                          onChange={(e) => setDaten((d) => ({ ...d, stunden: d.stunden.map((s, j) => j === i ? { ...s, name: e.target.value } : s) }))}
+                        />
+                        <select
+                          className={`${feld} !w-36`} value={z.art} disabled={gesperrt}
+                          title="Qualifikation bestimmt den Stundensatz"
+                          onChange={(e) => {
+                            const art = e.target.value
+                            setDaten((d) => ({ ...d, stunden: d.stunden.map((s, j) => j === i ? { ...s, art, satz: satzFuer(art) } : s) }))
+                          }}
+                        >
+                          <option value="facharbeiter">Facharbeiter</option>
+                          <option value="helfer">Helfer/Azubi</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
-                  {!gesperrt && (
-                    <button onClick={() => setDaten((d) => ({ ...d, stunden: d.stunden.filter((_, j) => j !== i) }))} className="pb-2 text-slate-300 hover:text-red-500"><Icon name="x" className="w-4 h-4" /></button>
-                  )}
+                  <div>
+                    <label className={label}>Datum</label>
+                    <input type="date" className={feld} value={z.datum} disabled={gesperrt}
+                      onChange={(e) => setDaten((d) => ({ ...d, stunden: d.stunden.map((s, j) => j === i ? { ...s, datum: e.target.value } : s) }))} />
+                  </div>
+                  {/* Von / Bis / Std. sind gekoppelt: Von-Bis rechnet die Stunden,
+                      eine manuelle Stundenzahl verschiebt die Bis-Uhrzeit. */}
+                  <div>
+                    <label className={label}>Von</label>
+                    <input type="time" step="300" className={feld} value={z.von} disabled={gesperrt}
+                      onChange={(e) => setDaten((d) => ({ ...d, stunden: d.stunden.map((s, j) => j === i ? { ...s, von: e.target.value, anzahl: dauerStunden(e.target.value, s.bis) } : s) }))} />
+                  </div>
+                  <div>
+                    <label className={label}>Bis</label>
+                    <input type="time" step="300" className={feld} value={z.bis} disabled={gesperrt}
+                      onChange={(e) => setDaten((d) => ({ ...d, stunden: d.stunden.map((s, j) => j === i ? { ...s, bis: e.target.value, anzahl: dauerStunden(s.von, e.target.value) } : s) }))} />
+                  </div>
+                  <div>
+                    <label className={label}>Std.</label>
+                    <input type="number" step="0.25" min="0" inputMode="decimal" className={feld} value={z.anzahl} disabled={gesperrt}
+                      onChange={(e) => setDaten((d) => ({
+                        ...d,
+                        stunden: d.stunden.map((s, j) => j === i
+                          ? { ...s, anzahl: e.target.value, bis: bisAus(s.von, e.target.value) || s.bis }
+                          : s),
+                      }))} />
+                  </div>
+                  <div className="col-span-2 sm:col-span-6 flex items-center gap-2 pt-0.5">
+                    <span className="text-[11px] text-slate-500">
+                      {QUALI_LABEL[z.art] || z.art} · <strong>{euro(Number(z.satz) || satzFuer(z.art))}/Std.</strong>
+                      {' '}= <strong>{euro((Number(z.anzahl) || 0) * (Number(z.satz) || satzFuer(z.art)))}</strong>
+                    </span>
+                    {!gesperrt && (
+                      <button
+                        onClick={() => setDaten((d) => ({ ...d, stunden: d.stunden.filter((_, j) => j !== i) }))}
+                        className="ml-auto text-slate-300 hover:text-red-500"
+                        title="Zeile entfernen"
+                      >
+                        <Icon name="x" className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
             <div className="flex items-center justify-between mb-4">
               {!gesperrt ? (
-                <button onClick={() => setDaten((d) => ({ ...d, stunden: [...d.stunden, { name: '', datum: daten.datum, art: 'facharbeiter', von: '07:00', bis: '16:00', anzahl: dauerStunden('07:00', '16:00'), satz: einst.regieFacharbeiter || 35 }] }))}
+                <button onClick={() => setDaten((d) => ({ ...d, stunden: [...d.stunden, { userId: '', name: '', datum: daten.datum, art: 'facharbeiter', von: '07:00', bis: '16:00', anzahl: dauerStunden('07:00', '16:00'), satz: satzFuer('facharbeiter') }] }))}
                   className="text-sm text-praxis-600 font-medium">+ Person/Tag</button>
               ) : <span />}
               <span className="text-sm font-bold">{euro(stundenSumme)}</span>
