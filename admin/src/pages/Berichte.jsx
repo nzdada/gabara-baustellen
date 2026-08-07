@@ -2,31 +2,35 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '@shared/ui.jsx'
 import { euro } from '@shared/format.js'
+import { useLang, t, datumLok } from '@shared/i18n.js'
 import { useCollection, useEinstellungen, withStore } from '../hooks.js'
 import BerichtForm from '../components/BerichtForm.jsx'
 import SpesenForm from '../components/SpesenForm.jsx'
+import * as S from '../stil.js'
+import { Seitenkopf, Leer, ChipReihe, Segment, Meldung } from '../components/Seite.jsx'
 import { druckeRegiebericht, druckeAbnahme } from '../drucken.js'
 
 // Berichte-Eingang: alle Regieberichte/Reklamationen/Abnahmen + Spesen.
 // Manuelle Erfassung im Büro (Übergang bis zur Flutter-App), Freigabe, PDF-Druck.
 
 const TYP = {
-  regie: { label: 'Regiebericht', farbe: 'bg-amber-100 text-amber-700' },
-  reklamation: { label: 'Reklamation', farbe: 'bg-red-100 text-red-700' },
-  abnahme: { label: 'Abnahme', farbe: 'bg-emerald-100 text-emerald-700' },
+  regie: { schluessel: 'bericht.regie', farbe: 'bg-amber-100 text-amber-700' },
+  reklamation: { schluessel: 'bericht.reklamation', farbe: 'bg-red-100 text-red-700' },
+  abnahme: { schluessel: 'bericht.abnahme', farbe: 'bg-emerald-100 text-emerald-700' },
 }
 
 const STATUS = {
-  entwurf: { label: 'Entwurf', farbe: 'bg-slate-100 text-slate-600' },
-  eingereicht: { label: 'Eingereicht', farbe: 'bg-sky-100 text-sky-700' },
-  freigegeben: { label: 'Freigegeben', farbe: 'bg-emerald-100 text-emerald-700' },
-  abgerechnet: { label: 'Abgerechnet', farbe: 'bg-violet-100 text-violet-700' },
-  erstattet: { label: 'Erstattet', farbe: 'bg-violet-100 text-violet-700' },
+  entwurf: { schluessel: 'status.entwurf', farbe: 'bg-gedeckt-tief text-schrift' },
+  eingereicht: { schluessel: 'status.eingereicht', farbe: 'bg-sky-100 text-sky-700' },
+  freigegeben: { schluessel: 'status.freigegeben', farbe: 'bg-emerald-100 text-emerald-700' },
+  abgerechnet: { schluessel: 'status.abgerechnet', farbe: 'bg-violet-100 text-violet-700' },
+  erstattet: { schluessel: 'status.erstattet', farbe: 'bg-violet-100 text-violet-700' },
 }
 
-const SPESEN_TYP = { fahrt: 'Fahrt', hotel: 'Hotel', sonstig: 'Sonstig' }
+const SPESEN_TYP = { fahrt: 'spesen.fahrt', hotel: 'spesen.hotel', sonstig: 'spesen.sonstig' }
 
 export default function Berichte({ user }) {
+  useLang()
   const berichte = useCollection('berichte')
   const spesen = useCollection('spesen')
   const projekte = useCollection('projekte')
@@ -70,64 +74,62 @@ export default function Berichte({ user }) {
   const spesenListe = [...spesen].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl mx-auto">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Berichte</h1>
-          <p className="text-sm text-slate-500">Regieberichte, Reklamationen, Abnahmen und Spesen von den Baustellen</p>
-        </div>
-        <div className="flex gap-1.5 flex-wrap">
-          <button onClick={() => setNeuTyp('regie')} className="px-3 py-2 rounded-xl bg-praxis-600 text-white text-sm font-medium hover:bg-praxis-700">+ Regiebericht</button>
-          <button onClick={() => setNeuTyp('reklamation')} className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-medium hover:bg-slate-50">+ Reklamation</button>
-          <button onClick={() => setNeuTyp('abnahme')} className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-medium hover:bg-slate-50">+ Abnahme</button>
-          <button onClick={() => setSpesenModal(true)} className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-medium hover:bg-slate-50">+ Spesen</button>
-        </div>
-      </div>
+    <div className={S.SEITE_SCHMAL}>
+      <Seitenkopf icon="bericht" titel={t('nav.berichte')} sub={t('berichte.sub')}>
+        <button onClick={() => setNeuTyp('regie')} className={S.BTN_PRIMAER}>
+          <Icon name="regie" groesse="s" /> {t('bericht.regie')}
+        </button>
+        <button onClick={() => setNeuTyp('reklamation')} className={S.BTN_ZWEIT}>
+          <Icon name="reklamation" groesse="s" /> {t('bericht.reklamation')}
+        </button>
+        <button onClick={() => setNeuTyp('abnahme')} className={S.BTN_ZWEIT}>
+          <Icon name="abnahme" groesse="s" /> {t('bericht.abnahme')}
+        </button>
+        <button onClick={() => setSpesenModal(true)} className={S.BTN_ZWEIT}>
+          <Icon name="spesen" groesse="s" /> {t('monteur.spesen')}
+        </button>
+      </Seitenkopf>
 
-      <div className="flex gap-1.5 flex-wrap mb-5">
-        {[['eingereicht', 'Eingereicht'], ['entwurf', 'Entwürfe'], ['freigegeben', 'Freigegeben'], ['abgerechnet', 'Abgerechnet'], ['alle', 'Alle Berichte'], ['spesen', 'Spesen']].map(([wert, label]) => (
-          <button
-            key={wert}
-            onClick={() => setFilter(wert)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-              filter === wert ? 'bg-praxis-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            {label}
-            <span className="ml-1.5 opacity-70">
-              {wert === 'alle' ? berichte.length : wert === 'spesen' ? spesen.length : berichte.filter((b) => b.status === wert).length}
-            </span>
-          </button>
-        ))}
-      </div>
+      <ChipReihe
+        aktiv={filter}
+        onWahl={setFilter}
+        chips={[
+          { id: 'eingereicht', label: t('status.eingereicht'), icon: 'inbox', anzahl: berichte.filter((b) => b.status === 'eingereicht').length },
+          { id: 'entwurf', label: t('berichte.entwuerfe'), icon: 'stift', anzahl: berichte.filter((b) => b.status === 'entwurf').length },
+          { id: 'freigegeben', label: t('status.freigegeben'), icon: 'erfolg', anzahl: berichte.filter((b) => b.status === 'freigegeben').length },
+          { id: 'abgerechnet', label: t('status.abgerechnet'), icon: 'euro', anzahl: berichte.filter((b) => b.status === 'abgerechnet').length },
+          { id: 'alle', label: t('berichte.alle'), icon: 'list', anzahl: berichte.length },
+          { id: 'spesen', label: t('monteur.spesen'), icon: 'spesen', anzahl: spesen.length },
+        ]}
+      />
 
       {filter === 'spesen' ? (
         spesenListe.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-400">
-            <Icon name="truck" className="w-8 h-8 mx-auto mb-2" /> Keine Spesen erfasst.
+          <div className={S.KARTE}>
+            <Leer icon="spesen" titel={t('berichte.spesenLeerTitel')} text={t('berichte.spesenLeerText')} />
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+          <div className="bg-karte rounded-karte border border-rahmen shadow-karte overflow-x-auto">
             <table className="w-full text-sm min-w-[640px]">
               <thead>
-                <tr className="text-left text-xs uppercase text-slate-400 border-b border-slate-100">
-                  <th className="px-4 py-3">Datum</th><th className="px-4 py-3">Projekt</th><th className="px-4 py-3">Mitarbeiter</th>
-                  <th className="px-4 py-3">Typ</th><th className="px-4 py-3">Details</th><th className="px-4 py-3 text-right">Betrag</th><th className="px-4 py-3">Status</th>
+                <tr className="text-left text-xs uppercase text-schrift-zart border-b border-rahmen">
+                  <th className="px-4 py-3">{t('allg.datum')}</th><th className="px-4 py-3">{t('berichte.projekt')}</th><th className="px-4 py-3">{t('berichte.mitarbeiter')}</th>
+                  <th className="px-4 py-3">{t('berichte.typ')}</th><th className="px-4 py-3">{t('berichte.details')}</th><th className="px-4 py-3 text-right">{t('allg.betrag')}</th><th className="px-4 py-3">{t('allg.status')}</th>
                 </tr>
               </thead>
               <tbody>
                 {spesenListe.map((s) => (
-                  <tr key={s.id} onClick={() => setBearbeiteSpesen(s)} className="border-b border-slate-50 hover:bg-praxis-50/40 cursor-pointer">
-                    <td className="px-4 py-3">{new Date((s.datum || '') + 'T12:00:00').toLocaleDateString('de-DE')}</td>
+                  <tr key={s.id} onClick={() => setBearbeiteSpesen(s)} className="border-b border-rahmen hover:bg-praxis-50/40 cursor-pointer">
+                    <td className="px-4 py-3">{s.datum ? datumLok(s.datum, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '–'}</td>
                     <td className="px-4 py-3">{projektVon(s.projektId)?.name || '–'}</td>
                     <td className="px-4 py-3">{s.mitarbeiterName || '–'}</td>
-                    <td className="px-4 py-3">{SPESEN_TYP[s.typ] || s.typ}</td>
-                    <td className="px-4 py-3 text-slate-500">
+                    <td className="px-4 py-3">{SPESEN_TYP[s.typ] ? t(SPESEN_TYP[s.typ]) : s.typ}</td>
+                    <td className="px-4 py-3 text-schrift-leise">
                       {s.typ === 'fahrt' && s.fahrt ? `${s.fahrt.km} km × ${euro(s.fahrt.kmSatz)}${s.fahrt.automatisch ? ' (auto)' : ''}` : (s.kommentar || '–')}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold">{euro(s.betrag)}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${STATUS[s.status]?.farbe || 'bg-slate-100'}`}>{STATUS[s.status]?.label || s.status}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${STATUS[s.status]?.farbe || 'bg-gedeckt-tief'}`}>{STATUS[s.status] ? t(STATUS[s.status].schluessel) : s.status}</span>
                     </td>
                   </tr>
                 ))}
@@ -136,39 +138,39 @@ export default function Berichte({ user }) {
           </div>
         )
       ) : gefiltert.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-400">
-          <Icon name="bericht" className="w-8 h-8 mx-auto mb-2" /> Keine Berichte in dieser Ansicht.
+        <div className={S.KARTE}>
+          <Leer icon="bericht" titel={t('berichte.leerTitel')} text={t('berichte.leerText')} />
         </div>
       ) : (
         <div className="space-y-2.5">
           {gefiltert.map((b) => (
-            <div key={b.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-center gap-3">
-              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${TYP[b.typ]?.farbe || 'bg-slate-100'}`}>
-                {TYP[b.typ]?.label || b.typ}
+            <div key={b.id} className="bg-karte rounded-karte border border-rahmen shadow-karte p-4 flex flex-wrap items-center gap-3">
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${TYP[b.typ]?.farbe || 'bg-gedeckt-tief'}`}>
+                {TYP[b.typ] ? t(TYP[b.typ].schluessel) : b.typ}
               </span>
               <button
                 onClick={() => navigate(`/projekte/${b.projektId}`)}
                 className="flex-1 min-w-[200px] text-left"
               >
-                <p className="font-semibold text-slate-900 truncate">{projektVon(b.projektId)?.name || '–'}</p>
-                <p className="text-sm text-slate-500 truncate">
-                  {new Date((b.datum || '') + 'T12:00:00').toLocaleDateString('de-DE')} · {b.mitarbeiterName || '–'}
+                <p className="font-semibold text-schrift-stark truncate">{projektVon(b.projektId)?.name || '–'}</p>
+                <p className="text-sm text-schrift-leise truncate">
+                  {b.datum ? datumLok(b.datum, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '–'} · {b.mitarbeiterName || '–'}
                   {b.beschreibung ? ` · ${b.beschreibung}` : ''}
                 </p>
               </button>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${STATUS[b.status]?.farbe || 'bg-slate-100'}`}>
-                {STATUS[b.status]?.label || b.status}
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${STATUS[b.status]?.farbe || 'bg-gedeckt-tief'}`}>
+                {STATUS[b.status] ? t(STATUS[b.status].schluessel) : b.status}
               </span>
               <div className="flex gap-1.5">
                 {b.status === 'eingereicht' && (
-                  <button onClick={() => freigeben(b)} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700">Freigeben</button>
+                  <button onClick={() => freigeben(b)} className="px-3 py-1.5 rounded-feld bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700">{t('berichte.freigeben')}</button>
                 )}
                 {['entwurf', 'eingereicht'].includes(b.status) ? (
-                  <button onClick={() => setBearbeite(b)} className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium hover:bg-slate-200">Bearbeiten</button>
+                  <button onClick={() => setBearbeite(b)} className="px-3 py-1.5 rounded-feld bg-gedeckt-tief text-schrift text-xs font-medium hover:bg-gedeckt-tief">{t('allg.bearbeiten')}</button>
                 ) : (
-                  <button onClick={() => setBearbeite(b)} className="px-3 py-1.5 rounded-lg bg-slate-50 text-slate-400 text-xs font-medium" title="Freigegeben – nur Ansicht (Beweissicherung)">Ansehen</button>
+                  <button onClick={() => setBearbeite(b)} className="px-3 py-1.5 rounded-feld bg-gedeckt text-schrift-zart text-xs font-medium" title={t('berichte.nurAnsicht')}>{t('allg.ansehen')}</button>
                 )}
-                <button onClick={() => drucken(b)} className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium hover:bg-slate-200 flex items-center gap-1">
+                <button onClick={() => drucken(b)} className="px-3 py-1.5 rounded-feld bg-gedeckt-tief text-schrift text-xs font-medium hover:bg-gedeckt-tief flex items-center gap-1">
                   <Icon name="doc" className="w-3.5 h-3.5" /> PDF
                 </button>
               </div>

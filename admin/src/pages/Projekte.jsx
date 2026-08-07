@@ -3,10 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCollection, withStore } from '../hooks.js'
 import { Icon } from '@shared/ui.jsx'
 import Modal from '../components/Modal.jsx'
+import * as S from '../stil.js'
+import { Seitenkopf, Leer, ChipReihe, Segment, Meldung } from '../components/Seite.jsx'
 import { FarbPalette } from '../components/NeuerTermin.jsx'
 import { FeldLabel } from '../components/InfoHinweis.jsx'
 import { HINWEIS } from '../hinweise.js'
 import { euro } from '@shared/format.js'
+import { useLang, t, datumLok } from '@shared/i18n.js'
 import { TEAM_FARBEN } from '@shared/teams.js'
 import { PROJEKT_STATUS, istOffen, normalisiereStatus, statusInfo, istUeberfaellig } from '@shared/projektstatus.js'
 
@@ -14,26 +17,19 @@ const FARBE_OFFEN = '#8b1a1a'
 const FARBE_UEBERFAELLIG = '#dc2626'
 
 const SPALTEN = [
-  { key: 'nummer', label: 'Nummer' },
-  { key: 'name', label: 'Projektname' },
-  { key: 'kunde', label: 'Kunde' },
-  { key: 'anschrift', label: 'Anschrift' },
-  { key: 'gewerk', label: 'Gewerk' },
-  { key: 'status', label: 'Status' },
-  { key: 'zeitraum', label: 'Zeitraum' },
-  { key: 'volumen', label: 'Volumen' },
-  { key: 'aktion', label: '', ohneFilter: true },
+  { key: 'nummer', schluessel: 'projekt.nummer' },
+  { key: 'name', schluessel: 'projekt.name' },
+  { key: 'kunde', schluessel: 'projekt.kunde' },
+  { key: 'anschrift', schluessel: 'allg.anschrift' },
+  { key: 'gewerk', schluessel: 'projekt.gewerk' },
+  { key: 'status', schluessel: 'allg.status' },
+  { key: 'zeitraum', schluessel: 'projekt.zeitraum' },
+  { key: 'volumen', schluessel: 'projekt.volumenKurz' },
+  { key: 'aktion', schluessel: '', ohneFilter: true },
 ]
 
 // Anhänge eines Projekts – werden beim Löschen mit entfernt (sonst Datenleichen)
-const ANHAENGE = [
-  ['lvpositionen', 'LV-Positionen'],
-  ['berichte', 'Berichte'],
-  ['photos', 'Fotos'],
-  ['appointments', 'Termine'],
-  ['spesen', 'Spesen'],
-  ['rechnungen', 'Rechnungen'],
-]
+const ANHAENGE = ['lvpositionen', 'berichte', 'photos', 'appointments', 'spesen', 'rechnungen', 'leistungen', 'raeume', 'raumsoll']
 
 function fmtDatum(iso) {
   if (!iso) return '–'
@@ -62,6 +58,8 @@ function naechsteNummer(projekte) {
 }
 
 export default function Projekte() {
+  // Sprache als Abhaengigkeit: sonst behalten die useMemo-Labels die alte Sprache
+  const lang = useLang()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const projekte = useCollection('projekte')
@@ -78,12 +76,12 @@ export default function Projekte() {
   const chips = useMemo(() => {
     const zaehl = (fn) => projekte.filter(fn).length
     return [
-      { id: 'laufend', label: 'Alle laufenden', farbe: FARBE_OFFEN, anzahl: zaehl((p) => istOffen(p.status)) },
-      { id: 'ueberfaellig', label: 'Überfällig', farbe: FARBE_UEBERFAELLIG, anzahl: zaehl((p) => istUeberfaellig(p, heute)) },
-      ...PROJEKT_STATUS.map((s) => ({ id: s.id, label: s.label, farbe: s.farbe, anzahl: zaehl((p) => normalisiereStatus(p.status) === s.id) })),
-      { id: 'alle', label: 'Alle', farbe: '#334155', anzahl: projekte.length },
+      { id: 'laufend', label: t('projekt.alleLaufenden'), icon: 'baustelle', farbe: FARBE_OFFEN, anzahl: zaehl((p) => istOffen(p.status)) },
+      { id: 'ueberfaellig', label: t('projekt.ueberfaellig'), icon: 'alert', farbe: FARBE_UEBERFAELLIG, anzahl: zaehl((p) => istUeberfaellig(p, heute)) },
+      ...PROJEKT_STATUS.map((s) => ({ id: s.id, label: t(`projektstatus.${s.id}`), icon: s.icon, farbe: s.farbe, anzahl: zaehl((p) => normalisiereStatus(p.status) === s.id) })),
+      { id: 'alle', label: t('allg.alle'), icon: 'list', farbe: '#334155', anzahl: projekte.length },
     ]
-  }, [projekte, heute])
+  }, [projekte, heute, lang])
 
   // Zeilen mit Filter-Texten je Spalte
   const zeilen = useMemo(() => {
@@ -101,7 +99,7 @@ export default function Projekte() {
         kunde: kundenName(kunde),
         anschrift: `${p.anschrift?.strasse || ''} ${p.anschrift?.plzOrt || ''}`.trim(),
         gewerk: p.gewerk || '',
-        status: statusInfo(p.status).label,
+        status: t(`projektstatus.${statusInfo(p.status).id}`),
         zeitraum: `${fmtDatum(p.startDatum)} – ${fmtDatum(p.endeDatum)}`,
         volumen: p.projektvolumen ? euro(p.projektvolumen) : '',
       }
@@ -116,7 +114,7 @@ export default function Projekte() {
         })
       )
       .sort((a, b) => (b.texte.nummer || '').localeCompare(a.texte.nummer || ''))
-  }, [projekte, kunden, aktiv, heute, filter])
+  }, [projekte, kunden, aktiv, heute, filter, lang])
 
   function chipWaehlen(id) {
     if (id === 'laufend') setSearchParams({})
@@ -129,119 +127,91 @@ export default function Projekte() {
   }
 
   return (
-    <div className="p-4 lg:p-6">
-      {/* Kopf */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="mr-auto">
-          <h1 className="text-xl font-bold text-slate-900">Projekte</h1>
-          <p className="text-sm text-slate-500">Verwaltung der Baustellen</p>
-        </div>
-        <button
-          onClick={() => setNeuOffen(true)}
-          className="inline-flex items-center gap-1.5 bg-praxis-600 hover:bg-praxis-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
-        >
-          <Icon name="plus" className="w-4 h-4" /> Neues Projekt
+    <div className={S.SEITE}>
+      <Seitenkopf icon="folder" titel={t('projekt.titel')} sub={t('projekt.sub')}>
+        <button onClick={() => setNeuOffen(true)} className={S.BTN_PRIMAER}>
+          <Icon name="plus" groesse="s" /> {t('projekt.neu')}
         </button>
-      </div>
+      </Seitenkopf>
 
-      {/* Status-Pipeline */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-        {chips.map((c) => {
-          const istAktiv = aktiv === c.id
-          return (
-            <button
-              key={c.id}
-              onClick={() => chipWaehlen(c.id)}
-              className={`shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3.5 py-2 border transition ${
-                istAktiv ? 'text-white border-transparent' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
-              }`}
-              style={istAktiv ? { backgroundColor: c.farbe } : undefined}
-            >
-              {c.label}
-              <span
-                className={`text-[10px] font-bold rounded-full px-1.5 py-0.5 ${istAktiv ? 'bg-white/25' : 'bg-slate-100 text-slate-500'}`}
-              >
-                {c.anzahl}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+      <ChipReihe chips={chips} aktiv={aktiv} onWahl={chipWaehlen} />
 
       {/* Tabelle */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+      <div className={`${S.TAB_HUELLE} ${S.TAB_SCROLL}`}>
         <table className="w-full text-sm min-w-[900px]">
           <thead>
-            <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+            <tr className="text-left text-xs text-schrift-leise border-b border-rahmen">
               {SPALTEN.map((sp) => (
-                <th key={sp.key} className="px-4 py-3 font-semibold whitespace-nowrap">{sp.label}</th>
+                <th key={sp.key} className={S.TH}>{sp.schluessel ? t(sp.schluessel) : ''}</th>
               ))}
             </tr>
-            <tr className="border-b border-slate-100 bg-slate-50/60">
+            <tr className="border-b border-rahmen bg-gedeckt/60">
               {SPALTEN.map((sp) => (
-                <th key={sp.key} className="px-2 py-1.5">
+                <th key={sp.key} className={S.TH_FILTER}>
                   {!sp.ohneFilter && (
                     <input
                       value={filter[sp.key] || ''}
                       onChange={(e) => setFilter({ ...filter, [sp.key]: e.target.value })}
-                      placeholder="Filtern …"
-                      className="w-full min-w-20 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-normal focus:outline-none focus:ring-2 focus:ring-praxis-500"
+                      placeholder={t('allg.filtern')}
+                      className={S.FELD_S}
                     />
                   )}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="divide-y divide-rahmen">
             {zeilen.map(({ projekt: p, texte }) => {
               const st = statusInfo(p.status)
               return (
                 <tr
                   key={p.id}
                   onClick={() => navigate('/projekte/' + p.id)}
-                  className="cursor-pointer hover:bg-praxis-50/60 transition"
+                  className={S.TR}
                 >
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{texte.nummer || '–'}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-900">
+                  <td className="px-4 py-3.5 font-mono text-xs text-schrift-leise whitespace-nowrap align-middle">{texte.nummer || '–'}</td>
+                  <td className={S.TD_STARK}>
                     <span className="inline-flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.farbe || FARBE_OFFEN }} />
+                      <Icon name="baustelle" groesse="s" className="w-4 h-4 text-schrift-zart shrink-0" />
                       {texte.name}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{texte.kunde}</td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">
-                    {p.anschrift?.strasse || '–'}
-                    {p.anschrift?.plzOrt && <span className="block text-slate-400">{p.anschrift.plzOrt}</span>}
+                  <td className={S.TD}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Icon name="firma" groesse="xs" className="w-3.5 h-3.5 text-schrift-zart shrink-0" />
+                      {texte.kunde}
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{texte.gewerk || '–'}</td>
+                  <td className={S.TD_LEISE}>
+                    {p.anschrift?.strasse || '–'}
+                    {p.anschrift?.plzOrt && <span className="block text-schrift-zart">{p.anschrift.plzOrt}</span>}
+                  </td>
+                  <td className={`${S.TD} whitespace-nowrap`}>{texte.gewerk || '–'}</td>
                   {/* Status direkt hier änderbar (Quick-Select) */}
-                  <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-4 py-3.5 whitespace-nowrap align-middle" onClick={(e) => e.stopPropagation()}>
                     <select
                       value={normalisiereStatus(p.status)}
                       onChange={(e) => statusSetzen(p.id, e.target.value)}
-                      className="text-[11px] font-bold rounded-full pl-2.5 pr-6 py-1.5 border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-praxis-500 appearance-none"
+                      className="text-[12px] font-bold rounded-full pl-2.5 pr-7 py-1.5 border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-praxis-500 select-pfeil"
                       style={{ backgroundColor: st.farbe + '1f', color: st.farbe }}
-                      title="Status ändern"
+                      title={t('projekt.statusAendern')}
                     >
                       {PROJEKT_STATUS.map((s) => (
-                        <option key={s.id} value={s.id} style={{ color: '#0f172a', backgroundColor: '#fff' }}>{s.label}</option>
+                        <option key={s.id} value={s.id} style={{ color: '#0f172a', backgroundColor: '#fff' }}>{t(`projektstatus.${s.id}`)}</option>
                       ))}
                     </select>
                     {istUeberfaellig(p, heute) && (
-                      <span className="ml-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-red-600">
+                      <span className="ml-1.5 inline-flex items-center gap-1 text-[12px] font-bold text-red-600">
                         <Icon name="alert" className="w-3.5 h-3.5" /> überfällig
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{texte.zeitraum}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap text-right">{texte.volumen || '–'}</td>
-                  <td className="px-2 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => setLoeschen(p)}
-                      title="Projekt löschen"
-                      className="p-1.5 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50"
-                    >
-                      <Icon name="x" className="w-4 h-4" />
+                  <td className={`${S.TD_LEISE} whitespace-nowrap`}>{texte.zeitraum}</td>
+                  <td className={S.TD_ZAHL}>{texte.volumen || '–'}</td>
+                  <td className={S.TD_ICON} onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => setLoeschen(p)} title={t('projekt.loeschen')} className={S.BTN_ICON_GEFAHR}>
+                      <Icon name="muell" groesse="s" />
                     </button>
                   </td>
                 </tr>
@@ -249,8 +219,8 @@ export default function Projekte() {
             })}
             {zeilen.length === 0 && (
               <tr>
-                <td colSpan={SPALTEN.length} className="px-4 py-12 text-center text-sm text-slate-400">
-                  Keine Projekte gefunden. Filter anpassen oder ein neues Projekt anlegen.
+                <td colSpan={SPALTEN.length}>
+                  <Leer icon="folder" titel={t('projekt.keineGefunden')} text={t('projekt.keineGefundenText')} />
                 </td>
               </tr>
             )}
@@ -279,14 +249,20 @@ function ProjektLoeschen({ projekt, onClose }) {
   const [fehler, setFehler] = useState('')
   const [anhaenge, setAnhaenge] = useState(null)
 
-  // Betroffene Daten EINMAL zählen (kein Live-Abo nötig)
+  // Betroffene Daten EINMAL zählen (kein Live-Abo nötig).
+  // listWhere statt list: im Firebase-Modus ist das eine echte where-Abfrage,
+  // die nur die Dokumente DIESER Baustelle holt. Mit list() käme unter anderem
+  // die komplette photos-Sammlung über die Leitung – dort steckt jedes Bild als
+  // Base64 im Dokument, also schnell hunderte Megabyte für eine Zählung.
   useEffect(() => {
     let abgebrochen = false
     withStore(async (s) => {
       const gezaehlt = {}
-      for (const [coll] of ANHAENGE) {
-        const alle = await s.list(coll)
-        gezaehlt[coll] = alle.filter((d) => d.projektId === projekt.id).map((d) => d.id)
+      for (const coll of ANHAENGE) {
+        const treffer = s.listWhere
+          ? await s.listWhere(coll, 'projektId', projekt.id)
+          : (await s.list(coll)).filter((d) => d.projektId === projekt.id)
+        gezaehlt[coll] = treffer.map((d) => d.id)
       }
       if (!abgebrochen) setAnhaenge(gezaehlt)
     })
@@ -297,14 +273,14 @@ function ProjektLoeschen({ projekt, onClose }) {
 
   async function ausfuehren() {
     if (bestaetigung.trim().toUpperCase() !== 'LÖSCHEN') {
-      setFehler('Bitte zur Bestätigung LÖSCHEN eintippen.')
+      setFehler(t('projekt.loeschBestaetige'))
       return
     }
     setLaeuft(true)
     setFehler('')
     try {
       await withStore(async (s) => {
-        for (const [coll] of ANHAENGE) {
+        for (const coll of ANHAENGE) {
           const ids = anhaenge?.[coll] || []
           if (!ids.length) continue
           if (s.removeMany) await s.removeMany(coll, ids)
@@ -320,54 +296,53 @@ function ProjektLoeschen({ projekt, onClose }) {
   }
 
   return (
-    <Modal titel="Projekt löschen" onClose={onClose} breite="max-w-lg">
+    <Modal titel={t('projekt.loeschTitel')} icon="muell" onClose={onClose} breite="max-w-lg">
       <div className="space-y-4">
-        <p className="text-sm text-slate-700">
-          Soll die Baustelle <strong>{projekt.nummer} · {projekt.name}</strong> wirklich gelöscht werden?
-          Das lässt sich <strong>nicht rückgängig</strong> machen.
+        <p className="text-sm text-schrift">
+          {t('projekt.loeschFrage', { name: `${projekt.nummer} · ${projekt.name}` })}
         </p>
 
         {anhaenge === null ? (
-          <p className="text-sm text-slate-400">Betroffene Daten werden geprüft …</p>
+          <p className="text-sm text-schrift-zart">{t('projekt.loeschPruefe')}</p>
         ) : gesamt === 0 ? (
-          <p className="text-sm text-slate-500 bg-slate-50 rounded-xl px-4 py-3">
-            An diesem Projekt hängen keine weiteren Daten.
+          <p className="text-sm text-schrift-leise bg-gedeckt rounded-feld px-4 py-3">
+            {t('projekt.loeschNichts')}
           </p>
         ) : (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-feld px-4 py-3">
             <p className="text-sm font-semibold text-amber-800 mb-1.5">
-              Mitgelöscht werden {gesamt} zugehörige Datensätze:
+              {t('projekt.loeschMit', { n: gesamt })}
             </p>
             <ul className="text-sm text-amber-700 space-y-0.5">
-              {ANHAENGE.filter(([coll]) => (anhaenge[coll] || []).length > 0).map(([coll, label]) => (
-                <li key={coll}>• {anhaenge[coll].length} × {label}</li>
+              {ANHAENGE.filter((coll) => (anhaenge[coll] || []).length > 0).map((coll) => (
+                <li key={coll}>• {anhaenge[coll].length} × {t(`anhang.${coll}`)}</li>
               ))}
             </ul>
           </div>
         )}
 
         <label className="block">
-          <span className="text-sm font-medium text-slate-700">Zur Bestätigung „LÖSCHEN“ eintippen</span>
+          <span className="text-sm font-medium text-schrift">{t('projekt.loeschTippen')}</span>
           <input
             value={bestaetigung}
             onChange={(e) => setBestaetigung(e.target.value)}
             placeholder="LÖSCHEN"
-            className="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+            className="mt-1.5 w-full rounded-feld border border-rahmen px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
           />
         </label>
 
-        {fehler && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{fehler}</p>}
+        {fehler && <p className="text-sm text-red-600 bg-red-50 rounded-feld px-4 py-3">{fehler}</p>}
 
         <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 bg-white border border-slate-200 text-slate-600 font-semibold py-3 rounded-xl">
-            Abbrechen
+          <button onClick={onClose} className="flex-1 bg-karte border border-rahmen text-schrift font-semibold py-3 rounded-feld">
+            {t('allg.abbrechen')}
           </button>
           <button
             onClick={ausfuehren}
             disabled={laeuft || anhaenge === null}
-            className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl"
+            className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3 rounded-feld"
           >
-            {laeuft ? 'Wird gelöscht …' : 'Endgültig löschen'}
+            {laeuft ? t('projekt.loeschLaeuft') : t('projekt.loeschEndgueltig')}
           </button>
         </div>
       </div>
@@ -384,11 +359,18 @@ function NeuesProjekt({ projekte, kunden, onClose, onAngelegt }) {
   const [fehler, setFehler] = useState('')
 
   const setze = (key) => (e) => setForm({ ...form, [key]: e.target.value })
-  const feldKlasse = 'mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500'
+  const feldKlasse = 'mt-1.5 w-full rounded-feld border border-rahmen px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500'
 
   async function speichern(e) {
     e.preventDefault()
-    if (!form.name.trim() || !form.kundeId) return setFehler('Name und Kunde sind Pflicht.')
+    if (!form.name.trim() || !form.kundeId) return setFehler(t('projekt.pflichtFehlt'))
+    const nummer = form.nummer.trim()
+    if (nummer && projekte.some((p) => (p.nummer || '').trim() === nummer)) {
+      return setFehler(t('projekt.nummerDoppelt', { nummer }))
+    }
+    if (form.startDatum && form.endeDatum && form.endeDatum < form.startDatum) {
+      return setFehler(t('projekt.endeVorStart'))
+    }
     const id = await withStore((s) =>
       s.add('projekte', {
         nummer: form.nummer.trim(),
@@ -410,17 +392,17 @@ function NeuesProjekt({ projekte, kunden, onClose, onAngelegt }) {
   }
 
   return (
-    <Modal titel="Neues Projekt" onClose={onClose} breite="max-w-xl">
+    <Modal titel={t('projekt.neu')} icon="folder" onClose={onClose} breite="max-w-xl">
       <form onSubmit={speichern} className="space-y-3.5">
         <label className="block">
-          <span className="text-sm font-medium text-slate-700">Projektname *</span>
-          <input value={form.name} onChange={setze('name')} className={feldKlasse} placeholder="z. B. EFH Huber – Innenanstrich EG" />
+          <span className="text-sm font-medium text-schrift">{t('projekt.namePflicht')}</span>
+          <input value={form.name} onChange={setze('name')} className={feldKlasse} placeholder={t('projekt.namePlatzhalter')} />
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Kunde *</span>
+            <span className="text-sm font-medium text-schrift">{t('projekt.kundePflicht')}</span>
             <select value={form.kundeId} onChange={setze('kundeId')} className={feldKlasse}>
-              <option value="">– Kunde wählen –</option>
+              <option value="">{t('projekt.kundeWaehlen')}</option>
               {[...kunden]
                 .sort((a, b) => kundenName(a).localeCompare(kundenName(b)))
                 .map((k) => (
@@ -429,52 +411,52 @@ function NeuesProjekt({ projekte, kunden, onClose, onAngelegt }) {
             </select>
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700"><FeldLabel info={HINWEIS.projektNummer}>Nummer</FeldLabel></span>
+            <span className="text-sm font-medium text-schrift"><FeldLabel info={HINWEIS.projektNummer}>{t('projekt.nummer')}</FeldLabel></span>
             <input value={form.nummer} onChange={setze('nummer')} className={feldKlasse} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Straße</span>
+            <span className="text-sm font-medium text-schrift">{t('projekt.strasse')}</span>
             <input value={form.strasse} onChange={setze('strasse')} className={feldKlasse} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">PLZ / Ort</span>
+            <span className="text-sm font-medium text-schrift">{t('projekt.plzOrt')}</span>
             <input value={form.plzOrt} onChange={setze('plzOrt')} className={feldKlasse} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700"><FeldLabel info={HINWEIS.projektGewerk}>Gewerk</FeldLabel></span>
+            <span className="text-sm font-medium text-schrift"><FeldLabel info={HINWEIS.projektGewerk}>{t('projekt.gewerk')}</FeldLabel></span>
             <input value={form.gewerk} onChange={setze('gewerk')} className={feldKlasse} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Status</span>
+            <span className="text-sm font-medium text-schrift">{t('allg.status')}</span>
             <select value={form.status} onChange={setze('status')} className={feldKlasse}>
               {PROJEKT_STATUS.map((s) => (
-                <option key={s.id} value={s.id}>{s.label}</option>
+                <option key={s.id} value={s.id}>{t(`projektstatus.${s.id}`)}</option>
               ))}
             </select>
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Start-Datum</span>
+            <span className="text-sm font-medium text-schrift">{t('projekt.start')}</span>
             <input type="date" value={form.startDatum} onChange={setze('startDatum')} className={feldKlasse} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700"><FeldLabel info={HINWEIS.projektEnde}>Ende-Datum</FeldLabel></span>
-            <input type="date" value={form.endeDatum} onChange={setze('endeDatum')} className={feldKlasse} />
+            <span className="text-sm font-medium text-schrift"><FeldLabel info={HINWEIS.projektEnde}>{t('projekt.ende')}</FeldLabel></span>
+            <input type="date" min={form.startDatum || undefined} value={form.endeDatum} onChange={setze('endeDatum')} className={feldKlasse} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700"><FeldLabel info={HINWEIS.projektVolumen}>Projektvolumen (€, netto)</FeldLabel></span>
+            <span className="text-sm font-medium text-schrift"><FeldLabel info={HINWEIS.projektVolumen}>{t('projekt.volumen')}</FeldLabel></span>
             <input type="number" min="0" step="0.01" value={form.projektvolumen} onChange={setze('projektvolumen')} className={feldKlasse} />
           </label>
         </div>
         <div>
-          <span className="text-sm font-medium text-slate-700">Farbe (Markierung in Listen und Kalender)</span>
+          <span className="text-sm font-medium text-schrift">{t('projekt.farbe')}</span>
           <FarbPalette wert={form.farbe} onWert={(wert) => setForm({ ...form, farbe: wert })} />
         </div>
         <label className="block">
-          <span className="text-sm font-medium text-slate-700">Beschreibung</span>
+          <span className="text-sm font-medium text-schrift">{t('allg.beschreibung')}</span>
           <textarea value={form.beschreibung} onChange={setze('beschreibung')} rows={3} className={feldKlasse} />
         </label>
-        {fehler && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{fehler}</p>}
-        <button type="submit" className="w-full bg-praxis-600 hover:bg-praxis-700 text-white font-bold py-3.5 rounded-xl">
+        {fehler && <p className="text-sm text-red-600 bg-red-50 rounded-feld px-4 py-3">{fehler}</p>}
+        <button type="submit" className="w-full bg-praxis-600 hover:bg-praxis-700 text-white font-bold py-3.5 rounded-feld">
           Projekt anlegen
         </button>
       </form>

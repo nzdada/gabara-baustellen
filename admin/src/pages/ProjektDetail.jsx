@@ -4,40 +4,49 @@ import { useCollection, useEinstellungen, useWhere, withStore } from '../hooks.j
 import { Icon } from '@shared/ui.jsx'
 import { euro } from '@shared/format.js'
 import { PROJEKT_STATUS, statusInfo } from '@shared/projektstatus.js'
+import { useLang, t, datumLok } from '@shared/i18n.js'
 import LvEditor from '../components/LvEditor.jsx'
+import RaumPlaner from '../components/RaumPlaner.jsx'
+import Raum3D from '../components/Raum3D.jsx'
+import RaumVerteilung from '../components/RaumVerteilung.jsx'
 import LvImport from '../components/LvImport.jsx'
 import RechnungWizard from '../components/RechnungWizard.jsx'
 import BerichtForm from '../components/BerichtForm.jsx'
 import Modal from '../components/Modal.jsx'
-import { druckeRegiebericht, druckeAbnahme } from '../drucken.js'
+import * as S from '../stil.js'
+import { Seitenkopf, Leer, ChipReihe, Segment, Meldung } from '../components/Seite.jsx'
+import { druckeRegiebericht, druckeAbnahme, druckeAbschluss } from '../drucken.js'
 
 // Projekt-Detailseite (#/projekte/:id): Dreispalter im HERO-Stil –
 // links Bereichs-Navigation, Mitte Inhalt, rechts Projektdaten-Panel.
 
 const BERICHT_STATUS = {
-  entwurf: { label: 'Entwurf', klasse: 'bg-slate-100 text-slate-500' },
-  eingereicht: { label: 'Eingereicht', klasse: 'bg-sky-100 text-sky-700' },
-  freigegeben: { label: 'Freigegeben', klasse: 'bg-emerald-100 text-emerald-700' },
-  abgerechnet: { label: 'Abgerechnet', klasse: 'bg-slate-200 text-slate-600' },
+  entwurf: { schluessel: 'status.entwurf', klasse: 'bg-gedeckt-tief text-schrift-leise' },
+  eingereicht: { schluessel: 'status.eingereicht', klasse: 'bg-sky-100 text-sky-700' },
+  freigegeben: { schluessel: 'status.freigegeben', klasse: 'bg-emerald-100 text-emerald-700' },
+  abgerechnet: { schluessel: 'status.abgerechnet', klasse: 'bg-gedeckt-tief text-schrift' },
 }
 
-const TYP_LABEL = { regie: 'Regiebericht', reklamation: 'Reklamation', abnahme: 'Abnahme' }
+const TYP_SCHLUESSEL = { regie: 'bericht.regie', reklamation: 'bericht.reklamation', abnahme: 'bericht.abnahme' }
+const typText = (typ) => (TYP_SCHLUESSEL[typ] ? t(TYP_SCHLUESSEL[typ]) : t('bericht.bericht'))
 
-const KATEGORIE_LABEL = {
-  umsetzung: 'Umsetzung',
-  fertigstellung: 'Fertigstellung',
-  reklamation: 'Reklamation',
-  krank: 'Krank',
-  privat: 'Privat',
+const KATEGORIE_SCHLUESSEL = {
+  umsetzung: 'kat.umsetzung',
+  fertigstellung: 'kat.fertigstellung',
+  reklamation: 'kat.reklamationKurz',
+  krank: 'kat.krankKurz',
+  privat: 'kat.privatKurz',
 }
+const katText = (k) => (KATEGORIE_SCHLUESSEL[k] ? t(KATEGORIE_SCHLUESSEL[k]) : k || '–')
 
-const SPESEN_TYP = { hotel: 'Hotel', fahrt: 'Fahrt', sonstig: 'Sonstig' }
+const SPESEN_TYP = { hotel: 'spesen.hotel', fahrt: 'spesen.fahrt', sonstig: 'spesen.sonstig' }
+const spesenText = (typ) => (SPESEN_TYP[typ] ? t(SPESEN_TYP[typ]) : typ)
 
 const PHASE_BADGE = {
-  vorher: 'bg-slate-700 text-white',
+  vorher: 'bg-schrift text-white',
   nachher: 'bg-emerald-600 text-white',
   beleg: 'bg-amber-500 text-white',
-  sonstig: 'bg-slate-400 text-white',
+  sonstig: 'bg-schrift-zart text-white',
 }
 
 function datumDe(iso) {
@@ -45,8 +54,14 @@ function datumDe(iso) {
 }
 
 function StatusBadge({ status }) {
-  const s = BERICHT_STATUS[status] || { label: status || '–', klasse: 'bg-slate-100 text-slate-500' }
-  return <span className={`text-[10px] font-bold rounded-full px-2.5 py-1 whitespace-nowrap ${s.klasse}`}>{s.label}</span>
+  useLang()
+  // Die Tabelle oben liefert 'schluessel' (i18n-Schluessel), NICHT 'label'.
+  // Vorher stand hier s.label -> undefined -> der Chip war fuer JEDEN bekannten
+  // Status leer; nur der unbekannte Fall zeigte etwas an.
+  const s = BERICHT_STATUS[status]
+  const text = s ? t(s.schluessel) : (status || '–')
+  const klasse = s?.klasse || 'bg-gedeckt-tief text-schrift-leise'
+  return <span className={`text-[11px] font-bold rounded-full px-2.5 py-1 whitespace-nowrap ${klasse}`}>{text}</span>
 }
 
 // Debounce-Eingabefeld (SummaryEditor-Muster): lokaler Draft + 600 ms + Blur-Flush
@@ -78,7 +93,7 @@ function FeldInput({ wert, onWert, typ = 'text', className = '', platzhalter = '
       onChange={(e) => aendern(e.target.value)}
       onFocus={() => { fokus.current = true }}
       onBlur={(e) => { fokus.current = false; clearTimeout(timer.current); speichern(e.target.value) }}
-      className={`w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500 ${className}`}
+      className={`w-full rounded-feld border border-rahmen px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500 ${className}`}
     />
   )
 }
@@ -107,7 +122,7 @@ function FeldTextarea({ wert, onWert, rows = 4, platzhalter = '' }) {
       onChange={(e) => aendern(e.target.value)}
       onFocus={() => { fokus.current = true }}
       onBlur={(e) => { fokus.current = false; clearTimeout(timer.current); onWert(e.target.value) }}
-      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-praxis-500"
+      className="w-full rounded-feld border border-rahmen px-4 py-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-praxis-500"
     />
   )
 }
@@ -116,6 +131,7 @@ function FeldTextarea({ wert, onWert, rows = 4, platzhalter = '' }) {
 // (Fehlte früher: Klick auf eine Berichtskarte warf „user is not defined" und
 //  riss die ganze Seite ab.)
 export default function ProjektDetail({ user }) {
+  const lang = useLang()
   const { id } = useParams()
   const [suchParams, setSuchParams] = useSearchParams()
   const projekte = useCollection('projekte')
@@ -124,6 +140,7 @@ export default function ProjektDetail({ user }) {
   const einst = useEinstellungen()
   const lv = useWhere('lvpositionen', 'projektId', id)
   const fotos = useWhere('photos', 'projektId', id)
+  const raeume = useWhere('raeume', 'projektId', id)
   const berichte = useWhere('berichte', 'projektId', id)
   const termine = useWhere('appointments', 'projektId', id)
   const spesen = useWhere('spesen', 'projektId', id)
@@ -136,6 +153,7 @@ export default function ProjektDetail({ user }) {
   const bereich = suchParams.get('bereich') || 'uebersicht'
   const setBereich = (b) => setSuchParams(b === 'uebersicht' ? {} : { bereich: b }, { replace: true })
   const [zeigeImport, setZeigeImport] = useState(false)
+  const [raumSicht, setRaumSicht] = useState('2d')
   const [zeigeRechnungWizard, setZeigeRechnungWizard] = useState(false)
   const [vollbildFoto, setVollbildFoto] = useState(null)
   const [berichtId, setBerichtId] = useState(null)
@@ -173,28 +191,29 @@ export default function ProjektDetail({ user }) {
   }
 
   const BEREICHE = [
-    { id: 'uebersicht', label: 'Übersicht', icon: 'home' },
-    { id: 'lv', label: 'Leistungsverzeichnis', icon: 'list', zahl: anzahl.lv },
-    { id: 'bilder', label: 'Bilder', icon: 'foto', zahl: anzahl.bilder },
-    { id: 'regie', label: 'Regieberichte', icon: 'bericht', zahl: anzahl.regie },
-    { id: 'reklamation', label: 'Reklamationen', icon: 'alert', zahl: anzahl.reklamation },
-    { id: 'abnahme', label: 'Abnahmen', icon: 'check', zahl: anzahl.abnahme },
-    { id: 'rechnungen', label: 'Rechnungen', icon: 'euro', zahl: anzahl.rechnungen },
-    { id: 'termine', label: 'Termine', icon: 'calendar', zahl: anzahl.termine },
-    { id: 'spesen', label: 'Spesen', icon: 'truck', zahl: anzahl.spesen },
+    { id: 'uebersicht', label: t('pd.uebersicht'), icon: 'home' },
+    { id: 'lv', label: t('pd.lv'), icon: 'lv', zahl: anzahl.lv },
+    { id: 'raeume', label: t('pd.raeume'), icon: 'raum', zahl: raeume.filter((r) => r.aktiv !== false).length },
+    { id: 'bilder', label: t('pd.bilder'), icon: 'foto', zahl: anzahl.bilder },
+    { id: 'regie', label: t('pd.regieberichte'), icon: 'regie', zahl: anzahl.regie },
+    { id: 'reklamation', label: t('pd.reklamationen'), icon: 'reklamation', zahl: anzahl.reklamation },
+    { id: 'abnahme', label: t('pd.abnahmen'), icon: 'abnahme', zahl: anzahl.abnahme },
+    { id: 'rechnungen', label: t('pd.rechnungen'), icon: 'rechnung', zahl: anzahl.rechnungen },
+    { id: 'termine', label: t('termine.titel'), icon: 'calendar', zahl: anzahl.termine },
+    { id: 'spesen', label: t('monteur.spesen'), icon: 'spesen', zahl: anzahl.spesen },
   ]
 
   // Logbuch: Termine + eingereichte/freigegebene Berichte gemischt, neueste oben
   const logbuch = useMemo(() => {
     const eintraege = []
-    for (const t of termine) {
+    for (const termin of termine) {
       eintraege.push({
-        id: `t-${t.id}`,
-        datum: t.datum,
-        zeit: t.start || '',
+        id: `t-${termin.id}`,
+        datum: termin.datum,
+        zeit: termin.start || '',
         icon: 'calendar',
-        titel: t.titel || t.behandlung || 'Termin',
-        sub: `Termin · ${KATEGORIE_LABEL[t.kategorie] || t.kategorie || '–'}${t.erledigt ? ' · erledigt' : ''}`,
+        titel: termin.titel || termin.behandlung || t('termine.neu'),
+        sub: `${t('termine.neu')} · ${katText(termin.kategorie)}${termin.erledigt ? ` · ${t('monteur.erledigt')}` : ''}`,
       })
     }
     for (const b of berichte) {
@@ -204,12 +223,12 @@ export default function ProjektDetail({ user }) {
         datum: b.datum,
         zeit: '',
         icon: b.typ === 'reklamation' ? 'alert' : 'bericht',
-        titel: `${TYP_LABEL[b.typ] || 'Bericht'} – ${b.mitarbeiterName || '–'}`,
-        sub: `${(BERICHT_STATUS[b.status] || {}).label || b.status}${b.beschreibung ? ` · ${b.beschreibung}` : ''}`,
+        titel: `${typText(b.typ)} – ${b.mitarbeiterName || '–'}`,
+        sub: `${BERICHT_STATUS[b.status] ? t(BERICHT_STATUS[b.status].schluessel) : b.status}${b.beschreibung ? ` · ${b.beschreibung}` : ''}`,
       })
     }
     return eintraege.sort((a, b) => `${b.datum} ${b.zeit}`.localeCompare(`${a.datum} ${a.zeit}`))
-  }, [termine, berichte])
+  }, [termine, berichte, lang])
 
   const gewaehlterBericht = berichte.find((b) => b.id === berichtId)
 
@@ -221,10 +240,10 @@ export default function ProjektDetail({ user }) {
     return (
       <div className="p-6">
         <Link to="/projekte" className="inline-flex items-center gap-1.5 text-sm font-semibold text-praxis-700 hover:underline">
-          <Icon name="arrowLeft" className="w-4 h-4" /> Zurück zu den Projekten
+          <Icon name="arrowLeft" className="w-4 h-4" /> {t('pd.zurueckProjekte')}
         </Link>
-        <div className="mt-4 bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-400 text-sm">
-          {projekte.length === 0 ? 'Projekt wird geladen …' : 'Projekt nicht gefunden.'}
+        <div className="mt-4 bg-karte rounded-karte border border-rahmen p-10 text-center text-schrift-zart text-sm">
+          {t(projekte.length === 0 ? 'pd.projektLaedt' : 'pd.projektFehlt')}
         </div>
       </div>
     )
@@ -233,24 +252,39 @@ export default function ProjektDetail({ user }) {
   const status = statusInfo(projekt.status)
 
   return (
-    <div className="p-4 lg:p-6">
+    <div className={S.SEITE}>
       {/* Kopf */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Link
           to="/projekte"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-praxis-700"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-schrift-leise hover:text-praxis-700"
         >
-          <Icon name="arrowLeft" className="w-4 h-4" /> Projekte
+          <Icon name="arrowLeft" className="w-4 h-4" /> {t('nav.projekte')}
         </Link>
-        <span className="text-slate-300">/</span>
-        <h1 className="text-xl font-bold text-slate-900">{projekt.name}</h1>
-        <span className="text-xs font-mono text-slate-400 bg-white border border-slate-200 rounded-full px-2.5 py-1">{projekt.nummer}</span>
+        <span className="text-schrift-zart">/</span>
+        {/* Der Name war bisher nur beim Anlegen setzbar. Ein Tippfehler in der
+            Baustellenbezeichnung blieb damit fuer immer stehen – und er steht
+            auf jedem Regiebericht, jedem Protokoll und jeder Rechnung.
+            Deshalb hier direkt bearbeitbar, mit derselben verzoegerten
+            Speicherung wie die uebrigen Felder. */}
+        <FeldInput
+          wert={projekt.name}
+          onWert={(v) => { if (String(v).trim()) patchProjekt({ name: String(v).trim() }) }}
+          platzhalter={t('projekt.namePlatzhalter')}
+          className="!text-xl !font-bold !text-schrift-stark !border-transparent hover:!border-rahmen focus:!border-rahmen !bg-transparent !px-2 !w-auto min-w-48"
+        />
+        <FeldInput
+          wert={projekt.nummer}
+          onWert={(v) => patchProjekt({ nummer: String(v).trim() })}
+          platzhalter={t('projekt.nummer')}
+          className="!text-xs !font-mono !text-schrift-zart !bg-karte !rounded-full !px-2.5 !py-1 !w-28"
+        />
         <span
           className="inline-flex items-center gap-1.5 text-xs font-bold rounded-full px-3 py-1.5"
           style={{ backgroundColor: `${status.farbe}1a`, color: status.farbe }}
         >
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: status.farbe }} />
-          {status.label}
+          {t(`projektstatus.${status.id}`)}
         </span>
       </div>
 
@@ -258,7 +292,7 @@ export default function ProjektDetail({ user }) {
       <select
         value={bereich}
         onChange={(e) => setBereich(e.target.value)}
-        className="lg:hidden w-full mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-praxis-500"
+        className="lg:hidden w-full mb-4 rounded-feld border border-rahmen bg-karte px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-praxis-500"
       >
         {BEREICHE.map((b) => (
           <option key={b.id} value={b.id}>
@@ -269,20 +303,18 @@ export default function ProjektDetail({ user }) {
 
       <div className="lg:flex lg:items-start gap-5 space-y-4 lg:space-y-0">
         {/* LINKS: Bereichs-Navigation */}
-        <nav className="hidden lg:block w-56 shrink-0 bg-white rounded-2xl border border-slate-200 p-2">
+        <nav className="hidden lg:block w-56 shrink-0 bg-karte rounded-karte border border-rahmen p-2">
           {BEREICHE.map((b) => (
             <button
               key={b.id}
               onClick={() => setBereich(b.id)}
-              className={`w-full flex items-center gap-2.5 text-left text-sm font-semibold rounded-xl px-3 py-2.5 transition ${
-                bereich === b.id ? 'bg-praxis-600 text-white' : 'text-slate-600 hover:bg-praxis-50/60'
-              }`}
+              className={`w-full ${S.NAV_LINK} ${bereich === b.id ? S.NAV_HELL_AN : S.NAV_HELL_AUS}`}
             >
               <Icon name={b.icon} className="w-4 h-4 shrink-0" />
               <span className="flex-1 truncate">{b.label}</span>
               {b.zahl !== undefined && b.zahl > 0 && (
-                <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
-                  bereich === b.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 ${
+                  bereich === b.id ? 'bg-karte/20 text-white' : 'bg-gedeckt-tief text-schrift-leise'
                 }`}>
                   {b.zahl}
                 </span>
@@ -295,28 +327,28 @@ export default function ProjektDetail({ user }) {
         <div className="flex-1 min-w-0 space-y-4">
           {bereich === 'uebersicht' && (
             <>
-              <div className="bg-white rounded-2xl border border-slate-200 p-5">
-                <h2 className="font-bold text-slate-800 text-sm mb-2">Beschreibung</h2>
+              <div className="bg-karte rounded-karte border border-rahmen p-5">
+                <h2 className="font-bold text-schrift-stark text-sm mb-2">{t('allg.beschreibung')}</h2>
                 <FeldTextarea
                   wert={projekt.beschreibung}
                   onWert={(v) => patchProjekt({ beschreibung: v })}
-                  platzhalter="Projektbeschreibung, Vertragsdetails, Besonderheiten …"
+                  platzhalter={t('pd.beschreibungPlatz')}
                 />
               </div>
-              <div className="bg-white rounded-2xl border border-slate-200 p-5">
-                <h2 className="font-bold text-slate-800 text-sm mb-3">Logbuch</h2>
+              <div className="bg-karte rounded-karte border border-rahmen p-5">
+                <h2 className="font-bold text-schrift-stark text-sm mb-3">{t('pd.logbuch')}</h2>
                 {logbuch.length === 0 ? (
-                  <p className="text-sm text-slate-400">Noch keine Termine oder Berichte.</p>
+                  <p className="text-sm text-schrift-zart">{t('pd.keinLogbuch')}</p>
                 ) : (
                   <div className="space-y-2">
                     {logbuch.map((e) => (
-                      <div key={e.id} className="flex items-start gap-3 border border-slate-100 rounded-xl px-4 py-3">
+                      <div key={e.id} className="flex items-start gap-3 border border-rahmen rounded-feld px-4 py-3">
                         <Icon name={e.icon} className="w-4 h-4 text-praxis-700 mt-0.5 shrink-0" />
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-800">
-                            {datumDe(e.datum)}{e.zeit ? ` · ${e.zeit} Uhr` : ''} — {e.titel}
+                          <p className="text-sm font-semibold text-schrift-stark">
+                            {datumDe(e.datum)}{e.zeit ? ` · ${e.zeit} ${t('allg.uhr')}` : ''} — {e.titel}
                           </p>
-                          <p className="text-xs text-slate-500 truncate">{e.sub}</p>
+                          <p className="text-xs text-schrift-leise truncate">{e.sub}</p>
                         </div>
                       </div>
                     ))}
@@ -329,33 +361,92 @@ export default function ProjektDetail({ user }) {
           {bereich === 'lv' && (
             <>
               <div className="flex items-center justify-between">
-                <h2 className="font-bold text-slate-800">Leistungsverzeichnis</h2>
+                <h2 className="font-bold text-schrift-stark">{t('pd.lv')}</h2>
                 <button
                   onClick={() => setZeigeImport(true)}
                   className="inline-flex items-center gap-1.5 bg-praxis-600 hover:bg-praxis-700 text-white text-sm font-semibold px-4 py-2 rounded-full"
                 >
-                  <Icon name="upload" className="w-4 h-4" /> LV importieren
+                  <Icon name="upload" className="w-4 h-4" /> {t('pd.lvImportieren')}
                 </button>
               </div>
               <LvEditor projektId={id} />
             </>
           )}
 
+          {bereich === 'raeume' && (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="font-bold text-schrift-stark">{t('pd.raeume')}</h2>
+                {/* Zwei Sichten auf dieselben Daten: die Draufsicht zum ANLEGEN,
+                    die Raumansicht zum SEHEN, wie weit es ist. Eine gestrichene
+                    Nordwand ist von oben unsichtbar. */}
+                <div className="flex rounded-feld border border-rahmen overflow-hidden">
+                  {[['2d', t('raum.ansicht2d')], ['3d', t('raum.ansicht3d')], ['mengen', t('pd.verteilung')]].map(([id2, label]) => (
+                    <button
+                      key={id2}
+                      onClick={() => setRaumSicht(id2)}
+                      className={`px-4 min-h-11 text-sm font-semibold ${
+                        raumSicht === id2 ? 'bg-praxis-600 text-white' : 'bg-karte text-schrift'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Aus den abgehakten Taetigkeiten ein Dokument machen. Erst wenn
+                  alles erledigt ist, ist es die Fertigstellungsanzeige nach
+                  Paragraf 12 Abs. 1 VOB/B - sonst ein Zwischenstand, und genau
+                  das steht dann auch drauf. */}
+              {raeume.some((r) => r.aktiv !== false) && (
+                <button
+                  onClick={() => druckeAbschluss({
+                    projekt, kunde, raeume, positionen: lv, berichte, einst,
+                    fertigAm: projekt?.fertigAm || '',
+                  })}
+                  className="inline-flex items-center gap-2 px-4 min-h-11 rounded-feld border border-rahmen bg-karte text-sm font-semibold text-schrift hover:bg-gedeckt"
+                >
+                  <Icon name="drucken" className="w-4 h-4" /> {t('pd.abschlussDrucken')}
+                </button>
+              )}
+              {raumSicht === 'mengen'
+                ? <RaumVerteilung projektId={id} user={user} />
+                : raumSicht === '2d'
+                ? <RaumPlaner projektId={id} user={user} />
+                : (
+                  <Raum3D
+                    raeume={raeume}
+                    aufFlaeche={async (raumId, flaecheId) => {
+                      // Klick auf eine Fläche schaltet ihren Zustand weiter:
+                      // offen -> in Arbeit -> fertig -> offen
+                      const r = raeume.find((x) => x.id === raumId)
+                      if (!r) return
+                      const jetzt = (r.status || {})[flaecheId] || 'offen'
+                      const naechster = jetzt === 'offen' ? 'arbeit' : jetzt === 'arbeit' ? 'fertig' : 'offen'
+                      await withStore((s2) => s2.update('raeume', raumId, {
+                        status: { ...(r.status || {}), [flaecheId]: naechster },
+                      }))
+                    }}
+                  />
+                )}
+            </>
+          )}
+
           {bereich === 'bilder' && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5">
-              <h2 className="font-bold text-slate-800 text-sm mb-3">Bilder ({fotos.length})</h2>
+            <div className="bg-karte rounded-karte border border-rahmen p-5">
+              <h2 className="font-bold text-schrift-stark text-sm mb-3">{t('pd.bilder')} ({fotos.length})</h2>
               {fotos.length === 0 ? (
-                <p className="text-sm text-slate-400">Noch keine Fotos. Fotos entstehen über Berichte und Termine der Monteure.</p>
+                <p className="text-sm text-schrift-zart">{t('pd.keineFotos')}</p>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
                   {[...fotos].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).map((f) => (
                     <button
                       key={f.id}
                       onClick={() => setVollbildFoto(f)}
-                      className="relative rounded-xl overflow-hidden border border-slate-200 aspect-[4/3] bg-slate-100 group"
+                      className="relative rounded-feld overflow-hidden border border-rahmen aspect-[4/3] bg-gedeckt-tief group"
                     >
                       <img src={f.dataUrl} alt={f.name || 'Foto'} className="w-full h-full object-cover group-hover:scale-105 transition" />
-                      <span className={`absolute top-2 left-2 text-[10px] font-bold rounded-full px-2 py-0.5 ${PHASE_BADGE[f.phase] || PHASE_BADGE.sonstig}`}>
+                      <span className={`absolute top-2 left-2 text-[11px] font-bold rounded-full px-2 py-0.5 ${PHASE_BADGE[f.phase] || PHASE_BADGE.sonstig}`}>
                         {f.phase || 'sonstig'}
                       </span>
                     </button>
@@ -368,20 +459,20 @@ export default function ProjektDetail({ user }) {
           {(bereich === 'regie' || bereich === 'reklamation' || bereich === 'abnahme') && (
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <h2 className="font-bold text-slate-800">
-                  {bereich === 'regie' ? 'Regieberichte' : bereich === 'reklamation' ? 'Reklamationen' : 'Abnahmen'}
+                <h2 className="font-bold text-schrift-stark">
+                  {t(bereich === 'regie' ? 'pd.regieberichte' : bereich === 'reklamation' ? 'pd.reklamationen' : 'pd.abnahmen')}
                 </h2>
                 <button
                   onClick={() => setNeuerBericht(bereich)}
                   className="inline-flex items-center gap-1.5 bg-praxis-600 hover:bg-praxis-700 text-white text-sm font-semibold px-4 py-2 rounded-full"
                 >
                   <Icon name="plus" className="w-4 h-4" />
-                  {bereich === 'regie' ? 'Regiebericht' : bereich === 'reklamation' ? 'Reklamation' : 'Abnahme'}
+                  {t(bereich === 'regie' ? 'bericht.regie' : bereich === 'reklamation' ? 'bericht.reklamation' : 'bericht.abnahme')}
                 </button>
               </div>
               {berichte.filter((b) => b.typ === bereich).length === 0 && (
-                <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm text-slate-400">
-                  Noch keine Einträge. Berichte entstehen auf der Baustelle – oder hier im Büro über den Button oben.
+                <div className="bg-karte rounded-karte border border-rahmen p-8 text-center text-sm text-schrift-zart">
+                  {t('pd.keineBerichte')}
                 </div>
               )}
               {berichte
@@ -390,20 +481,20 @@ export default function ProjektDetail({ user }) {
                 .map((b) => (
                   <div
                     key={b.id}
-                    className="bg-white rounded-2xl border border-slate-200 hover:border-praxis-400 px-5 py-4 transition"
+                    className="bg-karte rounded-karte border border-rahmen hover:border-praxis-400 px-5 py-4 transition"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <button onClick={() => berichtOeffnen(b)} className="text-left min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-800">
+                        <p className="text-sm font-semibold text-schrift-stark">
                           {b.nummer ? `${b.nummer} · ` : ''}{datumDe(b.datum)} · {b.mitarbeiterName || '–'}
                         </p>
-                        {b.beschreibung && <p className="mt-1 text-sm text-slate-500 line-clamp-2">{b.beschreibung}</p>}
+                        {b.beschreibung && <p className="mt-1 text-sm text-schrift-leise line-clamp-2">{b.beschreibung}</p>}
                       </button>
                       <div className="flex items-center gap-2 shrink-0">
                         <StatusBadge status={b.status} />
                         <button
                           onClick={() => berichtDrucken(b)}
-                          className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium hover:bg-slate-200 inline-flex items-center gap-1"
+                          className="px-3 py-1.5 rounded-feld bg-gedeckt-tief text-schrift text-xs font-medium hover:bg-gedeckt-tief inline-flex items-center gap-1"
                         >
                           <Icon name="doc" className="w-3.5 h-3.5" /> PDF
                         </button>
@@ -415,33 +506,33 @@ export default function ProjektDetail({ user }) {
           )}
 
           {bereich === 'rechnungen' && (
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-karte rounded-karte border border-rahmen overflow-hidden">
               <div className="flex items-center justify-between px-5 pt-4 pb-2">
-                <h2 className="font-bold text-slate-800 text-sm">Rechnungen</h2>
+                <h2 className="font-bold text-schrift-stark text-sm">{t('pd.rechnungen')}</h2>
                 <button onClick={() => setZeigeRechnungWizard(true)}
-                  className="px-3 py-1.5 rounded-lg bg-praxis-600 text-white text-xs font-bold hover:bg-praxis-700">
-                  + Rechnung zu diesem Projekt
+                  className="px-3 py-1.5 rounded-feld bg-praxis-600 text-white text-xs font-bold hover:bg-praxis-700">
+                  {t('pd.rechnungZuProjekt')}
                 </button>
               </div>
               {rechnungen.length === 0 ? (
-                <p className="px-5 pb-6 text-sm text-slate-400">Noch keine Rechnungen zu diesem Projekt.</p>
+                <p className="px-5 pb-6 text-sm text-schrift-zart">{t('pd.keineRechnungen')}</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-100 text-left text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                        <th className="px-5 py-2">Nummer</th>
-                        <th className="px-3 py-2 text-right">Netto</th>
-                        <th className="px-5 py-2 text-right">Status</th>
+                      <tr className="border-b border-rahmen text-left text-[12px] font-bold uppercase tracking-wide text-schrift-zart">
+                        <th className="px-5 py-2">{t('rechnung.nummer')}</th>
+                        <th className="px-3 py-2 text-right">{t('pd.netto')}</th>
+                        <th className="px-5 py-2 text-right">{t('allg.status')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rechnungen.map((r) => (
-                        <tr key={r.id} className="border-b border-slate-50">
-                          <td className="px-5 py-2.5 font-mono text-xs text-slate-600">{r.nummer || r.fastbillInvoiceId || r.id}</td>
-                          <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{euro(r.netto)}</td>
+                        <tr key={r.id} className="border-b border-rahmen">
+                          <td className="px-5 py-2.5 font-mono text-xs text-schrift">{r.nummer || r.fastbillInvoiceId || r.id}</td>
+                          <td className="px-3 py-2.5 text-right font-semibold text-schrift-stark">{euro(r.netto)}</td>
                           <td className="px-5 py-2.5 text-right">
-                            <span className="text-[10px] font-bold rounded-full px-2.5 py-1 bg-slate-100 text-slate-600">{r.status || '–'}</span>
+                            <span className="text-[11px] font-bold rounded-full px-2.5 py-1 bg-gedeckt-tief text-schrift">{r.status || '–'}</span>
                           </td>
                         </tr>
                       ))}
@@ -453,31 +544,31 @@ export default function ProjektDetail({ user }) {
           )}
 
           {bereich === 'termine' && (
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-              <h2 className="font-bold text-slate-800 text-sm px-5 pt-4 pb-2">Termine</h2>
+            <div className="bg-karte rounded-karte border border-rahmen overflow-hidden">
+              <h2 className="font-bold text-schrift-stark text-sm px-5 pt-4 pb-2">{t('termine.titel')}</h2>
               {termine.length === 0 ? (
-                <p className="px-5 pb-6 text-sm text-slate-400">Noch keine Termine zu diesem Projekt.</p>
+                <p className="px-5 pb-6 text-sm text-schrift-zart">{t('pd.keineTermine')}</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-100 text-left text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                        <th className="px-5 py-2">Datum</th>
-                        <th className="px-3 py-2">Titel</th>
-                        <th className="px-3 py-2">Kategorie</th>
-                        <th className="px-5 py-2 text-right">Erledigt</th>
+                      <tr className="border-b border-rahmen text-left text-[12px] font-bold uppercase tracking-wide text-schrift-zart">
+                        <th className="px-5 py-2">{t('allg.datum')}</th>
+                        <th className="px-3 py-2">{t('termine.titelSpalte')}</th>
+                        <th className="px-3 py-2">{t('termine.kategorie')}</th>
+                        <th className="px-5 py-2 text-right">{t('pd.erledigt')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {[...termine]
                         .sort((a, b) => `${b.datum}${b.start}`.localeCompare(`${a.datum}${a.start}`))
-                        .map((t) => (
-                          <tr key={t.id} className="border-b border-slate-50">
-                            <td className="px-5 py-2.5 whitespace-nowrap text-slate-600">{datumDe(t.datum)} · {t.start}</td>
-                            <td className="px-3 py-2.5 font-semibold text-slate-800">{t.titel || t.behandlung}</td>
-                            <td className="px-3 py-2.5 text-slate-500">{KATEGORIE_LABEL[t.kategorie] || t.kategorie || '–'}</td>
+                        .map((termin) => (
+                          <tr key={termin.id} className="border-b border-rahmen">
+                            <td className="px-5 py-2.5 whitespace-nowrap text-schrift">{datumDe(termin.datum)} · {termin.start}</td>
+                            <td className="px-3 py-2.5 font-semibold text-schrift-stark">{termin.titel || termin.behandlung}</td>
+                            <td className="px-3 py-2.5 text-schrift-leise">{katText(termin.kategorie)}</td>
                             <td className="px-5 py-2.5 text-right">
-                              {t.erledigt ? <Icon name="check" className="w-4 h-4 text-emerald-600 inline" /> : <span className="text-slate-300">–</span>}
+                              {termin.erledigt ? <Icon name="check" className="w-4 h-4 text-emerald-600 inline" /> : <span className="text-schrift-zart">–</span>}
                             </td>
                           </tr>
                         ))}
@@ -489,31 +580,31 @@ export default function ProjektDetail({ user }) {
           )}
 
           {bereich === 'spesen' && (
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-              <h2 className="font-bold text-slate-800 text-sm px-5 pt-4 pb-2">Spesen</h2>
+            <div className="bg-karte rounded-karte border border-rahmen overflow-hidden">
+              <h2 className="font-bold text-schrift-stark text-sm px-5 pt-4 pb-2">{t('monteur.spesen')}</h2>
               {spesen.length === 0 ? (
-                <p className="px-5 pb-6 text-sm text-slate-400">Noch keine Spesen zu diesem Projekt.</p>
+                <p className="px-5 pb-6 text-sm text-schrift-zart">{t('pd.keineSpesen')}</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-100 text-left text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                        <th className="px-5 py-2">Datum</th>
-                        <th className="px-3 py-2">Typ</th>
-                        <th className="px-3 py-2">Mitarbeiter</th>
-                        <th className="px-3 py-2 text-right">Betrag</th>
-                        <th className="px-5 py-2 text-right">Status</th>
+                      <tr className="border-b border-rahmen text-left text-[12px] font-bold uppercase tracking-wide text-schrift-zart">
+                        <th className="px-5 py-2">{t('allg.datum')}</th>
+                        <th className="px-3 py-2">{t('kunden.typ')}</th>
+                        <th className="px-3 py-2">{t('berichte.mitarbeiter')}</th>
+                        <th className="px-3 py-2 text-right">{t('allg.betrag')}</th>
+                        <th className="px-5 py-2 text-right">{t('allg.status')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {[...spesen]
                         .sort((a, b) => (b.datum || '').localeCompare(a.datum || ''))
                         .map((s) => (
-                          <tr key={s.id} className="border-b border-slate-50">
-                            <td className="px-5 py-2.5 whitespace-nowrap text-slate-600">{datumDe(s.datum)}</td>
-                            <td className="px-3 py-2.5 text-slate-500">{SPESEN_TYP[s.typ] || s.typ}</td>
-                            <td className="px-3 py-2.5 text-slate-500">{users.find((u) => u.id === s.mitarbeiterId)?.name || '–'}</td>
-                            <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{euro(s.betrag)}</td>
+                          <tr key={s.id} className="border-b border-rahmen">
+                            <td className="px-5 py-2.5 whitespace-nowrap text-schrift">{datumDe(s.datum)}</td>
+                            <td className="px-3 py-2.5 text-schrift-leise">{spesenText(s.typ)}</td>
+                            <td className="px-3 py-2.5 text-schrift-leise">{users.find((u) => u.id === s.mitarbeiterId)?.name || '–'}</td>
+                            <td className="px-3 py-2.5 text-right font-semibold text-schrift-stark">{euro(s.betrag)}</td>
                             <td className="px-5 py-2.5 text-right"><StatusBadge status={s.status} /></td>
                           </tr>
                         ))}
@@ -527,27 +618,44 @@ export default function ProjektDetail({ user }) {
 
         {/* RECHTS: Projektdaten-Panel */}
         <aside className="lg:w-72 shrink-0">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+          <div className="bg-karte rounded-karte border border-rahmen p-5 space-y-4">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Status</p>
+              <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1.5">{t('allg.status')}</p>
               <select
                 value={statusInfo(projekt.status).id}
                 onChange={(e) => patchProjekt({ status: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-praxis-500"
+                className="w-full rounded-feld border border-rahmen bg-karte px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-praxis-500"
               >
                 {PROJEKT_STATUS.map((s) => (
-                  <option key={s.id} value={s.id}>{s.label}</option>
+                  <option key={s.id} value={s.id}>{t(`projektstatus.${s.id}`)}</option>
                 ))}
               </select>
             </div>
 
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">Kunde</p>
-              <p className="text-sm font-semibold text-slate-800">
-                {kunde ? (kunde.firma || `${kunde.vorname} ${kunde.nachname}`.trim()) : '–'}
-              </p>
+              <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1">{t('kunden.kunde')}</p>
+              <select
+                value={projekt.kundeId || ''}
+                onChange={(e) => patchProjekt({ kundeId: e.target.value })}
+                className="w-full rounded-feld border border-rahmen bg-karte px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-praxis-500"
+              >
+                <option value="">{t('projekt.kundeWaehlen')}</option>
+                {kunden.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.firma || `${k.vorname || ''} ${k.nachname || ''}`.trim() || k.id}
+                  </option>
+                ))}
+              </select>
+              {/* Der Kunde bestimmt Anschrift, Umsatzsteuermodus und den
+                  FastBill-Empfaenger. Sind schon Rechnungen gestellt, aendert
+                  ein Wechsel den Empfaenger der KUENFTIGEN Rechnungen – die
+                  bereits uebertragenen bleiben, wo sie sind. Das muss dastehen,
+                  bevor jemand es herausfindet. */}
+              {rechnungen.length > 0 && (
+                <p className="text-[12px] text-amber-700 mt-1.5">{t('pd.kundeWechselHinweis', { anzahl: rechnungen.length })}</p>
+              )}
               {kunde?.telefon && (
-                <p className="text-sm text-slate-500 mt-0.5">
+                <p className="text-sm text-schrift-leise mt-0.5">
                   <Icon name="phone" className="w-3.5 h-3.5 inline mr-1" />{kunde.telefon}
                 </p>
               )}
@@ -555,55 +663,63 @@ export default function ProjektDetail({ user }) {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">Nummer</p>
-                <p className="text-sm font-mono text-slate-700">{projekt.nummer || '–'}</p>
+                <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1">{t('rechnung.nummer')}</p>
+                <FeldInput
+                  wert={projekt.nummer}
+                  onWert={(v) => patchProjekt({ nummer: String(v).trim() })}
+                  platzhalter="–"
+                />
               </div>
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">Gewerk</p>
-                <p className="text-sm text-slate-700">{projekt.gewerk || '–'}</p>
+                <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1">{t('projekte.gewerk')}</p>
+                <FeldInput
+                  wert={projekt.gewerk}
+                  onWert={(v) => patchProjekt({ gewerk: String(v).trim() })}
+                  platzhalter="–"
+                />
               </div>
             </div>
 
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Zeitraum</p>
+              <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1.5">{t('projekte.zeitraum')}</p>
               <div className="space-y-2">
                 <input
                   type="date"
                   value={projekt.startDatum || ''}
                   onChange={(e) => patchProjekt({ startDatum: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500"
+                  className="w-full rounded-feld border border-rahmen px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500"
                 />
                 <input
                   type="date"
                   value={projekt.endeDatum || ''}
                   onChange={(e) => patchProjekt({ endeDatum: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500"
+                  className="w-full rounded-feld border border-rahmen px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500"
                 />
               </div>
             </div>
 
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Anschrift</p>
+              <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1.5">{t('allg.anschrift')}</p>
               <div className="space-y-2">
                 <FeldInput
                   wert={projekt.anschrift?.strasse}
                   onWert={(v) => patchProjekt({ anschrift: { ...(projekt.anschrift || {}), strasse: v } })}
-                  platzhalter="Straße Nr."
+                  platzhalter={t('projekte.strassePlatz')}
                 />
                 <FeldInput
                   wert={projekt.anschrift?.plzOrt}
                   onWert={(v) => patchProjekt({ anschrift: { ...(projekt.anschrift || {}), plzOrt: v } })}
-                  platzhalter="PLZ Ort"
+                  platzhalter={t('projekte.plzOrtPlatz')}
                 />
               </div>
             </div>
 
-            <div className="border-t border-slate-100 pt-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">Projektvolumen</p>
+            <div className="border-t border-rahmen pt-4">
+              <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1">{t('pd.projektvolumen')}</p>
               {hatLv ? (
                 <>
-                  <p className="text-xl font-bold text-slate-900">{euro(lvSumme)}</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">aus LV (Σ Menge × EP, ohne Bedarf/NEP)</p>
+                  <p className="text-xl font-bold text-schrift-stark">{euro(lvSumme)}</p>
+                  <p className="text-[12px] text-schrift-zart mt-0.5">{t('pd.ausLv')}</p>
                 </>
               ) : (
                 <>
@@ -613,7 +729,7 @@ export default function ProjektDetail({ user }) {
                     onWert={(v) => patchProjekt({ projektvolumen: v })}
                     platzhalter="0"
                   />
-                  <p className="text-[11px] text-slate-400 mt-1">manuell – sobald LV-Positionen vorhanden sind, gilt die LV-Summe</p>
+                  <p className="text-[12px] text-schrift-zart mt-1">{t('pd.manuell')}</p>
                 </>
               )}
             </div>
@@ -630,21 +746,21 @@ export default function ProjektDetail({ user }) {
       {/* Foto-Vollbild-Overlay */}
       {vollbildFoto && (
         <div
-          className="fixed inset-0 z-[90] bg-slate-900/90 flex flex-col items-center justify-center p-4"
+          className="fixed inset-0 z-[90] bg-praxis-900/92 flex flex-col items-center justify-center p-4"
           onClick={() => setVollbildFoto(null)}
         >
           <img
             src={vollbildFoto.dataUrl}
             alt={vollbildFoto.name || 'Foto'}
-            className="max-w-[92vw] max-h-[82vh] object-contain rounded-xl"
+            className="max-w-[92vw] max-h-[82vh] object-contain rounded-feld"
           />
           <p className="mt-3 text-sm text-white/80">
-            <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 mr-2 ${PHASE_BADGE[vollbildFoto.phase] || PHASE_BADGE.sonstig}`}>
+            <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 mr-2 ${PHASE_BADGE[vollbildFoto.phase] || PHASE_BADGE.sonstig}`}>
               {vollbildFoto.phase || 'sonstig'}
             </span>
             {vollbildFoto.name || ''}{vollbildFoto.von ? ` · ${vollbildFoto.von}` : ''}
           </p>
-          <button className="mt-2 text-xs font-semibold text-white/60 hover:text-white">Schließen</button>
+          <button className="mt-2 text-xs font-semibold text-white/60 hover:text-white">{t('allg.schliessen')}</button>
         </div>
       )}
 
@@ -677,6 +793,7 @@ export default function ProjektDetail({ user }) {
 
 // Detail-Ansicht eines Berichts: alle Felder, Vorher/Nachher-Fotos, Unterschrift, Freigabe
 function BerichtDetail({ bericht, user, onClose, onFoto, onDrucken }) {
+  useLang()
   const fotos = useWhere('photos', 'berichtId', bericht.id)
   const vorher = fotos.filter((f) => f.phase === 'vorher')
   const nachher = fotos.filter((f) => f.phase === 'nachher')
@@ -692,85 +809,85 @@ function BerichtDetail({ bericht, user, onClose, onFoto, onDrucken }) {
   }
 
   const fotoKachel = (f) => (
-    <button key={f.id} onClick={() => onFoto(f)} className="rounded-xl overflow-hidden border border-slate-200 aspect-[4/3] bg-slate-100">
+    <button key={f.id} onClick={() => onFoto(f)} className="rounded-feld overflow-hidden border border-rahmen aspect-[4/3] bg-gedeckt-tief">
       <img src={f.dataUrl} alt={f.name || 'Foto'} className="w-full h-full object-cover" />
     </button>
   )
 
   return (
-    <Modal titel={`${TYP_LABEL[bericht.typ] || 'Bericht'} vom ${datumDe(bericht.datum)}`} onClose={onClose} breite="max-w-2xl">
+    <Modal titel={`${typText(bericht.typ)} · ${datumDe(bericht.datum)}`} onClose={onClose} breite="max-w-2xl">
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={bericht.status} />
-          <span className="text-sm text-slate-500">
+          <span className="text-sm text-schrift-leise">
             <Icon name="users" className="w-3.5 h-3.5 inline mr-1" />{bericht.mitarbeiterName || '–'}
           </span>
-          {bericht.terminId && <span className="text-xs text-slate-400">· aus Termin</span>}
+          {bericht.terminId && <span className="text-xs text-schrift-zart">{t('pd.ausTermin')}</span>}
         </div>
 
         {bericht.beschreibung && (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">Beschreibung</p>
-            <p className="text-sm text-slate-700 leading-relaxed">{bericht.beschreibung}</p>
+            <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1">{t('allg.beschreibung')}</p>
+            <p className="text-sm text-schrift leading-relaxed">{bericht.beschreibung}</p>
           </div>
         )}
 
         {/* Reklamation: Ursache + Maßnahme */}
         {bericht.ursache && (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">Ursache</p>
-            <p className="text-sm text-slate-700">{bericht.ursache}</p>
+            <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1">{t('pd.ursache')}</p>
+            <p className="text-sm text-schrift">{bericht.ursache}</p>
           </div>
         )}
         {bericht.massnahme && (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">Maßnahme</p>
-            <p className="text-sm text-slate-700">{bericht.massnahme}</p>
+            <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1">{t('pd.massnahme')}</p>
+            <p className="text-sm text-schrift">{bericht.massnahme}</p>
           </div>
         )}
 
         {/* Abnahme: Ergebnis + Mängelliste ({text, frist}-Objekte!) */}
         {bericht.typ === 'abnahme' && (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">Ergebnis der Abnahme</p>
+            <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1">{t('pd.abnahmeErgebnis')}</p>
             {bericht.ohneMaengel ? (
-              <p className="text-sm font-semibold text-emerald-700">Abnahme ohne Mängel</p>
+              <p className="text-sm font-semibold text-emerald-700">{t('pd.ohneMaengel')}</p>
             ) : (bericht.maengel || []).length > 0 ? (
               <div className="space-y-1">
                 {bericht.maengel.map((m, i) => (
-                  <p key={i} className="text-sm text-slate-700">
+                  <p key={i} className="text-sm text-schrift">
                     • {m.text || '–'}
-                    {m.frist && <span className="text-slate-400"> · Frist: {new Date(m.frist + 'T12:00:00').toLocaleDateString('de-DE')}</span>}
+                    {m.frist && <span className="text-schrift-zart"> · {t('pd.frist', { datum: datumDe(m.frist) })}</span>}
                   </p>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-slate-500">Abnahme mit Mängeln (keine Einzelmängel erfasst)</p>
+              <p className="text-sm text-schrift-leise">{t('pd.mitMaengeln')}</p>
             )}
           </div>
         )}
         {bericht.ergebnis && (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">Ergebnis</p>
-            <p className="text-sm text-slate-700">{bericht.ergebnis}</p>
+            <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1">{t('dash.ergebnis')}</p>
+            <p className="text-sm text-schrift">{bericht.ergebnis}</p>
           </div>
         )}
 
         {/* Regie: Stunden */}
         {(bericht.stunden || []).length > 0 && (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Stunden</p>
+            <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1.5">{t('pd.stunden')}</p>
             <div className="space-y-1.5">
               {bericht.stunden.map((z, i) => (
-                <div key={i} className="flex items-center justify-between text-sm bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2">
-                  <span className="text-slate-700">
-                    {z.art === 'facharbeiter' ? 'Facharbeiter' : z.art === 'helfer' ? 'Helfer' : z.art} · {z.anzahl} Std. × {euro(z.satz)}
+                <div key={i} className="flex items-center justify-between text-sm bg-gedeckt border border-rahmen rounded-feld px-3.5 py-2">
+                  <span className="text-schrift">
+                    {z.art === 'facharbeiter' ? t('pd.facharbeiter') : z.art === 'helfer' ? t('pd.helfer') : z.art} · {z.anzahl} {t('allg.stunden')} × {euro(z.satz)}
                   </span>
-                  <span className="font-semibold text-slate-800">{euro((z.anzahl || 0) * (z.satz || 0))}</span>
+                  <span className="font-semibold text-schrift-stark">{euro((z.anzahl || 0) * (z.satz || 0))}</span>
                 </div>
               ))}
-              <div className="flex items-center justify-between text-sm font-bold text-praxis-900 bg-praxis-50 rounded-xl px-3.5 py-2">
-                <span>Summe Stunden</span><span>{euro(stundenSumme)}</span>
+              <div className="flex items-center justify-between text-sm font-bold text-praxis-900 bg-praxis-50 rounded-feld px-3.5 py-2">
+                <span>{t('pd.summeStunden')}</span><span>{euro(stundenSumme)}</span>
               </div>
             </div>
           </div>
@@ -779,16 +896,16 @@ function BerichtDetail({ bericht, user, onClose, onFoto, onDrucken }) {
         {/* Regie: Material */}
         {(bericht.material || []).length > 0 && (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Material</p>
+            <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1.5">{t('dash.material')}</p>
             <div className="space-y-1.5">
               {bericht.material.map((m, i) => (
-                <div key={i} className="flex items-center justify-between text-sm bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2">
-                  <span className="text-slate-700">{m.name} · {m.menge} {m.einheit} × {euro(m.preis)}</span>
-                  <span className="font-semibold text-slate-800">{euro((m.menge || 0) * (m.preis || 0))}</span>
+                <div key={i} className="flex items-center justify-between text-sm bg-gedeckt border border-rahmen rounded-feld px-3.5 py-2">
+                  <span className="text-schrift">{m.name} · {m.menge} {m.einheit} × {euro(m.preis)}</span>
+                  <span className="font-semibold text-schrift-stark">{euro((m.menge || 0) * (m.preis || 0))}</span>
                 </div>
               ))}
-              <div className="flex items-center justify-between text-sm font-bold text-praxis-900 bg-praxis-50 rounded-xl px-3.5 py-2">
-                <span>Summe Material</span><span>{euro(materialSumme)}</span>
+              <div className="flex items-center justify-between text-sm font-bold text-praxis-900 bg-praxis-50 rounded-feld px-3.5 py-2">
+                <span>{t('pd.summeMaterial')}</span><span>{euro(materialSumme)}</span>
               </div>
             </div>
           </div>
@@ -797,18 +914,18 @@ function BerichtDetail({ bericht, user, onClose, onFoto, onDrucken }) {
         {/* Fotos: Vorher/Nachher-Gegenüberstellung */}
         {(vorher.length > 0 || nachher.length > 0) && (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Fotos</p>
+            <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1.5">{t('pd.fotos')}</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-xs font-bold text-slate-500 mb-1.5">Vorher</p>
+                <p className="text-xs font-bold text-schrift-leise mb-1.5">{t('pd.vorher')}</p>
                 <div className="space-y-2">
-                  {vorher.length > 0 ? vorher.map(fotoKachel) : <p className="text-xs text-slate-400">–</p>}
+                  {vorher.length > 0 ? vorher.map(fotoKachel) : <p className="text-xs text-schrift-zart">–</p>}
                 </div>
               </div>
               <div>
-                <p className="text-xs font-bold text-emerald-600 mb-1.5">Nachher</p>
+                <p className="text-xs font-bold text-emerald-600 mb-1.5">{t('pd.nachher')}</p>
                 <div className="space-y-2">
-                  {nachher.length > 0 ? nachher.map(fotoKachel) : <p className="text-xs text-slate-400">–</p>}
+                  {nachher.length > 0 ? nachher.map(fotoKachel) : <p className="text-xs text-schrift-zart">–</p>}
                 </div>
               </div>
             </div>
@@ -816,7 +933,7 @@ function BerichtDetail({ bericht, user, onClose, onFoto, onDrucken }) {
         )}
         {weitere.length > 0 && (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Weitere Fotos / Belege</p>
+            <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1.5">{t('pd.weitereFotos')}</p>
             <div className="grid grid-cols-3 gap-2">{weitere.map(fotoKachel)}</div>
           </div>
         )}
@@ -824,13 +941,13 @@ function BerichtDetail({ bericht, user, onClose, onFoto, onDrucken }) {
         {/* Unterschrift */}
         {bericht.unterschriftKunde && (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
-              <Icon name="signatur" className="w-3.5 h-3.5 inline mr-1" />Unterschrift
+            <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1.5">
+              <Icon name="signatur" className="w-3.5 h-3.5 inline mr-1" />{t('pd.unterschrift')}
             </p>
-            <div className="bg-white border border-slate-200 rounded-xl p-3 w-fit">
+            <div className="bg-karte border border-rahmen rounded-feld p-3 w-fit">
               <img src={bericht.unterschriftKunde} alt="Unterschrift" className="h-20" />
             </div>
-            {bericht.unterschriftName && <p className="text-xs text-slate-500 mt-1">{bericht.unterschriftName}</p>}
+            {bericht.unterschriftName && <p className="text-xs text-schrift-leise mt-1">{bericht.unterschriftName}</p>}
           </div>
         )}
 
@@ -840,23 +957,23 @@ function BerichtDetail({ bericht, user, onClose, onFoto, onDrucken }) {
             <>
               <button
                 onClick={() => setzeStatus('freigegeben')}
-                className="flex-1 min-w-[130px] bg-praxis-600 hover:bg-praxis-700 text-white font-bold py-3 rounded-xl"
+                className="flex-1 min-w-[130px] bg-praxis-600 hover:bg-praxis-700 text-white font-bold py-3 rounded-feld"
               >
-                Freigeben
+                {t('berichte.freigeben')}
               </button>
               <button
                 onClick={() => setzeStatus('entwurf')}
-                className="flex-1 min-w-[130px] bg-white border border-slate-200 hover:border-red-300 text-slate-600 hover:text-red-600 font-semibold py-3 rounded-xl"
+                className="flex-1 min-w-[130px] bg-karte border border-rahmen hover:border-red-300 text-schrift hover:text-red-600 font-semibold py-3 rounded-feld"
               >
-                Zurückweisen
+                {t('pd.zurueckweisen')}
               </button>
             </>
           )}
           <button
             onClick={onDrucken}
-            className="flex-1 min-w-[130px] inline-flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl"
+            className="flex-1 min-w-[130px] inline-flex items-center justify-center gap-1.5 bg-gedeckt-tief hover:bg-gedeckt-tief text-schrift font-semibold py-3 rounded-feld"
           >
-            <Icon name="doc" className="w-4 h-4" /> PDF drucken
+            <Icon name="doc" className="w-4 h-4" /> {t('pd.pdfDrucken')}
           </button>
         </div>
       </div>

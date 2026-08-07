@@ -1,5 +1,7 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Icon } from '@shared/ui.jsx'
+import { t } from '@shared/i18n.js'
 
 // Kleines Info-Zeichen neben einer Feldbeschriftung. Erklärt in ein bis zwei
 // Sätzen, WOHIN die eingetragenen Daten fließen und was davon für die
@@ -10,11 +12,64 @@ import { Icon } from '@shared/ui.jsx'
 // laufen (BerichtForm, SpesenForm), bekommen deshalb `nurDesktop`: dort wird
 // das Zeichen erst ab der lg-Breite eingeblendet.
 //
+// Die Blase hängt per Portal am <body> und liegt fix im Fenster. Absolut
+// positioniert wurde sie früher vom nächsten Container mit `overflow` (Tabellen,
+// Modal-Körper) abgeschnitten – genau das soll nicht passieren.
+//
 // Bedienung: Maus darüber ODER antippen ODER per Tastatur fokussieren.
-export default function InfoHinweis({ text, nurDesktop = false, ausrichtung = 'links' }) {
+
+const BREITE = 256   // w-64
+const ABSTAND = 10   // Luft zwischen Zeichen und Blase
+const RAND = 8       // Mindestabstand zum Fensterrand
+
+export default function InfoHinweis({ text, nurDesktop = false }) {
   const [offen, setOffen] = useState(false)
+  const [pos, setPos] = useState(null)
   const huelle = useRef(null)
+  const knopf = useRef(null)
+  const blase = useRef(null)
   const id = useId()
+
+  // Blase am Info-Zeichen ausrichten: bevorzugt darüber, sonst darunter.
+  // Waagrecht am Fensterrand abgefangen, der Pfeil zeigt weiter aufs Zeichen.
+  const messen = useCallback(() => {
+    const k = knopf.current
+    if (!k) return
+    const r = k.getBoundingClientRect()
+    const hoehe = blase.current?.offsetHeight || 76
+    const platzOben = r.top
+    const unten = platzOben < hoehe + ABSTAND + RAND && window.innerHeight - r.bottom > platzOben
+    const mitte = r.left + r.width / 2
+    let links = Math.min(
+      Math.max(mitte - BREITE / 2, RAND),
+      Math.max(window.innerWidth - BREITE - RAND, RAND),
+    )
+    setPos({
+      links,
+      oben: unten ? r.bottom + ABSTAND : r.top - ABSTAND - hoehe,
+      unten,
+      pfeil: Math.min(Math.max(mitte - links, 12), BREITE - 12),
+    })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!offen) { setPos(null); return }
+    messen()
+    // Nach dem ersten Zeichnen steht die echte Höhe fest → einmal nachjustieren
+    const rahmen = requestAnimationFrame(messen)
+    return () => cancelAnimationFrame(rahmen)
+  }, [offen, messen, text])
+
+  // Scrollen/Größenänderung: mitziehen statt an falscher Stelle stehen bleiben
+  useEffect(() => {
+    if (!offen) return
+    window.addEventListener('scroll', messen, true)
+    window.addEventListener('resize', messen)
+    return () => {
+      window.removeEventListener('scroll', messen, true)
+      window.removeEventListener('resize', messen)
+    }
+  }, [offen, messen])
 
   // Klick außerhalb schließt die Blase wieder (Touch-Bedienung)
   useEffect(() => {
@@ -22,11 +77,16 @@ export default function InfoHinweis({ text, nurDesktop = false, ausrichtung = 'l
     function ausserhalb(e) {
       if (huelle.current && !huelle.current.contains(e.target)) setOffen(false)
     }
+    function taste(e) {
+      if (e.key === 'Escape') setOffen(false)
+    }
     document.addEventListener('mousedown', ausserhalb)
     document.addEventListener('touchstart', ausserhalb)
+    document.addEventListener('keydown', taste)
     return () => {
       document.removeEventListener('mousedown', ausserhalb)
       document.removeEventListener('touchstart', ausserhalb)
+      document.removeEventListener('keydown', taste)
     }
   }, [offen])
 
@@ -40,31 +100,39 @@ export default function InfoHinweis({ text, nurDesktop = false, ausrichtung = 'l
       onMouseLeave={() => setOffen(false)}
     >
       <button
+        ref={knopf}
         type="button"
-        aria-label="Erklärung anzeigen"
+        aria-label={t('allg.erklaerung')}
         aria-describedby={offen ? id : undefined}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOffen((o) => !o) }}
         onFocus={() => setOffen(true)}
         onBlur={() => setOffen(false)}
-        className="text-slate-300 hover:text-praxis-600 focus:text-praxis-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-praxis-400 rounded-full transition"
+        className="text-schrift-zart hover:text-praxis-600 focus:text-praxis-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-praxis-400 rounded-full transition"
       >
         <Icon name="info" className="w-4 h-4" strokeWidth={1.9} />
       </button>
-      {offen && (
+      {offen && createPortal(
         <span
+          ref={blase}
           id={id}
           role="tooltip"
-          className={`absolute bottom-full z-50 mb-2 w-64 rounded-xl bg-slate-900 px-3 py-2.5 text-[11px] font-normal leading-relaxed text-white shadow-xl ${
-            ausrichtung === 'rechts' ? 'right-0' : 'left-0'
-          }`}
+          dir="auto"
+          style={{
+            position: 'fixed',
+            top: pos ? pos.oben : -9999,
+            left: pos ? pos.links : -9999,
+            width: BREITE,
+            visibility: pos ? 'visible' : 'hidden',
+          }}
+          className="z-[100] block rounded-feld bg-praxis-900 px-3 py-2.5 text-[12px] font-normal leading-relaxed text-white shadow-xl pointer-events-none"
         >
           {text}
           <span
-            className={`absolute top-full h-2 w-2 -translate-y-1 rotate-45 bg-slate-900 ${
-              ausrichtung === 'rechts' ? 'right-2' : 'left-2'
-            }`}
+            style={{ left: pos?.pfeil ?? 12, [pos?.unten ? 'bottom' : 'top']: '100%' }}
+            className={`absolute h-2 w-2 -ml-1 rotate-45 bg-praxis-900 ${pos?.unten ? 'translate-y-1' : '-translate-y-1'}`}
           />
-        </span>
+        </span>,
+        document.body,
       )}
     </span>
   )

@@ -1,8 +1,9 @@
 import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import { abmelden } from '@shared/auth.js'
-import { ZahnLogo, Icon } from '@shared/ui.jsx'
+import { ZahnLogo, Icon, SprachSchalter, ThemaSchalter } from '@shared/ui.jsx'
 import { euro } from '@shared/format.js'
+import { useLang, t, datumLok } from '@shared/i18n.js'
 import { istOffen } from '@shared/projektstatus.js'
 import { teamFuerTermin } from '@shared/teams.js'
 import { heuteISO } from '@shared/slots.js'
@@ -16,11 +17,11 @@ import MonteurBaustelle from './MonteurBaustelle.jsx'
 // Admins erreichen sie als Vorschau über /monteur.
 
 const KATEGORIE = {
-  umsetzung: { label: 'Umsetzung', farbe: 'bg-praxis-100 text-praxis-800' },
-  fertigstellung: { label: 'Fertigstellung', farbe: 'bg-emerald-100 text-emerald-700' },
-  reklamation: { label: 'Reklamation', farbe: 'bg-red-100 text-red-700' },
-  krank: { label: 'Abwesend', farbe: 'bg-amber-100 text-amber-800' },
-  privat: { label: 'Privat', farbe: 'bg-slate-200 text-slate-600' },
+  umsetzung: { schluessel: 'kat.umsetzung', farbe: 'bg-praxis-100 text-praxis-800' },
+  fertigstellung: { schluessel: 'kat.fertigstellung', farbe: 'bg-emerald-100 text-emerald-700' },
+  reklamation: { schluessel: 'kat.reklamationKurz', farbe: 'bg-red-100 text-red-700' },
+  krank: { schluessel: 'kat.krankKurz', farbe: 'bg-amber-100 text-amber-800' },
+  privat: { schluessel: 'kat.privatKurz', farbe: 'bg-slate-200 text-slate-600' },
 }
 
 // Lokales Datum – toISOString() waere UTC und nachts einen Tag zurueck
@@ -46,13 +47,13 @@ function EinsatzKarte({ termin, projekt, team, onErledigt, onOeffnen }) {
       style={team?.farbe ? { borderLeftColor: team.farbe } : undefined}
     >
       {team?.explizit && (
-        <p className="text-[11px] font-bold uppercase tracking-wide mb-0.5" style={{ color: team.farbe }}>
+        <p className="text-[12px] font-bold uppercase tracking-wide mb-0.5" style={{ color: team.farbe }}>
           {team.name}
         </p>
       )}
       <div className="flex items-center justify-between gap-2">
         <p className="text-lg font-bold text-slate-900" dir="ltr">{termin.start} – {termin.ende} Uhr</p>
-        {kat && <span className={`text-xs font-bold rounded-full px-2.5 py-1 ${kat.farbe}`}>{kat.label}</span>}
+        {kat && <span className={`text-xs font-bold rounded-full px-2.5 py-1 ${kat.farbe}`}>{t(kat.schluessel)}</span>}
       </div>
       <p className="mt-1 font-semibold text-slate-800">{termin.titel || termin.behandlung}</p>
       {projekt && (
@@ -75,14 +76,14 @@ function EinsatzKarte({ termin, projekt, team, onErledigt, onOeffnen }) {
         {projekt && (
           <button onClick={onOeffnen}
             className="flex-1 py-3.5 rounded-2xl bg-praxis-600 text-white font-bold text-sm active:scale-[0.99]">
-            Zur Baustelle
+            {t('monteur.zurBaustelle')}
           </button>
         )}
         <button onClick={onErledigt}
           className={`flex-1 py-3.5 rounded-2xl font-bold text-sm border ${
             termin.erledigt ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-600'
           }`}>
-          {termin.erledigt ? 'Erledigt' : 'Erledigt melden'}
+          {termin.erledigt ? t('monteur.erledigt') : t('monteur.erledigtMelden')}
         </button>
       </div>
     </div>
@@ -120,9 +121,9 @@ function Heute({ user }) {
   const desTages = useMemo(() => alleMeine.filter((t) => t.datum === tag), [alleMeine, tag])
 
   const gruppen = [
-    ['Heute', meine.filter((t) => t.datum === heute)],
-    ['Demnächst', meine.filter((t) => t.datum > heute)],
-    ['Offen von früher', meine.filter((t) => t.datum < heute && !t.erledigt)],
+    [t('monteur.heute'), meine.filter((x) => x.datum === heute)],
+    [t('monteur.demnaechst'), meine.filter((x) => x.datum > heute)],
+    [t('monteur.frueher'), meine.filter((x) => x.datum < heute && !x.erledigt)],
   ]
 
   async function erledigt(t) {
@@ -143,7 +144,7 @@ function Heute({ user }) {
     <div className="p-4 space-y-4 pb-24">
       {/* Umschalter Liste / Kalender */}
       <div className="flex items-center gap-1 bg-white rounded-2xl border border-slate-200 p-1">
-        {[['liste', 'Liste', 'list'], ['kalender', 'Kalender', 'calendar']].map(([id, label, icon]) => (
+        {[['liste', t('monteur.liste'), 'list'], ['kalender', t('monteur.kalender'), 'calendar']].map(([id, label, icon]) => (
           <button
             key={id}
             onClick={() => setAnsicht(id)}
@@ -160,12 +161,12 @@ function Heute({ user }) {
         <>
           <DatumWahl wert={tag} onWert={setTag} marker={marker} />
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            {new Date(tag + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {datumLok(tag, { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
           {desTages.length === 0 ? (
             <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center text-slate-400">
               <Icon name="calendar" className="w-9 h-9 mx-auto mb-2" />
-              An diesem Tag ist für dich nichts eingeplant.
+              {t('monteur.nichtsAmTag')}
             </div>
           ) : (
             <div className="space-y-3">
@@ -178,7 +179,7 @@ function Heute({ user }) {
           {meine.length === 0 && (
             <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center text-slate-400 mt-6">
               <Icon name="calendar" className="w-9 h-9 mx-auto mb-2" />
-              Keine Einsätze zugewiesen. Das Büro plant deine Einsätze im Kalender.
+              {t('monteur.keineEinsaetze')}
             </div>
           )}
           {gruppen.map(([titel, liste]) => liste.length > 0 && (
@@ -187,7 +188,7 @@ function Heute({ user }) {
               <div className="space-y-3">
                 {liste.map((t) => (
                   <div key={t.id}>
-                    <p className="text-xs text-slate-400 mb-1">{new Date(t.datum + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                    <p className="text-xs text-slate-400 mb-1">{datumLok(t.datum, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
                     {karte(t)}
                   </div>
                 ))}
@@ -215,7 +216,7 @@ function Baustellen({ user }) {
     <div className="p-4 space-y-3 pb-24">
       {meineProjekte.length === 0 && (
         <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center text-slate-400 mt-6">
-          <Icon name="folder" className="w-9 h-9 mx-auto mb-2" /> Keine aktiven Baustellen zugewiesen.
+          <Icon name="folder" className="w-9 h-9 mx-auto mb-2" /> {t('monteur.keineBaustellen')}
         </div>
       )}
       {meineProjekte.map((p) => {
@@ -233,7 +234,7 @@ function Baustellen({ user }) {
                 <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
                   <div className="h-full bg-praxis-600 rounded-full" style={{ width: `${prozent}%` }} />
                 </div>
-                <p className="mt-1 text-xs text-slate-400">{prozent} % geleistet ({euro(ist)} von {euro(soll)})</p>
+                <p className="mt-1 text-xs text-slate-400">{t('monteur.geleistet', { prozent, ist: euro(ist), soll: euro(soll) })}</p>
               </div>
             )}
           </button>
@@ -254,30 +255,34 @@ function Spesen({ user }) {
       || (s.mitarbeiterName && s.mitarbeiterName === user?.name))
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
 
-  const STATUS = { entwurf: ['Entwurf', 'bg-slate-100 text-slate-600'], eingereicht: ['Eingereicht', 'bg-sky-100 text-sky-700'], erstattet: ['Erstattet', 'bg-emerald-100 text-emerald-700'] }
+  const STATUS = {
+    entwurf: ['status.entwurf', 'bg-slate-100 text-slate-600'],
+    eingereicht: ['status.eingereicht', 'bg-sky-100 text-sky-700'],
+    erstattet: ['status.erstattet', 'bg-emerald-100 text-emerald-700'],
+  }
 
   return (
     <div className="p-4 space-y-3 pb-24">
       <button onClick={() => setNeu(true)}
         className="w-full py-4 rounded-3xl bg-praxis-600 text-white font-bold active:scale-[0.99]">
-        + Spesen erfassen (Fahrt / Hotel)
+        {t('monteur.spesenErfassen')}
       </button>
       {meine.map((s) => {
-        const [label, farbe] = STATUS[s.status] || STATUS.entwurf
+        const [schluessel, farbe] = STATUS[s.status] || STATUS.entwurf
         return (
           <button key={s.id} onClick={() => s.status === 'entwurf' && setBearbeite(s)}
             className="w-full text-left bg-white rounded-3xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
             <Icon name={s.typ === 'fahrt' ? 'truck' : 'euro'} className="w-5 h-5 text-praxis-600 shrink-0" />
             <span className="flex-1 min-w-0">
               <span className="block font-semibold text-slate-800">
-                {s.typ === 'fahrt' ? `Fahrt ${s.fahrt?.km || 0} km` : s.typ === 'hotel' ? 'Hotel' : 'Spesen'}
+                {s.typ === 'fahrt' ? t('monteur.fahrtKm', { km: s.fahrt?.km || 0 }) : s.typ === 'hotel' ? t('monteur.hotel') : t('monteur.spesen')}
               </span>
               <span className="block text-xs text-slate-400 truncate">
-                {new Date((s.datum || '') + 'T12:00:00').toLocaleDateString('de-DE')}{s.kommentar ? ` · ${s.kommentar}` : ''}
+                {datumLok(s.datum || heuteIso())}{s.kommentar ? ` · ${s.kommentar}` : ''}
               </span>
             </span>
             <span className="font-bold">{euro(s.betrag)}</span>
-            <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${farbe}`}>{label}</span>
+            <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 ${farbe}`}>{t(schluessel)}</span>
           </button>
         )
       })}
@@ -288,12 +293,13 @@ function Spesen({ user }) {
 }
 
 const TABS = [
-  { to: '/monteur', label: 'Heute', icon: 'calendar', exakt: true },
-  { to: '/monteur/baustellen', label: 'Baustellen', icon: 'folder' },
-  { to: '/monteur/spesen', label: 'Spesen', icon: 'truck' },
+  { to: '/monteur', schluessel: 'monteur.heute', icon: 'calendar', exakt: true },
+  { to: '/monteur/baustellen', schluessel: 'monteur.baustellen', icon: 'folder' },
+  { to: '/monteur/spesen', schluessel: 'monteur.spesen', icon: 'spesen' },
 ]
 
 export default function MonteurApp({ user, vorschau = false }) {
+  useLang() // Sprachwechsel -> Neuaufbau der gesamten Handy-Ansicht
   const navigate = useNavigate()
   return (
     <div className="min-h-screen bg-slate-100">
@@ -301,14 +307,16 @@ export default function MonteurApp({ user, vorschau = false }) {
         <div className="flex items-center gap-2 min-w-0">
           <ZahnLogo className="w-6 h-6 text-praxis-200 shrink-0" />
           <div className="leading-tight min-w-0">
-            <p className="font-bold text-sm truncate">Gabara Baustellen</p>
-            <p className="text-[10px] text-praxis-200/70 truncate">{user?.name}</p>
+            <p className="font-bold text-sm truncate">{t('monteur.titel')}</p>
+            <p className="text-[11px] text-praxis-200/70 truncate">{user?.name}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <SprachSchalter dunkel />
+          <ThemaSchalter dunkel />
           {vorschau && (
             <button onClick={() => navigate('/')} className="text-xs font-bold bg-white/10 rounded-lg px-2.5 py-1.5">
-              Zur Verwaltung
+              {t('nav.zurVerwaltung')}
             </button>
           )}
           <button onClick={abmelden} className="text-praxis-200"><Icon name="logout" className="w-5 h-5" /></button>
@@ -318,8 +326,7 @@ export default function MonteurApp({ user, vorschau = false }) {
       <main>
         {!user?.userId && user?.rolle === 'mitarbeiter' && (
           <p className="m-4 mb-0 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-            Dein Login ist noch keinem Mitarbeiter-Profil zugeordnet – du siehst deshalb keine Einsätze.
-            Das Büro legt dich unter Einstellungen → Mitarbeiter an (gleiche E-Mail wie dein Login).
+            {t('monteur.keinProfil')}
           </p>
         )}
         <Routes>
@@ -332,13 +339,13 @@ export default function MonteurApp({ user, vorschau = false }) {
       </main>
 
       <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 flex z-40" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        {TABS.map((t) => (
-          <NavLink key={t.to} to={t.to} end={t.exakt}
+        {TABS.map((tab) => (
+          <NavLink key={tab.to} to={tab.to} end={tab.exakt}
             className={({ isActive }) =>
-              `flex-1 flex flex-col items-center gap-1 py-3 text-[11px] font-bold ${isActive ? 'text-praxis-700' : 'text-slate-400'}`
+              `flex-1 flex flex-col items-center gap-1 py-3 text-[12px] font-bold ${isActive ? 'text-praxis-700' : 'text-slate-400'}`
             }>
-            <Icon name={t.icon} className="w-6 h-6" />
-            {t.label}
+            <Icon name={tab.icon} className="w-6 h-6" />
+            {t(tab.schluessel)}
           </NavLink>
         ))}
       </nav>

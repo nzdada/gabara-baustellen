@@ -5,8 +5,10 @@ import { Icon } from '@shared/ui.jsx'
 import { endeZeit } from '@shared/slots.js'
 import Modal from '../components/Modal.jsx'
 import { kalenderVerbunden, eventAnlegen } from '@shared/googleCalendar.js'
-import { mailKonfiguriert, sendePatientenMail } from '@shared/mail.js'
+import { mailKonfiguriert, sendeKundenMail } from '@shared/mail.js'
 import { useLang, tr, datumLok } from '@shared/i18n.js'
+import * as S from '../stil.js'
+import { Seitenkopf, Leer, ChipReihe, Segment, Meldung } from '../components/Seite.jsx'
 
 const T = {
   titel: { de: 'Anfragen von der Webseite', en: 'Appointment requests from the website', ar: 'طلبات المواعيد من الموقع' },
@@ -22,19 +24,20 @@ const T = {
   abgelehnt: { de: 'Abgelehnt', en: 'Declined', ar: 'مرفوض' },
   uhr: { de: 'Uhr', en: '', ar: '' },
   modalTitel: { de: 'Anfrage annehmen', en: 'Confirm request', ar: 'تأكيد الطلب' },
-  zuordnen: { de: 'Kunde zuordnen:', en: 'Assign patient:', ar: 'ربط المريض:' },
-  vorhanden: { de: 'Vorhandener Kunde:', en: 'Existing patient:', ar: 'مريض موجود:' },
-  alsNeu: { de: 'Als neuen Kunden anlegen:', en: 'Create as new patient:', ar: 'إنشاء كمريض جديد:' },
-  wirdNeu: { de: 'wird als neuer Kunde angelegt', en: 'will be created as a new patient', ar: 'سيُسجَّل كمريض جديد' },
+  keinWunsch: { de: 'Kein Wunschtermin angegeben – Termin plant das Büro im Kalender.', en: 'No preferred date given – the office schedules it in the calendar.', ar: 'لم يُحدَّد موعد مفضّل – سيحدده المكتب في التقويم.' },
+  zuordnen: { de: 'Kunde zuordnen:', en: 'Assign customer:', ar: 'ربط العميل:' },
+  vorhanden: { de: 'Vorhandener Kunde:', en: 'Existing customer:', ar: 'عميل موجود:' },
+  alsNeu: { de: 'Als neuen Kunden anlegen:', en: 'Create as new customer:', ar: 'إنشاء كعميل جديد:' },
+  wirdNeu: { de: 'wird als neuer Kunde angelegt', en: 'will be created as a new customer', ar: 'سيُسجَّل كعميل جديد' },
   fPlzOrt: { de: 'PLZ und Ort', en: 'Postcode and town', ar: 'الرمز البريدي والمدينة' },
   anlegen: { de: 'Anfrage annehmen & Kunde anlegen', en: 'Confirm & create appointment', ar: 'تأكيد وإنشاء الموعد' },
   laedt: { de: 'Wird angelegt …', en: 'Creating …', ar: 'جارٍ الإنشاء …' },
   hinweisKalender: { de: 'Der Kunde steht danach für Projekte und Termine bereit', en: 'The appointment appears in the calendar immediately', ar: 'يظهر الموعد فورًا في التقويم' },
   hinweisGoogle: { de: ' und im Google Kalender', en: ' and in Google Calendar', ar: ' وفي تقويم جوجل' },
-  mailWird: { de: 'Der Kunde erhält automatisch eine Bestätigungs-E-Mail an', en: 'The patient automatically receives a confirmation e-mail at', ar: 'سيتلقى المريض رسالة تأكيد تلقائيًا على' },
+  mailWird: { de: 'Der Kunde erhält automatisch eine Bestätigungs-E-Mail an', en: 'The customer automatically receives a confirmation e-mail at', ar: 'سيتلقى العميل رسالة تأكيد تلقائيًا على' },
   mailNichtKonf: { de: 'E-Mail-Versand noch nicht eingerichtet – der Mail-Dienst (seed/erinnerung.gs) muss einmalig als Web-App bereitgestellt und die URL in der App hinterlegt werden. Bis dahin bitte telefonisch bestätigen.', en: 'E-mail sending not set up yet – deploy the mail service (seed/erinnerung.gs) as a web app once and store its URL in the app. Until then please confirm by phone.', ar: 'إرسال البريد غير مفعّل بعد – انشر خدمة البريد مرة واحدة وأدخل الرابط في التطبيق. حتى ذلك الحين يرجى التأكيد هاتفيًا.' },
   // Bearbeitbare Kundendaten im Annehmen-Dialog
-  datenTitel: { de: 'Kundendaten prüfen & ergänzen', en: 'Check & complete patient data', ar: 'مراجعة بيانات المريض وإكمالها' },
+  datenTitel: { de: 'Kundendaten prüfen & ergänzen', en: 'Check & complete customer data', ar: 'مراجعة بيانات العميل وإكمالها' },
   fVorname: { de: 'Vorname', en: 'First name', ar: 'الاسم الأول' },
   fNachname: { de: 'Nachname', en: 'Last name', ar: 'اسم العائلة' },
   fTelefon: { de: 'Telefon', en: 'Phone', ar: 'الهاتف' },
@@ -42,19 +45,19 @@ const T = {
   fFirma: { de: 'Firma (optional)', en: 'Company (optional)', ar: 'الشركة (اختياري)' },
   fStrasse: { de: 'Straße und Nr.', en: 'Street', ar: 'الشارع' },
   fNotiz: { de: 'Notiz', en: 'Note', ar: 'ملاحظة' },
-  fNotizPlatzhalter: { de: 'z. B. Empfehlung, Zugang zur Baustelle, Ansprechpartner …', en: 'e.g. anxious patient, referral, allergy …', ar: 'مثال: مريض قلق، توصية، حساسية …' },
+  fNotizPlatzhalter: { de: 'z. B. Empfehlung, Zugang zur Baustelle, Ansprechpartner …', en: 'e.g. referral, site access, contact on site …', ar: 'مثال: توصية، الدخول إلى ورشة البناء، جهة الاتصال في الموقع …' },
   // Ablehnen mit Grund
   ablehnenTitel: { de: 'Anfrage ablehnen', en: 'Decline request', ar: 'رفض الطلب' },
   ablehnenFrage: {
     de: 'Warum sagen wir ab? Der Grund wird dem Kunden in der Absage-Mail mitgeteilt.',
-    en: 'Why are we declining? The reason is included in the e-mail to the patient.',
-    ar: 'لماذا نرفض؟ سيُذكر السبب في رسالة الرفض للمريض.',
+    en: 'Why are we declining? The reason is included in the e-mail to the customer.',
+    ar: 'لماذا نرفض؟ سيُذكر السبب في رسالة الرفض للعميل.',
   },
-  grundTelefon: { de: '📞 Kontaktdaten unklar – Kunde soll uns bitte anrufen', en: '📞 Phone number incorrect – patient should call us to confirm', ar: '📞 رقم الهاتف غير صحيح – على المريض الاتصال بنا للتأكيد' },
+  grundTelefon: { de: '📞 Kontaktdaten unklar – Kunde soll uns bitte anrufen', en: '📞 Contact details unclear – customer should call us', ar: '📞 بيانات الاتصال غير واضحة – يرجى من العميل الاتصال بنا' },
   grundAusgebucht: { de: '📅 Kein freier Termin – Auftragsbücher sind voll', en: '📅 Time is already fully booked', ar: '📅 الوقت محجوز بالكامل' },
   grundUrlaub: { de: '🏖 Betriebsurlaub', en: '🏖 Practice is on holiday', ar: '🏖 العيادة في إجازة' },
   grundKeiner: { de: '✉ Ohne Grund (Standardtext)', en: '✉ No reason (standard text)', ar: '✉ بدون سبب (نص قياسي)' },
-  ablehnenSenden: { de: 'Absagen & Kunde informieren', en: 'Decline & notify patient', ar: 'رفض وإبلاغ المريض' },
+  ablehnenSenden: { de: 'Absagen & Kunde informieren', en: 'Decline & notify customer', ar: 'رفض وإبلاغ العميل' },
   mGesendet: { de: '✉ Mail gesendet', en: '✉ e-mail sent', ar: '✉ أُرسل البريد' },
   mFehler: { de: '✉ Mail fehlgeschlagen', en: '✉ e-mail failed', ar: '✉ فشل الإرسال' },
   mKeineMail: { de: 'keine E-Mail', en: 'no e-mail', ar: 'لا بريد إلكتروني' },
@@ -65,7 +68,7 @@ const T = {
 export async function mailSenden(typ, anfrage, extra = {}) {
   if (!anfrage.email) return 'keine-email'
   if (!mailKonfiguriert()) return 'nicht-konfiguriert'
-  const ok = await sendePatientenMail(typ, {
+  const ok = await sendeKundenMail(typ, {
     email: anfrage.email,
     name: anfrage.name,
     datum: new Date(anfrage.datum + 'T12:00:00').toLocaleDateString('de-DE'),
@@ -106,12 +109,12 @@ export default function Anfragen({ user }) {
   const [ablehne, setAblehne] = useState(null)
 
   return (
-    <div className="p-4 lg:p-6 max-w-4xl">
-      <h1 className="text-xl font-bold text-slate-900 mb-1">{tr(T.titel)}</h1>
-      <p className="text-sm text-slate-500 mb-5">{tr(T.untertitel)}</p>
+    <div className={S.SEITE_SCHMAL}>
+      <h1 className="text-xl font-bold text-schrift-stark mb-1">{tr(T.titel)}</h1>
+      <p className="text-sm text-schrift-leise mb-5">{tr(T.untertitel)}</p>
 
       {neue.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-400">
+        <div className="bg-karte rounded-karte border border-rahmen p-10 text-center text-schrift-zart">
           <Icon name="inbox" className="w-10 h-10 mx-auto mb-3 opacity-40" />
           <p className="text-sm">{tr(T.leer)}</p>
         </div>
@@ -120,30 +123,30 @@ export default function Anfragen({ user }) {
           {neue.map((r) => (
             <div
               key={r.id}
-              className={`bg-white rounded-2xl border shadow-sm p-5 ${
+              className={`bg-karte rounded-karte border shadow-karte p-5 ${
                 r.id === deepLinkId ? 'border-praxis-500 ring-2 ring-praxis-300' : 'border-amber-200'
               }`}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="font-bold text-slate-900 flex items-center gap-2">
+                  <p className="font-bold text-schrift-stark flex items-center gap-2">
                     {r.name}
-                    <span className="text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">{tr(T.neu)}</span>
+                    <span className="text-[11px] font-bold bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">{tr(T.neu)}</span>
                   </p>
-                  <p className="text-sm text-slate-500 mt-0.5">
+                  <p className="text-sm text-schrift-leise mt-0.5">
                     {r.anliegen}
                     {r.datum && r.start && (
-                      <> · {tr(T.wunsch)} <span className="font-semibold text-slate-700">{datumLok(r.datum)}, {r.start} {tr(T.uhr)}</span></>
+                      <> · {tr(T.wunsch)} <span className="font-semibold text-schrift">{datumLok(r.datum)}, {r.start} {tr(T.uhr)}</span></>
                     )}
-                    <span className="ml-2 text-xs text-slate-400">
+                    <span className="ml-2 text-xs text-schrift-zart">
                       eingegangen {r.createdAt ? new Date(r.createdAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–'}
                     </span>
                   </p>
-                  <p className="text-sm text-slate-500 mt-0.5">
+                  <p className="text-sm text-schrift-leise mt-0.5">
                     <Icon name="phone" className="w-3.5 h-3.5 inline mr-1" />{r.telefon}
                     {r.email && <span className="ml-3"><Icon name="mail" className="w-3.5 h-3.5 inline mr-1" />{r.email}</span>}
                   </p>
-                  {r.nachricht && <p className="text-sm text-slate-600 mt-1.5 bg-slate-50 rounded-lg px-3 py-2">„{r.nachricht}"</p>}
+                  {r.nachricht && <p className="text-sm text-schrift mt-1.5 bg-gedeckt rounded-feld px-3 py-2">„{r.nachricht}"</p>}
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -154,7 +157,7 @@ export default function Anfragen({ user }) {
                   </button>
                   <button
                     onClick={() => setAblehne(r)}
-                    className="bg-white border border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-600 text-sm font-semibold px-4 py-2.5 rounded-full"
+                    className="bg-karte border border-rahmen text-schrift-leise hover:border-red-300 hover:text-red-600 text-sm font-semibold px-4 py-2.5 rounded-full"
                   >
                     {tr(T.ablehnen)}
                   </button>
@@ -167,20 +170,20 @@ export default function Anfragen({ user }) {
 
       {erledigte.length > 0 && (
         <>
-          <h2 className="text-sm font-bold text-slate-500 mt-8 mb-3">{tr(T.zuletzt)}</h2>
+          <h2 className="text-sm font-bold text-schrift-leise mt-8 mb-3">{tr(T.zuletzt)}</h2>
           <div className="space-y-2">
             {erledigte.map((r) => (
-              <div key={r.id} className="bg-white rounded-xl border border-slate-100 px-4 py-3 flex items-center justify-between text-sm">
-                <span className="text-slate-600">{r.name} · {r.anliegen}{r.datum && r.start ? ` · ${datumLok(r.datum)}, ${r.start}` : ''}</span>
+              <div key={r.id} className="bg-karte rounded-feld border border-rahmen px-4 py-3 flex items-center justify-between text-sm">
+                <span className="text-schrift">{r.name} · {r.anliegen}{r.datum && r.start ? ` · ${datumLok(r.datum)}, ${r.start}` : ''}</span>
                 <span className="flex items-center gap-1.5">
                   {r.mailStatus === 'gesendet' && (
-                    <span className="text-[10px] font-bold rounded-full px-2 py-1 bg-sky-100 text-sky-700">{tr(T.mGesendet)}</span>
+                    <span className="text-[11px] font-bold rounded-full px-2 py-1 bg-sky-100 text-sky-700">{tr(T.mGesendet)}</span>
                   )}
                   {r.mailStatus === 'fehler' && (
-                    <span className="text-[10px] font-bold rounded-full px-2 py-1 bg-red-100 text-red-700">{tr(T.mFehler)}</span>
+                    <span className="text-[11px] font-bold rounded-full px-2 py-1 bg-red-100 text-red-700">{tr(T.mFehler)}</span>
                   )}
                   {r.mailStatus === 'nicht-konfiguriert' && (
-                    <span className="text-[10px] font-bold rounded-full px-2 py-1 bg-amber-100 text-amber-700" title={tr(T.mailNichtKonf)}>{tr(T.mNichtKonf)}</span>
+                    <span className="text-[11px] font-bold rounded-full px-2 py-1 bg-amber-100 text-amber-700" title={tr(T.mailNichtKonf)}>{tr(T.mNichtKonf)}</span>
                   )}
                   <span className={`text-xs font-bold rounded-full px-2.5 py-1 ${
                     r.status === 'bestaetigt' ? 'bg-praxis-100 text-praxis-800' : 'bg-red-50 text-red-600'
@@ -230,20 +233,20 @@ export function AblehnenModal({ anfrage, onClose }) {
   return (
     <Modal titel={tr(T.ablehnenTitel)} onClose={onClose}>
       <div className="space-y-4">
-        <div className="bg-slate-50 rounded-2xl p-4 text-sm">
-          <p className="font-bold text-slate-900">{anfrage.name}</p>
-          <p className="text-slate-600 mt-0.5">
+        <div className="bg-gedeckt rounded-karte p-4 text-sm">
+          <p className="font-bold text-schrift-stark">{anfrage.name}</p>
+          <p className="text-schrift mt-0.5">
             {anfrage.anliegen}
             {anfrage.datum && anfrage.start ? ` · ${datumLok(anfrage.datum)}, ${anfrage.start} ${tr(T.uhr)}` : ''}
           </p>
-          {anfrage.telefon && <p className="text-slate-500 text-xs mt-0.5" dir="ltr">{anfrage.telefon}</p>}
+          {anfrage.telefon && <p className="text-schrift-leise text-xs mt-0.5" dir="ltr">{anfrage.telefon}</p>}
         </div>
-        <p className="text-sm text-slate-600">{tr(T.ablehnenFrage)}</p>
+        <p className="text-sm text-schrift">{tr(T.ablehnenFrage)}</p>
         <div className="space-y-2">
           {GRUENDE.map(([key, label]) => (
             <label
               key={key}
-              className="flex items-start gap-3 bg-white border-2 rounded-xl p-3.5 cursor-pointer transition has-checked:border-red-400 border-slate-200"
+              className="flex items-start gap-3 bg-karte border-2 rounded-feld p-3.5 cursor-pointer transition has-checked:border-red-400 border-rahmen"
             >
               <input
                 type="radio"
@@ -252,14 +255,14 @@ export function AblehnenModal({ anfrage, onClose }) {
                 onChange={() => setGrund(key)}
                 className="mt-0.5 accent-red-600"
               />
-              <span className="text-sm text-slate-700">{tr(label)}</span>
+              <span className="text-sm text-schrift">{tr(label)}</span>
             </label>
           ))}
         </div>
         <button
           onClick={absenden}
           disabled={laedt}
-          className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl"
+          className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-feld"
         >
           {laedt ? tr(T.laedt) : tr(T.ablehnenSenden)}
         </button>
@@ -297,9 +300,11 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
   // Vorschlag: existiert die Telefonnummer schon, ist es wohl derselbe Kunde
   const vorschlag = useMemo(() => {
     const tel = normalisiereTelefon(anfrage.telefon)
+    // Name defensiv: eine Anfrage ohne Namen darf den Dialog nicht abreißen lassen
+    const name = String(anfrage?.name || '').trim().toLowerCase()
     return patients.find(
       (p) => (tel && normalisiereTelefon(p.telefon) === tel) ||
-        `${p.vorname} ${p.nachname}`.toLowerCase() === anfrage.name.toLowerCase()
+        (name && `${p.vorname} ${p.nachname}`.toLowerCase() === name)
     )
   }, [anfrage, patients])
 
@@ -323,8 +328,18 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
           await s.update('patients', vorschlag.id, { ...daten })
           patient = { ...vorschlag, ...daten }
         } else {
+          // Abrechnungs-Vorgaben MITSCHREIBEN – sonst behandelt der Rechnungs-
+          // Assistent jeden Neukunden als §13b und ein Privatkunde bekäme eine
+          // Rechnung ohne 19 % USt.
+          const gewerblich = Boolean(daten.firma.trim())
           const neu = {
             ...daten,
+            ansprechpartner: `${daten.vorname} ${daten.nachname}`.trim(),
+            typ: gewerblich ? 'gu' : 'privat',
+            ustModus: gewerblich ? '13b' : 'ust19',
+            zahlungszielTage: gewerblich ? 16 : 14,
+            sicherheitseinbehaltProzent: gewerblich ? 10 : 0,
+            fastbillCustomerId: null,
             notizen: daten.notizen.trim() || 'Neukunde über die Webseite',
             createdAt: Date.now(),
           }
@@ -390,44 +405,44 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
   return (
     <Modal titel={tr(T.modalTitel)} onClose={onClose}>
       <div className="space-y-4">
-        <div className="bg-praxis-50 rounded-2xl p-4 text-sm">
-          <p className="font-bold text-slate-900">{anfrage.anliegen}</p>
+        <div className="bg-praxis-50 rounded-karte p-4 text-sm">
+          <p className="font-bold text-schrift-stark">{anfrage.anliegen}</p>
           {anfrage.datum && anfrage.start ? (
-            <p className="text-slate-600 mt-0.5">{datumLok(anfrage.datum)}, {anfrage.start} {tr(T.uhr)} · {anfrage.dauer} {tr(T.min)}</p>
+            <p className="text-schrift mt-0.5">{datumLok(anfrage.datum)}, {anfrage.start} {tr(T.uhr)} · {anfrage.dauer} {tr(T.min)}</p>
           ) : (
-            <p className="text-slate-600 mt-0.5">Kein Wunschtermin – Kunde wird angelegt, Einsatz plant das Büro im Kalender.</p>
+            <p className="text-schrift mt-0.5">{tr(T.keinWunsch)}</p>
           )}
-          {anfrage.nachricht && <p className="text-slate-600 mt-1.5 whitespace-pre-wrap">{anfrage.nachricht}</p>}
+          {anfrage.nachricht && <p className="text-schrift mt-1.5 whitespace-pre-wrap">{anfrage.nachricht}</p>}
         </div>
 
         {vorschlag ? (
           <div className="space-y-2">
-            <p className="text-sm font-medium text-slate-700">{tr(T.zuordnen)}</p>
-            <label className="flex items-start gap-3 bg-white border-2 rounded-xl p-3.5 cursor-pointer transition has-checked:border-praxis-500 border-slate-200">
+            <p className="text-sm font-medium text-schrift">{tr(T.zuordnen)}</p>
+            <label className="flex items-start gap-3 bg-karte border-2 rounded-feld p-3.5 cursor-pointer transition has-checked:border-praxis-500 border-rahmen">
               <input type="radio" name="patient-zuordnung" checked={modus === 'vorhanden'} onChange={() => moduswechsel('vorhanden')} className="mt-1 accent-teal-600" />
               <span className="text-sm">
                 <span className="font-semibold">{tr(T.vorhanden)}</span> {vorschlag.vorname} {vorschlag.nachname}
-                <span className="block text-xs text-slate-400">{[vorschlag.telefon, vorschlag.firma, vorschlag.plzOrt].filter(Boolean).join(' · ')}</span>
+                <span className="block text-xs text-schrift-zart">{[vorschlag.telefon, vorschlag.firma, vorschlag.plzOrt].filter(Boolean).join(' · ')}</span>
               </span>
             </label>
-            <label className="flex items-start gap-3 bg-white border-2 rounded-xl p-3.5 cursor-pointer transition has-checked:border-praxis-500 border-slate-200">
+            <label className="flex items-start gap-3 bg-karte border-2 rounded-feld p-3.5 cursor-pointer transition has-checked:border-praxis-500 border-rahmen">
               <input type="radio" name="patient-zuordnung" checked={modus === 'neu'} onChange={() => moduswechsel('neu')} className="mt-1 accent-teal-600" />
               <span className="text-sm">
                 <span className="font-semibold">{tr(T.alsNeu)}</span> {anfrage.name}
-                <span className="block text-xs text-slate-400">{anfrage.telefon}{anfrage.email ? ` · ${anfrage.email}` : ''}</span>
+                <span className="block text-xs text-schrift-zart">{anfrage.telefon}{anfrage.email ? ` · ${anfrage.email}` : ''}</span>
               </span>
             </label>
           </div>
         ) : (
-          <p className="text-sm text-slate-600">
-            <span className="font-semibold text-slate-800">{anfrage.name}</span> {tr(T.wirdNeu)}.
+          <p className="text-sm text-schrift">
+            <span className="font-semibold text-schrift-stark">{anfrage.name}</span> {tr(T.wirdNeu)}.
           </p>
         )}
 
         {/* Kundendaten direkt bearbeiten – neue Infos aus dem Telefonat (Firma,
             Anschrift, korrigierte Nummer) landen sofort in der Kundenkartei */}
         <div>
-          <p className="text-sm font-medium text-slate-700 mb-2">{tr(T.datenTitel)}</p>
+          <p className="text-sm font-medium text-schrift mb-2">{tr(T.datenTitel)}</p>
           <div className="grid grid-cols-2 gap-2.5">
             {[
               ['vorname', T.fVorname, 'text'],
@@ -438,25 +453,25 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
               ['strasse', T.fStrasse, 'text'],
               ['plzOrt', T.fPlzOrt, 'text'],
             ].map(([key, label, typ]) => (
-              <label key={key} className="block text-xs font-medium text-slate-500">
+              <label key={key} className="block text-xs font-medium text-schrift-leise">
                 {tr(label)}
                 <input
                   type={typ}
                   value={daten[key]}
                   onChange={(e) => setDaten({ ...daten, [key]: e.target.value })}
                   dir={typ === 'tel' || typ === 'email' ? 'ltr' : undefined}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-praxis-500"
+                  className="mt-1 w-full rounded-feld border border-rahmen px-3 py-2.5 text-sm text-schrift-stark focus:outline-none focus:ring-2 focus:ring-praxis-500"
                 />
               </label>
             ))}
           </div>
-          <label className="mt-2.5 block text-xs font-medium text-slate-500">
+          <label className="mt-2.5 block text-xs font-medium text-schrift-leise">
             {tr(T.fNotiz)}
             <input
               value={daten.notizen}
               onChange={(e) => setDaten({ ...daten, notizen: e.target.value })}
               placeholder={tr(T.fNotizPlatzhalter)}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-praxis-500"
+              className="mt-1 w-full rounded-feld border border-rahmen px-3 py-2.5 text-sm text-schrift-stark focus:outline-none focus:ring-2 focus:ring-praxis-500"
             />
           </label>
         </div>
@@ -464,20 +479,20 @@ export function BestaetigenModal({ anfrage, patients, onClose }) {
         <button
           onClick={bestaetigen}
           disabled={laedt}
-          className="w-full bg-praxis-600 hover:bg-praxis-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl"
+          className="w-full bg-praxis-600 hover:bg-praxis-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-feld"
         >
           {laedt ? tr(T.laedt) : tr(T.anlegen)}
         </button>
-        <p className="text-xs text-slate-400 text-center">
+        <p className="text-xs text-schrift-zart text-center">
           {tr(T.hinweisKalender)}{kalenderVerbunden() ? tr(T.hinweisGoogle) : ''}.
         </p>
         {anfrage.email && mailKonfiguriert() && (
-          <p className="text-xs text-sky-700 bg-sky-50 rounded-xl px-4 py-2.5 text-center">
+          <p className="text-xs text-sky-700 bg-sky-50 rounded-feld px-4 py-2.5 text-center">
             ✉ {tr(T.mailWird)} <strong dir="ltr">{anfrage.email}</strong>
           </p>
         )}
         {anfrage.email && !mailKonfiguriert() && (
-          <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-4 py-2.5">
+          <p className="text-xs text-amber-700 bg-amber-50 rounded-feld px-4 py-2.5">
             ⚠ {tr(T.mailNichtKonf)}
           </p>
         )}

@@ -3,23 +3,24 @@ import { Link } from 'react-router-dom'
 import Modal from './Modal.jsx'
 import TerminBilder from './TerminBilder.jsx'
 import { Icon } from '@shared/ui.jsx'
+import { useLang, t, datumLok } from '@shared/i18n.js'
 import { withStore, useCollection, useEinstellungen, useWhere } from '../hooks.js'
 import { heuteISO, addTage } from '@shared/slots.js'
 import { kalenderVerbunden, eventLoeschen } from '@shared/googleCalendar.js'
 import { druckeArbeitsauftrag } from '../drucken.js'
 
 const STATUS_INFO = {
-  bestaetigt: { label: 'Geplant', farbe: 'bg-praxis-100 text-praxis-800' },
-  abgeschlossen: { label: 'Abgeschlossen', farbe: 'bg-slate-200 text-slate-600' },
-  abgesagt: { label: 'Abgesagt', farbe: 'bg-red-100 text-red-700' },
+  bestaetigt: { schluessel: 'terminstatus.bestaetigt', farbe: 'bg-praxis-100 text-praxis-800' },
+  abgeschlossen: { schluessel: 'terminstatus.abgeschlossen', farbe: 'bg-gedeckt-tief text-schrift' },
+  abgesagt: { schluessel: 'terminstatus.abgesagt', farbe: 'bg-red-100 text-red-700' },
 }
 
 export const KATEGORIE_INFO = {
-  umsetzung: { label: 'Umsetzung', farbe: 'bg-praxis-100 text-praxis-800' },
-  fertigstellung: { label: 'Fertigstellung', farbe: 'bg-emerald-100 text-emerald-700' },
-  reklamation: { label: 'Reklamationsarbeit', farbe: 'bg-red-100 text-red-700' },
-  krank: { label: 'Krank/Abwesend', farbe: 'bg-amber-100 text-amber-800' },
-  privat: { label: 'Privater Termin', farbe: 'bg-slate-200 text-slate-600' },
+  umsetzung: { schluessel: 'kat.umsetzung', farbe: 'bg-praxis-100 text-praxis-800' },
+  fertigstellung: { schluessel: 'kat.fertigstellung', farbe: 'bg-emerald-100 text-emerald-700' },
+  reklamation: { schluessel: 'kat.reklamation', farbe: 'bg-red-100 text-red-700' },
+  krank: { schluessel: 'kat.krank', farbe: 'bg-amber-100 text-amber-800' },
+  privat: { schluessel: 'kat.privat', farbe: 'bg-gedeckt-tief text-schrift' },
 }
 
 function fmtDatum(iso) {
@@ -28,6 +29,7 @@ function fmtDatum(iso) {
 }
 
 export default function TerminModal({ termin, patient, user, onClose }) {
+  useLang()
   const projekte = useCollection('projekte')
   const users = useCollection('users')
   const einst = useEinstellungen()
@@ -114,40 +116,40 @@ export default function TerminModal({ termin, patient, user, onClose }) {
   }
 
   return (
-    <Modal titel="Termin" onClose={onClose} breite="max-w-xl">
+    <Modal titel={t('termine.neu')} onClose={onClose} breite="max-w-xl">
       <div className="space-y-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-lg font-bold text-slate-900">{termin.titel || termin.behandlung}</p>
+            <p className="text-lg font-bold text-schrift-stark">{termin.titel || termin.behandlung}</p>
             {termin.patientName && (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-schrift-leise">
                 {termin.patientName}
                 {patient?.telefon && <span dir="ltr"> · {patient.telefon}</span>}
               </p>
             )}
             {patient?.notizen && (
-              <p className="mt-1.5 text-sm font-semibold text-red-700 bg-red-50 rounded-lg px-3 py-1.5 inline-flex items-center gap-1.5">
+              <p className="mt-1.5 text-sm font-semibold text-red-700 bg-red-50 rounded-feld px-3 py-1.5 inline-flex items-center gap-1.5">
                 <Icon name="alert" className="w-4 h-4" /> {patient.notizen}
               </p>
             )}
           </div>
           <div className="shrink-0 flex flex-col items-end gap-1.5">
-            {kat && <span className={`text-xs font-bold rounded-full px-3 py-1.5 ${kat.farbe}`}>{kat.label}</span>}
+            {kat && <span className={`text-xs font-bold rounded-full px-3 py-1.5 ${kat.farbe}`}>{t(kat.schluessel)}</span>}
             {erledigt ? (
               <span className="text-xs font-bold rounded-full px-3 py-1.5 bg-emerald-100 text-emerald-700">
-                Erledigt{erledigtAm ? ` am ${fmtDatum(erledigtAm)}` : ''}
+                {erledigtAm ? t('termine.erledigtAm', { datum: fmtDatum(erledigtAm) }) : t('monteur.erledigt')}
               </span>
             ) : (
-              <span className={`text-xs font-bold rounded-full px-3 py-1.5 ${statusInfo.farbe}`}>{statusInfo.label}</span>
+              <span className={`text-xs font-bold rounded-full px-3 py-1.5 ${statusInfo.farbe}`}>{t(statusInfo.schluessel)}</span>
             )}
           </div>
         </div>
 
-        <div className="bg-praxis-50 rounded-2xl p-4 text-sm grid grid-cols-2 gap-2.5">
-          <p><span className="text-slate-500">Datum:</span> <span className="font-semibold">{fmtDatum(termin.datum)}</span></p>
-          <p><span className="text-slate-500">Zeit:</span> <span className="font-semibold" dir="ltr">{termin.start} – {termin.ende}</span> Uhr</p>
+        <div className="bg-praxis-50 rounded-karte p-4 text-sm grid grid-cols-2 gap-2.5">
+          <p><span className="text-schrift-leise">{t('allg.datum')}:</span> <span className="font-semibold">{fmtDatum(termin.datum)}</span></p>
+          <p><span className="text-schrift-leise">{t('tm.zeit')}:</span> <span className="font-semibold" dir="ltr">{termin.start} – {termin.ende}</span> {t('allg.uhr')}</p>
           <p className="col-span-2">
-            <span className="text-slate-500">Projekt:</span>{' '}
+            <span className="text-schrift-leise">{t('berichte.projekt')}:</span>{' '}
             {projekt ? (
               <Link
                 to={`/projekte/${projekt.id}`}
@@ -157,21 +159,21 @@ export default function TerminModal({ termin, patient, user, onClose }) {
                 {projekt.nummer} · {projekt.name}
               </Link>
             ) : (
-              <span className="text-slate-400">kein Projekt</span>
+              <span className="text-schrift-zart">{t('tm.keinProjekt')}</span>
             )}
           </p>
           {projekt?.anschrift && (
             <p className="col-span-2 flex items-center gap-1.5">
-              <Icon name="pin" className="w-4 h-4 text-slate-400 shrink-0" />
-              <span className="font-medium text-slate-700">
+              <Icon name="pin" className="w-4 h-4 text-schrift-zart shrink-0" />
+              <span className="font-medium text-schrift">
                 {[projekt.anschrift.strasse, projekt.anschrift.plzOrt].filter(Boolean).join(', ')}
               </span>
             </p>
           )}
           <div className="col-span-2">
-            <p className="text-slate-500 mb-1.5">Zugewiesene Mitarbeiter <span className="text-slate-400">(antippen zum Ändern)</span>:</p>
+            <p className="text-schrift-leise mb-1.5">{t('tm.zugewiesen')} <span className="text-schrift-zart">{t('tm.antippen')}</span>:</p>
             <div className="flex flex-wrap gap-2">
-              {monteure.length === 0 && <span className="text-slate-400">Keine Monteure angelegt (Einstellungen → Mitarbeiter).</span>}
+              {monteure.length === 0 && <span className="text-schrift-zart">{t('tm.keineMonteure')}</span>}
               {monteure.map((u) => {
                 const an = mitarbeiterIds.includes(u.id)
                 return (
@@ -179,7 +181,7 @@ export default function TerminModal({ termin, patient, user, onClose }) {
                     key={u.id}
                     onClick={() => zuweisungToggle(u.id)}
                     className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border transition ${
-                      an ? 'bg-praxis-600 border-praxis-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-praxis-400'
+                      an ? 'bg-praxis-600 border-praxis-600 text-white' : 'bg-karte border-rahmen text-schrift hover:border-praxis-400'
                     }`}
                   >
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: u.farbe || '#94a3b8' }} />
@@ -193,8 +195,8 @@ export default function TerminModal({ termin, patient, user, onClose }) {
 
         {termin.beschreibung && (
           <div>
-            <p className="font-semibold text-slate-800 text-sm">Beschreibung</p>
-            <p className="mt-1.5 text-sm text-slate-600 bg-slate-50 rounded-xl px-4 py-3 whitespace-pre-wrap">
+            <p className="font-semibold text-schrift-stark text-sm">{t('allg.beschreibung')}</p>
+            <p className="mt-1.5 text-sm text-schrift bg-gedeckt rounded-feld px-4 py-3 whitespace-pre-wrap">
               {termin.beschreibung}
             </p>
           </div>
@@ -204,50 +206,50 @@ export default function TerminModal({ termin, patient, user, onClose }) {
         <TerminBilder termin={termin} user={user} />
 
         {kopiertFuer && (
-          <p className="text-sm text-emerald-700 bg-emerald-50 rounded-xl px-4 py-3">
-            Termin wurde für den {kopiertFuer} kopiert.
+          <p className="text-sm text-emerald-700 bg-emerald-50 rounded-feld px-4 py-3">
+            {t('tm.kopiert', { datum: kopiertFuer })}
           </p>
         )}
 
         <div className="flex flex-wrap gap-2 pt-1">
           <button
             onClick={erledigtToggle}
-            className={`flex-1 inline-flex items-center justify-center gap-1.5 font-semibold py-3 rounded-xl text-sm ${
+            className={`flex-1 inline-flex items-center justify-center gap-1.5 font-semibold py-3 rounded-feld text-sm ${
               erledigt
-                ? 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                ? 'bg-karte border border-rahmen text-schrift hover:bg-gedeckt'
                 : 'bg-praxis-600 hover:bg-praxis-700 text-white'
             }`}
           >
             <Icon name="check" className="w-4 h-4" />
-            {erledigt ? 'Erledigt zurücknehmen' : 'Als erledigt markieren'}
+            {t(erledigt ? 'tm.erledigtZurueck' : 'tm.erledigtSetzen')}
           </button>
           <button
             onClick={kopieren}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-praxis-300 text-praxis-700 hover:bg-praxis-50 font-semibold py-3 rounded-xl text-sm"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-karte border border-praxis-300 text-praxis-700 hover:bg-praxis-50 font-semibold py-3 rounded-feld text-sm"
           >
             <Icon name="plus" className="w-4 h-4" />
-            Kopieren (+1 Tag)
+            {t('tm.kopieren')}
           </button>
           <button
             onClick={arbeitsauftragDrucken}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 rounded-xl text-sm"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-gedeckt-tief hover:bg-gedeckt-tief text-schrift font-semibold py-3 rounded-feld text-sm"
           >
             <Icon name="doc" className="w-4 h-4" />
-            Arbeitsauftrag (PDF)
+            {t('tm.arbeitsauftrag')}
           </button>
           {status !== 'abgesagt' ? (
             <button
               onClick={() => statusSetzen('abgesagt')}
-              className="flex-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 font-semibold py-3 rounded-xl text-sm"
+              className="flex-1 bg-karte border border-red-200 text-red-600 hover:bg-red-50 font-semibold py-3 rounded-feld text-sm"
             >
-              Termin absagen
+              {t('tm.absagen')}
             </button>
           ) : (
             <button
               onClick={() => statusSetzen('bestaetigt')}
-              className="flex-1 bg-white border border-praxis-300 text-praxis-700 hover:bg-praxis-50 font-semibold py-3 rounded-xl text-sm"
+              className="flex-1 bg-karte border border-praxis-300 text-praxis-700 hover:bg-praxis-50 font-semibold py-3 rounded-feld text-sm"
             >
-              Wieder aktivieren
+              {t('tm.reaktivieren')}
             </button>
           )}
         </div>

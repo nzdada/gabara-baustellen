@@ -47,16 +47,28 @@ export function normDatum(wert) {
 
 // Deutsches Zahlenformat -> Number: "2.582,421" -> 2582.421 · "3,90" -> 3.9 · "1150" -> 1150
 // Liefert 0 bei leerem/unlesbarem Wert.
-export function parseZahl(wert) {
-  if (typeof wert === 'number') return wert
-  let w = String(wert || '').trim().replace(/[€\s]/g, '')
-  if (!w) return 0
-  if (w.includes(',')) {
-    w = w.replace(/\./g, '').replace(',', '.')
-  } else if (/\.\d{3}(\D|$)/.test(w)) {
-    // 8.009 ohne Komma = Tausenderpunkt
-    w = w.replace(/\./g, '')
-  }
-  const n = Number(w)
-  return Number.isFinite(n) ? n : 0
+// Eine einzige Zahlenregel für die ganze Anwendung – sie liegt in
+// shared/format.js, damit auch shared/ sie benutzen kann. Hier nur
+// weitergereicht, damit die bestehenden Aufrufe unverändert weiterlaufen.
+// Importieren UND weiterreichen: Ein reines `export … from` erzeugt KEINE
+// lokale Bindung – parseZahlPruef weiter unten ruft parseZahl auf und liefe
+// sonst in ein "parseZahl is not defined".
+import { parseZahl } from '@shared/format.js'
+export { parseZahl }
+
+/**
+ * Wie parseZahl, meldet aber zusätzlich, OB der Wert lesbar war.
+ * Wichtig für den LV-Import: „ca. 20" oder „n.a." würden sonst still als 0
+ * übernommen – und eine 0-Menge fällt in einer 200-Zeilen-Tabelle niemandem
+ * auf, bis am Monatsende Geld in der Rechnung fehlt.
+ *
+ * -> { wert, leer, ok }   leer = nichts eingetragen (kein Fehler)
+ */
+export function parseZahlPruef(wert) {
+  const roh = String(wert ?? '').trim()
+  if (!roh) return { wert: 0, leer: true, ok: true }
+  // Lesbar ist nur, was ausschließlich aus Ziffern, Trennzeichen, Vorzeichen,
+  // Währungssymbol und Leerraum besteht – "ca. 20" oder "20-25" also nicht.
+  const ok = /^[-+]?[\d.,\s€]+$/.test(roh) && /\d/.test(roh)
+  return { wert: parseZahl(roh), leer: false, ok }
 }

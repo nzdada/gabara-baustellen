@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react'
 import { Icon } from '@shared/ui.jsx'
 import { heuteISO, toISO } from '@shared/slots.js'
+import { useLang, t, datumLok, lokale } from '@shared/i18n.js'
 
 // Kompakter Monats-Datepicker (Touch-tauglich, keine Fremdbibliothek).
 // - wert / onWert: ISO-Datum 'JJJJ-MM-TT'
 // - marker: { 'JJJJ-MM-TT': anzahl } zeichnet Punkte an Tagen mit Terminen
 // Wird im Termin-Dialog und in der Monteur-Kalenderansicht verwendet.
 
-const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
-const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+// Wochentags- und Monatsnamen kommen aus Intl – so stimmen sie in jeder Sprache
+const WOCHENTAG_SCHLUESSEL = ['wt.mo', 'wt.di', 'wt.mi', 'wt.do', 'wt.fr', 'wt.sa', 'wt.so']
 
 function monatsStart(iso) {
   const d = new Date((iso || heuteISO()) + 'T12:00:00')
@@ -16,6 +17,7 @@ function monatsStart(iso) {
 }
 
 export default function DatumWahl({ wert, onWert, marker = {}, kompakt = false }) {
+  useLang()
   const [monat, setMonat] = useState(() => monatsStart(wert))
   const heute = heuteISO()
 
@@ -33,29 +35,29 @@ export default function DatumWahl({ wert, onWert, marker = {}, kompakt = false }
   const zelle = kompakt ? 'h-9 text-xs' : 'h-10 text-sm'
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
+    <div className="rounded-karte border border-rahmen bg-karte p-2.5">
       <div className="flex items-center justify-between mb-1.5">
         <button
           type="button"
           onClick={() => setMonat(new Date(monat.getFullYear(), monat.getMonth() - 1, 1, 12))}
-          className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          className="p-1.5 rounded-feld text-schrift-zart hover:bg-gedeckt-tief hover:text-schrift-stark"
         >
           <Icon name="arrowLeft" className="w-4 h-4" />
         </button>
-        <p className="text-sm font-bold text-slate-800">
-          {MONATE[monat.getMonth()]} {monat.getFullYear()}
+        <p className="text-sm font-bold text-schrift-stark">
+          {monat.toLocaleDateString(lokale(), { month: 'long', year: 'numeric' })}
         </p>
         <button
           type="button"
           onClick={() => setMonat(new Date(monat.getFullYear(), monat.getMonth() + 1, 1, 12))}
-          className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          className="p-1.5 rounded-feld text-schrift-zart hover:bg-gedeckt-tief hover:text-schrift-stark"
         >
           <Icon name="arrowRight" className="w-4 h-4" />
         </button>
       </div>
       <div className="grid grid-cols-7 gap-0.5 mb-0.5">
-        {WOCHENTAGE.map((w) => (
-          <span key={w} className="text-center text-[10px] font-bold uppercase text-slate-400">{w}</span>
+        {WOCHENTAG_SCHLUESSEL.map((w) => (
+          <span key={w} className="text-center text-[11px] font-bold uppercase text-schrift-zart">{t(w)}</span>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-0.5">
@@ -69,18 +71,18 @@ export default function DatumWahl({ wert, onWert, marker = {}, kompakt = false }
               key={iso}
               type="button"
               onClick={() => onWert(iso)}
-              className={`${zelle} relative rounded-lg font-semibold transition flex items-center justify-center ${
+              className={`${zelle} relative rounded-feld font-semibold transition flex items-center justify-center ${
                 gewaehlt
                   ? 'bg-praxis-600 text-white'
                   : istHeute
                     ? 'bg-praxis-50 text-praxis-800 ring-1 ring-praxis-300'
-                    : 'text-slate-600 hover:bg-slate-100'
+                    : 'text-schrift hover:bg-gedeckt-tief'
               }`}
             >
               {Number(iso.slice(8, 10))}
               {anzahl > 0 && (
                 <span
-                  className={`absolute bottom-1 w-1.5 h-1.5 rounded-full ${gewaehlt ? 'bg-white' : 'bg-praxis-500'}`}
+                  className={`absolute bottom-1 w-1.5 h-1.5 rounded-full ${gewaehlt ? 'bg-karte' : 'bg-praxis-500'}`}
                 />
               )}
             </button>
@@ -91,12 +93,12 @@ export default function DatumWahl({ wert, onWert, marker = {}, kompakt = false }
         <button
           type="button"
           onClick={() => { const h = heuteISO(); setMonat(monatsStart(h)); onWert(h) }}
-          className="text-[11px] font-semibold text-praxis-700 hover:underline"
+          className="text-[12px] font-semibold text-praxis-700 hover:underline"
         >
-          Heute
+          {t('kalender.heute')}
         </button>
-        <span className="text-[11px] text-slate-400">
-          {wert ? new Date(wert + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '–'}
+        <span className="text-[12px] text-schrift-zart">
+          {wert ? datumLok(wert, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '–'}
         </span>
       </div>
     </div>

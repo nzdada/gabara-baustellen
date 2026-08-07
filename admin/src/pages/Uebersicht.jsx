@@ -2,24 +2,29 @@ import { Link } from 'react-router-dom'
 import { Icon } from '@shared/ui.jsx'
 import { useCollection } from '../hooks.js'
 import { istOffen } from '@shared/projektstatus.js'
+import { useLang, t, datumLok } from '@shared/i18n.js'
+import * as S from '../stil.js'
+import { Seitenkopf, Leer, ChipReihe, Segment, Meldung } from '../components/Seite.jsx'
 import { heuteISO } from '@shared/slots.js'
+import { schritteBuero, DRINGEND, OFFEN } from '@shared/naechsterSchritt.js'
+import { tr } from '@shared/i18n.js'
 
 // Startseite der Verwaltung: Karten-Grid nach HERO-Vorbild –
 // je Bereich eine Karte mit Kurzbeschreibung, Kennzahl und Absprung.
 
 function Karte({ icon, titel, text, kennzahl, kennzahlLabel, links }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col items-center text-center">
-      <div className="w-12 h-12 rounded-2xl bg-praxis-50 text-praxis-600 flex items-center justify-center">
+    <div className="bg-karte rounded-karte border border-rahmen shadow-karte p-6 flex flex-col items-center text-center">
+      <div className="w-12 h-12 rounded-karte bg-praxis-50 text-praxis-600 flex items-center justify-center">
         <Icon name={icon} className="w-6 h-6" />
       </div>
-      <h2 className="mt-3 font-bold text-lg text-slate-900">{titel}</h2>
-      <div className="w-16 border-t border-slate-200 my-3" />
-      <p className="text-sm text-slate-500 flex-1">{text}</p>
+      <h2 className="mt-3 font-bold text-lg text-schrift-stark">{titel}</h2>
+      <div className="w-16 border-t border-rahmen my-3" />
+      <p className="text-sm text-schrift-leise flex-1">{text}</p>
       {kennzahl !== undefined && (
         <p className="mt-3 text-sm">
           <span className="font-bold text-2xl text-praxis-600">{kennzahl}</span>
-          <span className="text-slate-400 ml-1.5">{kennzahlLabel}</span>
+          <span className="text-schrift-zart ml-1.5">{kennzahlLabel}</span>
         </p>
       )}
       <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -27,10 +32,10 @@ function Karte({ icon, titel, text, kennzahl, kennzahlLabel, links }) {
           <Link
             key={l.to}
             to={l.to}
-            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium ${
+            className={`px-3.5 py-1.5 rounded-feld text-sm font-medium ${
               l.primaer
                 ? 'bg-praxis-600 text-white hover:bg-praxis-700'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                : 'bg-gedeckt-tief text-schrift hover:bg-gedeckt-tief'
             }`}
           >
             {l.label}
@@ -41,13 +46,44 @@ function Karte({ icon, titel, text, kennzahl, kennzahlLabel, links }) {
   )
 }
 
+// Eine Handlung. Ein Satz, eine Begruendung, ein Knopf mit Ziel.
+// Bewusst NICHT als Kachel: Kacheln laden zum Stoebern ein, hier geht es um
+// Abarbeiten – deshalb eine Liste von oben nach unten.
+function Handlung({ h }) {
+  const farbe = h.stufe === DRINGEND
+    ? 'border-l-red-500 bg-red-50/50'
+    : h.stufe === OFFEN ? 'border-l-amber-400 bg-amber-50/40' : 'border-l-rahmen-stark'
+  return (
+    <div className={`flex items-start gap-3 border border-rahmen border-l-4 ${farbe} rounded-feld px-4 py-3`}>
+      <Icon name={h.icon} className="w-5 h-5 mt-0.5 text-schrift-leise shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold text-schrift-stark">{tr(h.text)}</p>
+        {h.detail && <p className="text-[12px] text-schrift mt-0.5">{tr(h.detail)}</p>}
+      </div>
+      {h.ziel && (
+        <Link
+          to={h.ziel}
+          className="shrink-0 px-3.5 min-h-11 flex items-center rounded-feld bg-praxis-600 text-white text-xs font-bold hover:bg-praxis-700 whitespace-nowrap"
+        >
+          {tr(h.knopf)}
+        </Link>
+      )}
+    </div>
+  )
+}
+
 export default function Uebersicht({ user }) {
+  useLang()
   const projekte = useCollection('projekte')
   const appointments = useCollection('appointments')
   const patients = useCollection('patients')
   const berichte = useCollection('berichte')
   const rechnungen = useCollection('rechnungen')
   const requests = useCollection('requests')
+  const lvpositionen = useCollection('lvpositionen')
+  const users = useCollection('users')
+  const spesen = useCollection('spesen')
+  const raeume = useCollection('raeume')
 
   const heute = heuteISO()
   const offeneProjekte = projekte.filter((p) => istOffen(p.status)).length
@@ -56,69 +92,87 @@ export default function Uebersicht({ user }) {
   const offeneRechnungen = rechnungen.filter((r) => r.status !== 'bezahlt' && r.status !== 'storniert').length
   const neueAnfragen = requests.filter((r) => r.status === 'neu').length
 
-  return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Übersicht</h1>
-        <p className="text-sm text-slate-500">
-          Willkommen{user?.name ? `, ${user.name}` : ''} – der Schreibtisch der Gabara-Baustellenverwaltung.
-        </p>
-      </div>
+  // Die eigentliche Antwort auf "was ist als Naechstes zu tun". Die Kacheln
+  // darunter bleiben als Schnellzugriff – sie sind nicht falsch, sie
+  // beantworten nur eine andere Frage.
+  const handlungen = schritteBuero({
+    projekte, lvpositionen, berichte, appointments, requests, users, rechnungen, spesen, raeume,
+  })
 
+  return (
+    <div className={S.SEITE}>
+      <Seitenkopf icon="home" titel="Übersicht"
+        sub={t('ueb.sub', { name: user?.name ? `, ${user.name}` : '' })} />
+
+      {handlungen.length > 0 ? (
+        <div className="mb-6">
+          <p className="text-sm font-bold text-schrift-stark mb-2">{t('ueb.zuTun')}</p>
+          <div className="space-y-2">
+            {handlungen.map((h) => <Handlung key={h.id} h={h} />)}
+          </div>
+        </div>
+      ) : (
+        <div className="mb-6 flex items-center gap-3 border border-emerald-200 bg-emerald-50 rounded-feld px-4 py-3">
+          <Icon name="erfolg" className="w-5 h-5 text-emerald-600 shrink-0" />
+          <p className="text-sm font-semibold text-emerald-800">{t('ueb.nichtsZuTun')}</p>
+        </div>
+      )}
+
+      <p className="text-sm font-bold text-schrift-stark mb-2">{t('ueb.bereiche')}</p>
       <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
         <Karte
           icon="folder"
-          titel="Projekte"
-          text="Baustellen vom Erstkontakt über die Umsetzung bis zur Abrechnung verwalten – mit Leistungsverzeichnis, Fotos und Berichten je Projekt."
+          titel={t('nav.projekte')}
+          text={t('ueb.projekteText')}
           kennzahl={offeneProjekte}
-          kennzahlLabel="offen"
+          kennzahlLabel={t('ueb.offen')}
           links={[
-            { to: '/projekte', label: 'Projekte anzeigen', primaer: true },
-            { to: '/projekte?neu=1', label: '+ Neu' },
+            { to: '/projekte', label: t('ueb.projekteZeigen'), primaer: true },
+            { to: '/projekte?neu=1', label: `+ ${t('allg.neu')}` },
           ]}
         />
         <Karte
           icon="calendar"
-          titel="Einsatzplanung"
-          text="Termine und Arbeitsaufträge planen und den Monteuren zuweisen – im Wochenkalender oder in der Terminliste."
+          titel={t('ueb.einsatzplanung')}
+          text={t('ueb.einsatzText')}
           kennzahl={termineHeute}
-          kennzahlLabel="heute"
+          kennzahlLabel={t('ueb.heute')}
           links={[
-            { to: '/', label: 'Kalender', primaer: true },
-            { to: '/termine', label: 'Terminliste' },
+            { to: '/', label: t('nav.kalender'), primaer: true },
+            { to: '/termine', label: t('ueb.terminliste') },
           ]}
         />
         <Karte
           icon="bericht"
-          titel="Berichte"
-          text="Regieberichte, Reklamationen und Abnahmen von der Baustelle prüfen, freigeben und als PDF drucken."
+          titel={t('nav.berichte')}
+          text={t('ueb.berichteText')}
           kennzahl={eingereicht}
-          kennzahlLabel="eingereicht"
-          links={[{ to: '/berichte', label: 'Berichte anzeigen', primaer: true }]}
+          kennzahlLabel={t('ueb.eingereicht')}
+          links={[{ to: '/berichte', label: t('ueb.berichteZeigen'), primaer: true }]}
         />
         <Karte
-          icon="users"
-          titel="Kunden"
-          text="Auftraggeber und Privatkunden – FastBill ist das führende System, hier liegt der Arbeits-Spiegel für die Projekte."
+          icon="firma"
+          titel={t('nav.kunden')}
+          text={t('ueb.kundenText')}
           kennzahl={patients.length}
-          kennzahlLabel="Kunden"
-          links={[{ to: '/kunden', label: 'Kunden anzeigen', primaer: true }]}
+          kennzahlLabel={t('nav.kunden')}
+          links={[{ to: '/kunden', label: t('ueb.kundenZeigen'), primaer: true }]}
         />
         <Karte
           icon="euro"
-          titel="Abrechnung"
-          text="Rechnungen aus LV-Mengen und Regieberichten zusammenstellen und an FastBill übertragen – dort laufen Versand, E-Rechnung und Mahnwesen."
+          titel={t('nav.abrechnung')}
+          text={t('ueb.abrText')}
           kennzahl={offeneRechnungen}
-          kennzahlLabel="offen"
-          links={[{ to: '/abrechnung', label: 'Abrechnung öffnen', primaer: true }]}
+          kennzahlLabel={t('ueb.offen')}
+          links={[{ to: '/abrechnung', label: t('ueb.abrOeffnen'), primaer: true }]}
         />
         <Karte
           icon="inbox"
-          titel="Anfragen"
-          text="Anfragen von der Gabara-Webseite – sichten, Kunde anlegen und als Projekt weiterführen."
+          titel={t('nav.anfragen')}
+          text={t('ueb.anfragenText')}
           kennzahl={neueAnfragen}
-          kennzahlLabel="neu"
-          links={[{ to: '/anfragen', label: 'Anfragen anzeigen', primaer: true }]}
+          kennzahlLabel={t('ueb.neuKlein')}
+          links={[{ to: '/anfragen', label: t('ueb.anfragenZeigen'), primaer: true }]}
         />
       </div>
     </div>

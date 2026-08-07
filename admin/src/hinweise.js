@@ -52,4 +52,8 @@ export const HINWEIS = {
   einstRegieSaetze: 'Regie-Stundensätze für neue Berichtszeilen. Bereits erfasste Regieberichte behalten den Satz, der bei der Erfassung galt.',
   einstKmSatz: 'Vorbelegung für neue Spesenbelege vom Typ Fahrt. Im einzelnen Beleg lässt sich der Satz überschreiben.',
   einstEkPreis: 'Einkaufspreis. Er steht auf keiner Rechnung und dient nur der Margen-Auswertung im Dashboard.',
+
+  einstUid: 'Die UID aus Firebase → Authentication → Users. Sie wird zur Dokument-ID dieses Mitarbeiters – nur daran erkennt die Datenbank beim Schreiben, ob jemand Büro oder Monteur ist. Ohne UID darf das Konto beim Anmelden ALLES ändern, auch Preise und Rechnungen.',
+
+  stundenFreigabe: 'Ohne Haken fällt die Statusprüfung ganz weg – dann zählen auch ENTWÜRFE mit, nicht nur eingereichte Berichte. Für einen Stundenzettel, der ans Lohnbüro oder an die BG geht, sollten nur freigegebene Stunden drinstehen – die sind vom Büro geprüft.',
 }

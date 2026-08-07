@@ -9,24 +9,30 @@ import { withStore, useCollection, useWhere } from '../hooks.js'
 import { kalenderVerbunden, eventAnlegen } from '@shared/googleCalendar.js'
 import { istOffen, PROJEKT_STATUS } from '@shared/projektstatus.js'
 import { TEAM_FARBEN } from '@shared/teams.js'
+import { useLang, t } from '@shared/i18n.js'
+import { useEntwurf } from '@shared/entwurf.js'
+import EntwurfHinweis from './EntwurfHinweis.jsx'
 
 // Termin-Kategorien der Baustellen-Planung (Reihenfolge = Anzeige im Select)
 export const KATEGORIEN = [
-  ['umsetzung', 'Umsetzung'],
-  ['fertigstellung', 'Fertigstellung'],
-  ['reklamation', 'Reklamationsarbeit'],
-  ['krank', 'Krank/Abwesend'],
-  ['privat', 'Privater Termin'],
+  ['umsetzung', 'kat.umsetzung'],
+  ['fertigstellung', 'kat.fertigstellung'],
+  ['reklamation', 'kat.reklamation'],
+  ['krank', 'kat.krank'],
+  ['privat', 'kat.privat'],
 ]
 
+// Der Anzeigename einer Kategorie. WICHTIG: KATEGORIEN trägt seit der
+// Zweisprachigkeit nur noch SCHLÜSSEL – wer den zweiten Eintrag direkt als Text
+// verwendet, schreibt „kat.umsetzung" in den Termin-Titel und damit in die
+// Datenbank. Immer über diese Funktion gehen.
+export function katName(id) {
+  const treffer = KATEGORIEN.find(([k]) => k === id)
+  return treffer ? t(treffer[1]) : t('kat.umsetzung')
+}
+
 // Häufige Einsatzlängen als Schnellwahl (setzt „Bis" relativ zu „Von")
-const DAUER_CHIPS = [
-  [60, '1 Std.'],
-  [120, '2 Std.'],
-  [240, '4 Std.'],
-  [480, '8 Std.'],
-  [600, '10 Std.'],
-]
+const DAUER_CHIPS = [60, 120, 240, 480, 600]
 
 function kundeName(k) {
   if (!k) return ''
@@ -40,7 +46,7 @@ function dauerText(von, bis) {
   if (diff <= 0) return ''
   const std = Math.floor(diff / 60)
   const rest = diff % 60
-  return `${std > 0 ? `${std} Std.` : ''}${rest ? ` ${rest} Min.` : ''}`.trim()
+  return `${std > 0 ? `${std} ${t('allg.stunden')}` : ''}${rest ? ` ${rest} ${t('nt.minuten')}` : ''}`.trim()
 }
 
 function naechsteProjektNummer(projekte) {
@@ -55,6 +61,7 @@ function naechsteProjektNummer(projekte) {
 
 // bearbeiten: vorhandener INTERNER Termin -> Dialog wird zum Editor (Zeiten ändern, löschen)
 export default function NeuerTermin({ patients, appointments, vorbelegt = {}, bearbeiten = null, onClose, onAngelegt }) {
+  useLang()
   const [typ, setTyp] = useState(bearbeiten ? 'intern' : 'einsatz') // einsatz | intern (Blocker)
   const [grund, setGrund] = useState(bearbeiten?.behandlung || '')
   const [datum, setDatum] = useState(bearbeiten?.datum || vorbelegt.datum || heuteISO())
@@ -74,6 +81,32 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
   const [neuesProjekt, setNeuesProjekt] = useState(false)
   const [fehler, setFehler] = useState('')
   const [laedt, setLaedt] = useState(false)
+
+  // Entwurfs-Sicherung: der Dialog hat viele Einzelfelder, deshalb erst
+  // zu EINEM Objekt bündeln. useMemo hält die Referenz stabil, sonst würde
+  // der Sicherungs-Effekt bei jedem Tastendruck neu aufgesetzt.
+  const entwurfsDaten = useMemo(
+    () => ({ typ, grund, datum, von, bis, titel, kategorie, projektId, beschreibung, patientId, mitarbeiterIds, positionsIds }),
+    [typ, grund, datum, von, bis, titel, kategorie, projektId, beschreibung, patientId, mitarbeiterIds, positionsIds],
+  )
+  const entwurf = useEntwurf(`termin:${bearbeiten?.id || 'neu'}`, entwurfsDaten)
+
+  function entwurfUebernehmen() {
+    const alt = entwurf.wiederherstellen()
+    if (!alt) return
+    if (alt.typ) setTyp(alt.typ)
+    if (alt.grund !== undefined) setGrund(alt.grund)
+    if (alt.datum) setDatum(alt.datum)
+    if (alt.von) setVon(alt.von)
+    if (alt.bis) setBis(alt.bis)
+    if (alt.titel !== undefined) setTitel(alt.titel)
+    if (alt.kategorie) setKategorie(alt.kategorie)
+    if (alt.projektId !== undefined) setProjektId(alt.projektId)
+    if (alt.beschreibung !== undefined) setBeschreibung(alt.beschreibung)
+    if (alt.patientId !== undefined) setPatientId(alt.patientId)
+    if (Array.isArray(alt.mitarbeiterIds)) setMitarbeiterIds(alt.mitarbeiterIds)
+    if (Array.isArray(alt.positionsIds)) setPositionsIds(alt.positionsIds)
+  }
 
   const alleUsers = useCollection('users')
   const monteure = useMemo(() => alleUsers.filter((u) => u.rolle === 'mitarbeiter' && u.aktiv !== false), [alleUsers])
@@ -110,7 +143,7 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
     const p = projekte.find((x) => x.id === vorbelegt.projektId)
     if (!p) return
     if (p.kundeId && patients.some((k) => k.id === p.kundeId)) setPatientId(p.kundeId)
-    setTitel((alt) => alt.trim() || `${KATEGORIEN.find(([k]) => k === kategorie)?.[1] || 'Einsatz'} – ${p.name}`)
+    setTitel((alt) => alt.trim() || `${katName(kategorie)} – ${p.name}`)
     // Nur beim Laden der Projekte – danach entscheidet der Benutzer
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projekte, vorbelegt.projektId])
@@ -133,8 +166,7 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
       setSuche('')
     }
     if (!titel.trim()) {
-      const katLabel = KATEGORIEN.find(([k]) => k === kategorie)?.[1] || 'Einsatz'
-      setTitel(`${katLabel} – ${p.name}`)
+      setTitel(`${katName(kategorie)} – ${p.name}`)
     }
   }
 
@@ -145,7 +177,7 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
   }
 
   async function internLoeschen() {
-    if (!bearbeiten || !confirm('Diesen internen Termin löschen? Das Zeitfenster wird wieder frei.')) return
+    if (!bearbeiten || !confirm(t('nt.internLoeschenFrage'))) return
     await withStore(async (s) => {
       await s.remove('appointments', bearbeiten.id)
       if (s.mode === 'firebase') await s.loescheSlot(bearbeiten.id)
@@ -173,11 +205,16 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
     setFehler('')
     const intern = typ === 'intern'
     const ohneKunde = kategorie === 'krank' || kategorie === 'privat'
-    if (!datum) return setFehler('Bitte ein Datum wählen.')
-    if (!von || !bis) return setFehler('Bitte „Von“ und „Bis“ ausfüllen.')
-    if (zuMinuten(bis) <= zuMinuten(von)) return setFehler('„Bis“ muss nach „Von“ liegen.')
+    if (!datum) return setFehler(t('nt.datumFehlt'))
+    if (!von || !bis) return setFehler(t('nt.zeitFehlt'))
+    if (zuMinuten(bis) <= zuMinuten(von)) return setFehler(t('nt.bisVorVon'))
     if (!intern && !ohneKunde && !gewaehlt && !projektId) {
-      return setFehler('Bitte einen Kunden wählen oder eine Baustelle zuordnen (bei Krank/Privat nicht nötig).')
+      return setFehler(t('nt.kundeFehlt'))
+    }
+    // Ohne Zuweisung taucht der Einsatz bei keinem Monteur auf dem Handy auf
+    if (!intern && mitarbeiterIds.length === 0
+      && !confirm(t('nt.ohneMitarbeiter'))) {
+      return
     }
     setLaedt(true)
     try {
@@ -195,6 +232,7 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
           await s.update('appointments', bearbeiten.id, patch)
           if (s.mode === 'firebase') await s.schreibeSlot({ ...bearbeiten, ...patch })
         })
+        entwurf.loeschen()
         onAngelegt?.()
         onClose()
         return
@@ -258,32 +296,38 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
           } catch (e) { /* Google nicht erreichbar – Termin bleibt trotzdem bestehen */ }
         }
       })
+      entwurf.loeschen()
       onAngelegt?.()
       onClose()
     } catch (e) {
-      setFehler(e.message || 'Termin konnte nicht angelegt werden.')
+      setFehler(e.message || t('nt.fehlerAnlegen'))
     } finally {
       setLaedt(false)
     }
   }
 
-  const feld = 'w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500'
-  const beschriftung = 'text-sm font-medium text-slate-700'
+  const feld = 'w-full rounded-feld border border-rahmen px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500'
+  const beschriftung = 'text-sm font-medium text-schrift'
 
   return (
-    <Modal titel={bearbeiten ? 'Internen Termin bearbeiten' : 'Neuer Termin'} onClose={onClose} breite="max-w-2xl">
+    <Modal titel={t(bearbeiten ? 'nt.titelBearbeiten' : 'nt.titelNeu')} onClose={onClose} breite="max-w-2xl">
       <div className="space-y-4">
+        <EntwurfHinweis
+          eintrag={entwurf.gefunden}
+          onWiederherstellen={entwurfUebernehmen}
+          onVerwerfen={entwurf.verwerfen}
+        />
         {/* Termin-Art */}
         <div className={`flex gap-2 ${bearbeiten ? 'hidden' : ''}`}>
-          {[['einsatz', 'Einsatz / Termin'], ['intern', 'Intern blockieren']].map(([key, label]) => (
+          {[['einsatz', t('nt.artEinsatz')], ['intern', t('nt.artIntern')]].map(([key, label]) => (
             <button
               key={key}
               type="button"
               onClick={() => setTyp(key)}
-              className={`flex-1 text-sm font-semibold rounded-xl px-3 py-2.5 border-2 transition ${
+              className={`flex-1 text-sm font-semibold rounded-feld px-3 py-2.5 border-2 transition ${
                 typ === key
-                  ? key === 'intern' ? 'bg-slate-700 border-slate-700 text-white' : 'bg-praxis-600 border-praxis-600 text-white'
-                  : 'border-slate-200 text-slate-500 hover:border-slate-400'
+                  ? key === 'intern' ? 'bg-schrift border-schrift text-white' : 'bg-praxis-600 border-praxis-600 text-white'
+                  : 'border-rahmen text-schrift-leise hover:border-praxis-400'
               }`}
             >
               {label}
@@ -293,35 +337,35 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
 
         {typ === 'intern' && (
           <label className="block">
-            <span className={beschriftung}>Bezeichnung / Grund</span>
+            <span className={beschriftung}>{t('nt.bezeichnung')}</span>
             <input
               autoFocus
               value={grund}
               onChange={(e) => setGrund(e.target.value)}
-              placeholder="z. B. Teambesprechung, Materialfahrt, Urlaub …"
+              placeholder={t('nt.bezeichnungPlatz')}
               className={`mt-1.5 ${feld}`}
             />
           </label>
         )}
 
         {/* ---------- Datum + Zeit ---------- */}
-        <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-3">
+        <div className="rounded-karte border border-rahmen bg-gedeckt/60 p-3.5 space-y-3">
           <div className="flex flex-wrap items-end gap-3">
             <label className="block flex-1 min-w-[190px]">
-              <span className={beschriftung}>Datum</span>
+              <span className={beschriftung}>{t('allg.datum')}</span>
               <div className="mt-1.5 flex gap-2">
                 <input
                   type="date"
                   value={datum}
                   onChange={(e) => setDatum(e.target.value)}
-                  className={`${feld} bg-white`}
+                  className={`${feld} bg-karte`}
                 />
                 <button
                   type="button"
                   onClick={() => setZeigeKalender(!zeigeKalender)}
-                  title="Kalender anzeigen"
-                  className={`shrink-0 px-3.5 rounded-xl border transition ${
-                    zeigeKalender ? 'bg-praxis-600 border-praxis-600 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-praxis-400'
+                  title={t('nt.kalenderZeigen')}
+                  className={`shrink-0 px-3.5 rounded-feld border transition ${
+                    zeigeKalender ? 'bg-praxis-600 border-praxis-600 text-white' : 'bg-karte border-rahmen text-schrift-leise hover:border-praxis-400'
                   }`}
                 >
                   <Icon name="calendar" className="w-5 h-5" />
@@ -329,12 +373,12 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
               </div>
             </label>
             <div className="flex gap-1.5">
-              {[['Heute', 0], ['Morgen', 1], ['+7 Tage', 7]].map(([label, versatz]) => (
+              {[[t('kalender.heute'), 0], [t('nt.morgen'), 1], [t('nt.plus7'), 7]].map(([label, versatz]) => (
                 <button
                   key={label}
                   type="button"
                   onClick={() => setDatum(addTage(heuteISO(), versatz))}
-                  className="text-xs font-semibold rounded-full px-3 py-2 bg-white border border-slate-200 text-slate-600 hover:border-praxis-400"
+                  className="text-xs font-semibold rounded-full px-3 py-2 bg-karte border border-rahmen text-schrift hover:border-praxis-400"
                 >
                   {label}
                 </button>
@@ -348,36 +392,36 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
 
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className={beschriftung}>Von</span>
+              <span className={beschriftung}>{t('allg.von')}</span>
               <input
                 type="time"
                 step="300"
                 value={von}
                 onChange={(e) => vonSetzen(e.target.value)}
-                className={`mt-1.5 ${feld} bg-white text-base font-semibold`}
+                className={`mt-1.5 ${feld} bg-karte text-base font-semibold`}
               />
             </label>
             <label className="block">
-              <span className={beschriftung}>Bis</span>
+              <span className={beschriftung}>{t('allg.bis')}</span>
               <input
                 type="time"
                 step="300"
                 value={bis}
                 onChange={(e) => setBis(e.target.value)}
-                className={`mt-1.5 ${feld} bg-white text-base font-semibold`}
+                className={`mt-1.5 ${feld} bg-karte text-base font-semibold`}
               />
             </label>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-slate-400 mr-1">Dauer:</span>
-            {DAUER_CHIPS.map(([minuten, label]) => (
+            <span className="text-xs text-schrift-zart mr-1">{t('nt.dauer')}:</span>
+            {DAUER_CHIPS.map((minuten) => (
               <button
                 key={minuten}
                 type="button"
                 onClick={() => setBis(endeZeit(von || '07:00', minuten))}
-                className="text-xs font-semibold rounded-full px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:border-praxis-400"
+                className="text-xs font-semibold rounded-full px-3 py-1.5 bg-karte border border-rahmen text-schrift hover:border-praxis-400"
               >
-                {label}
+                {minuten / 60} {t('allg.stunden')}
               </button>
             ))}
             {dauerHinweis && (
@@ -386,8 +430,8 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
               </span>
             )}
           </div>
-          <p className="text-[11px] text-slate-400">
-            Zeiten sind frei wählbar – Überschneidungen sind erlaubt (mehrere Kolonnen arbeiten parallel).
+          <p className="text-[12px] text-schrift-zart">
+            {t('nt.zeitenFrei')}
           </p>
         </div>
 
@@ -396,21 +440,21 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
             {/* ---------- Baustelle / Projekt ---------- */}
             <div>
               <div className="flex items-center justify-between">
-                <span className={beschriftung}>Baustelle / Projekt</span>
+                <span className={beschriftung}>{t('nt.baustelle')}</span>
                 <button
                   type="button"
                   onClick={() => setNeuesProjekt(true)}
                   className="text-xs font-semibold text-praxis-700 hover:underline"
                 >
-                  + Neues Projekt anlegen
+                  {t('nt.neuesProjekt')}
                 </button>
               </div>
               <select
                 value={projektId}
                 onChange={(e) => projektWaehlen(e.target.value)}
-                className={`mt-1.5 ${feld} bg-white`}
+                className={`mt-1.5 ${feld} bg-karte`}
               >
-                <option value="">– keine Baustelle –</option>
+                <option value="">{t('nt.keineBaustelle')}</option>
                 {projektAuswahl.map((p) => (
                   <option key={p.id} value={p.id}>{p.nummer} · {p.name}</option>
                 ))}
@@ -418,18 +462,18 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
 
               {/* Aufgaben aus dem LV der gewählten Baustelle */}
               {projektId && (
-                <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs font-bold text-slate-600 mb-2">
-                    <FeldLabel info={HINWEIS.terminAufgaben}>Aufgaben für diesen Einsatz</FeldLabel>
+                <div className="mt-2 rounded-karte border border-rahmen bg-karte p-3">
+                  <p className="text-xs font-bold text-schrift mb-2">
+                    <FeldLabel info={HINWEIS.terminAufgaben}>{t('nt.aufgaben')}</FeldLabel>
                     {positionsIds.length > 0 && (
-                      <span className="ml-2 text-[10px] font-bold bg-praxis-600 text-white rounded-full px-2 py-0.5">
+                      <span className="ml-2 text-[11px] font-bold bg-praxis-600 text-white rounded-full px-2 py-0.5">
                         {positionsIds.length}
                       </span>
                     )}
                   </p>
                   {aufgaben.length === 0 ? (
-                    <p className="text-xs text-slate-400">
-                      Für diese Baustelle sind noch keine LV-Positionen erfasst – Aufgabe unten als Text beschreiben.
+                    <p className="text-xs text-schrift-zart">
+                      {t('nt.keineLvPositionen')}
                     </p>
                   ) : (
                     <div className="max-h-44 overflow-y-auto space-y-1 pr-1">
@@ -440,20 +484,20 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
                             key={p.id}
                             type="button"
                             onClick={() => toggleAufgabe(p.id)}
-                            className={`w-full text-left flex items-start gap-2 rounded-xl px-2.5 py-2 border transition ${
-                              an ? 'bg-praxis-50 border-praxis-300' : 'bg-white border-slate-100 hover:border-slate-300'
+                            className={`w-full text-left flex items-start gap-2 rounded-feld px-2.5 py-2 border transition ${
+                              an ? 'bg-praxis-50 border-praxis-300' : 'bg-karte border-rahmen hover:border-rahmen-stark'
                             }`}
                           >
                             <span className={`mt-0.5 w-4 h-4 rounded shrink-0 border flex items-center justify-center ${
-                              an ? 'bg-praxis-600 border-praxis-600 text-white' : 'border-slate-300'
+                              an ? 'bg-praxis-600 border-praxis-600 text-white' : 'border-rahmen-stark'
                             }`}>
                               {an && <Icon name="check" className="w-3 h-3" strokeWidth={3} />}
                             </span>
                             <span className="min-w-0 flex-1">
-                              <span className="block text-xs text-slate-400 font-mono">{p.oz}</span>
-                              <span className="block text-sm text-slate-700 leading-snug">{p.kurztext}</span>
+                              <span className="block text-xs text-schrift-zart font-mono">{p.oz}</span>
+                              <span className="block text-sm text-schrift leading-snug">{p.kurztext}</span>
                             </span>
-                            <span className="text-xs text-slate-400 whitespace-nowrap shrink-0">
+                            <span className="text-xs text-schrift-zart whitespace-nowrap shrink-0">
                               {p.menge} {p.einheit}
                             </span>
                           </button>
@@ -468,13 +512,13 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
             {/* ---------- Kunde ---------- */}
             <div>
               <span className={beschriftung}>
-                Kunde {kategorie === 'krank' || kategorie === 'privat' ? '(optional)' : ''}
+                {t('kunden.kunde')} {kategorie === 'krank' || kategorie === 'privat' ? t('nt.optional') : ''}
               </span>
               {gewaehlt ? (
-                <div className="mt-1.5 flex items-center justify-between bg-praxis-50 border border-praxis-200 rounded-xl px-4 py-3">
+                <div className="mt-1.5 flex items-center justify-between bg-praxis-50 border border-praxis-200 rounded-feld px-4 py-3">
                   <div className="min-w-0">
-                    <p className="font-semibold text-slate-900 text-sm truncate">{kundeName(gewaehlt)}</p>
-                    <p className="text-xs text-slate-500 truncate">
+                    <p className="font-semibold text-schrift-stark text-sm truncate">{kundeName(gewaehlt)}</p>
+                    <p className="text-xs text-schrift-leise truncate">
                       {[gewaehlt.ansprechpartner, gewaehlt.telefon, gewaehlt.plzOrt].filter(Boolean).join(' · ')}
                     </p>
                   </div>
@@ -483,7 +527,7 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
                     onClick={() => { setPatientId(null); setSuche('') }}
                     className="shrink-0 text-xs text-praxis-700 font-medium hover:underline"
                   >
-                    Ändern
+                    {t('allg.bearbeiten')}
                   </button>
                 </div>
               ) : (
@@ -491,12 +535,12 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
                   <input
                     value={suche}
                     onChange={(e) => setSuche(e.target.value)}
-                    placeholder="Kunde suchen (Firma, Name, Telefon, Ort) …"
+                    placeholder={t('nt.kundeSuchen')}
                     className={feld}
                   />
-                  <div className="mt-1.5 max-h-44 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-50">
+                  <div className="mt-1.5 max-h-44 overflow-y-auto rounded-feld border border-rahmen divide-y divide-rahmen">
                     {treffer.length === 0 ? (
-                      <p className="px-4 py-3 text-sm text-slate-400">Kein Kunde gefunden.</p>
+                      <p className="px-4 py-3 text-sm text-schrift-zart">{t('nt.keinKunde')}</p>
                     ) : (
                       treffer.map((p) => (
                         <button
@@ -505,8 +549,8 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
                           onClick={() => setPatientId(p.id)}
                           className="w-full text-left px-4 py-2.5 hover:bg-praxis-50 text-sm flex items-center justify-between gap-3"
                         >
-                          <span className="font-medium text-slate-800 truncate">{kundeName(p)}</span>
-                          <span className="text-slate-400 text-xs shrink-0">{p.telefon || p.plzOrt || ''}</span>
+                          <span className="font-medium text-schrift-stark truncate">{kundeName(p)}</span>
+                          <span className="text-schrift-zart text-xs shrink-0">{p.telefon || p.plzOrt || ''}</span>
                         </button>
                       ))
                     )}
@@ -518,17 +562,17 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
             {/* ---------- Aufgabe / Titel / Kategorie ---------- */}
             <div className="grid sm:grid-cols-2 gap-3">
               <label className="block">
-                <span className={beschriftung}><FeldLabel info={HINWEIS.terminKategorie}>Kategorie</FeldLabel></span>
-                <select value={kategorie} onChange={(e) => setKategorie(e.target.value)} className={`mt-1.5 ${feld} bg-white`}>
-                  {KATEGORIEN.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                <span className={beschriftung}><FeldLabel info={HINWEIS.terminKategorie}>{t('termine.kategorie')}</FeldLabel></span>
+                <select value={kategorie} onChange={(e) => setKategorie(e.target.value)} className={`mt-1.5 ${feld} bg-karte`}>
+                  {KATEGORIEN.map(([id, schluessel]) => <option key={id} value={id}>{t(schluessel)}</option>)}
                 </select>
               </label>
               <label className="block">
-                <span className={beschriftung}>Titel der Aufgabe</span>
+                <span className={beschriftung}>{t('nt.titelAufgabe')}</span>
                 <input
                   value={titel}
                   onChange={(e) => setTitel(e.target.value)}
-                  placeholder="z. B. Umsetzung – 1. OG Flure streichen"
+                  placeholder={t('nt.titelPlatz')}
                   className={`mt-1.5 ${feld}`}
                 />
               </label>
@@ -538,10 +582,10 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
 
         {/* ---------- Mitarbeiter / Team ---------- */}
         <div>
-          <span className={beschriftung}><FeldLabel info={HINWEIS.terminMitarbeiter}>Mitarbeiter / Team</FeldLabel></span>
+          <span className={beschriftung}><FeldLabel info={HINWEIS.terminMitarbeiter}>{t('nt.mitarbeiterTeam')}</FeldLabel></span>
           {monteure.length === 0 ? (
-            <p className="mt-1.5 text-xs text-slate-400 bg-slate-50 rounded-xl px-4 py-2.5">
-              Keine aktiven Mitarbeiter angelegt (Einstellungen → Mitarbeiter).
+            <p className="mt-1.5 text-xs text-schrift-zart bg-gedeckt rounded-feld px-4 py-2.5">
+              {t('nt.keineMitarbeiter')}
             </p>
           ) : (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -553,7 +597,7 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
                   className={`inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-2 border-2 transition ${
                     mitarbeiterIds.includes(u.id)
                       ? 'text-white border-transparent'
-                      : 'border-slate-200 text-slate-600 hover:border-praxis-400'
+                      : 'border-rahmen text-schrift hover:border-praxis-400'
                   }`}
                   style={mitarbeiterIds.includes(u.id) ? { backgroundColor: u.farbe || '#94a3b8' } : undefined}
                 >
@@ -568,32 +612,32 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
 
         {typ === 'einsatz' && (
           <label className="block">
-            <span className={beschriftung}>Aufgabenbeschreibung / Hinweise fürs Team</span>
+            <span className={beschriftung}>{t('nt.aufgabenText')}</span>
             <textarea
               value={beschreibung}
               onChange={(e) => setBeschreibung(e.target.value)}
               rows={3}
-              placeholder="Was ist zu tun? Material, Zugang, Ansprechpartner vor Ort …"
+              placeholder={t('nt.aufgabenPlatz')}
               className={`mt-1.5 ${feld}`}
             />
           </label>
         )}
 
-        {fehler && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{fehler}</p>}
+        {fehler && <p className="text-sm text-red-600 bg-red-50 rounded-feld px-4 py-3">{fehler}</p>}
         <div className="flex gap-2">
           <button
             onClick={anlegen}
             disabled={laedt}
-            className="flex-1 bg-praxis-600 hover:bg-praxis-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl"
+            className="flex-1 bg-praxis-600 hover:bg-praxis-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-feld"
           >
-            {laedt ? 'Wird angelegt …' : bearbeiten ? 'Änderungen speichern' : typ === 'intern' ? 'Zeitfenster blockieren' : 'Termin anlegen'}
+            {laedt ? t('nt.wirdAngelegt') : t(bearbeiten ? 'nt.aenderungenSpeichern' : typ === 'intern' ? 'nt.blockieren' : 'nt.anlegen')}
           </button>
           {bearbeiten && (
             <button
               onClick={internLoeschen}
-              className="bg-white border border-red-200 text-red-600 hover:bg-red-50 font-semibold px-4 rounded-xl text-sm"
+              className="bg-karte border border-red-200 text-red-600 hover:bg-red-50 font-semibold px-4 rounded-feld text-sm"
             >
-              Löschen
+              {t('allg.loeschen')}
             </button>
           )}
         </div>
@@ -615,6 +659,7 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
 // ---------- Projekt direkt aus dem Termin-Dialog anlegen ----------
 
 function SchnellProjekt({ projekte, kunden, kundeVorbelegt, onClose, onAngelegt }) {
+  useLang()
   const [form, setForm] = useState({
     name: '', kundeId: kundeVorbelegt, nummer: naechsteProjektNummer(projekte),
     strasse: '', plzOrt: '', gewerk: 'Malerarbeiten', status: 'offen',
@@ -624,12 +669,12 @@ function SchnellProjekt({ projekte, kunden, kundeVorbelegt, onClose, onAngelegt 
   const [laedt, setLaedt] = useState(false)
 
   const setze = (key) => (e) => setForm({ ...form, [key]: e.target.value })
-  const feld = 'mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500'
+  const feld = 'mt-1.5 w-full rounded-feld border border-rahmen px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500'
 
   async function speichern(e) {
     e.preventDefault()
-    if (!form.name.trim()) return setFehler('Der Projektname ist Pflicht.')
-    if (!form.kundeId) return setFehler('Bitte einen Kunden wählen.')
+    if (!form.name.trim()) return setFehler(t('nt.nameFehlt'))
+    if (!form.kundeId) return setFehler(t('nt.kundeWaehlen'))
     setLaedt(true)
     try {
       const id = await withStore((s) => s.add('projekte', {
@@ -648,75 +693,75 @@ function SchnellProjekt({ projekte, kunden, kundeVorbelegt, onClose, onAngelegt 
       }))
       onAngelegt?.(id)
     } catch (err) {
-      setFehler(err.message || 'Projekt konnte nicht angelegt werden.')
+      setFehler(err.message || t('nt.projektFehler'))
     } finally {
       setLaedt(false)
     }
   }
 
   return (
-    <Modal titel="Neues Projekt / neue Baustelle" onClose={onClose} breite="max-w-xl" ebene={80}>
+    <Modal titel={t('nt.projektTitel')} onClose={onClose} breite="max-w-xl" ebene={80}>
       <form onSubmit={speichern} className="space-y-3.5">
         <label className="block">
-          <span className="text-sm font-medium text-slate-700">Projektname *</span>
-          <input autoFocus value={form.name} onChange={setze('name')} className={feld} placeholder="z. B. EFH Huber – Innenanstrich EG" />
+          <span className="text-sm font-medium text-schrift">{t('nt.projektname')} *</span>
+          <input autoFocus value={form.name} onChange={setze('name')} className={feld} placeholder={t('nt.projektnamePlatz')} />
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Kunde *</span>
+            <span className="text-sm font-medium text-schrift">{t('kunden.kunde')} *</span>
             <select value={form.kundeId} onChange={setze('kundeId')} className={feld}>
-              <option value="">– Kunde wählen –</option>
+              <option value="">{t('nt.kundeWaehlenOption')}</option>
               {[...kunden]
                 .sort((a, b) => kundeName(a).localeCompare(kundeName(b), 'de'))
                 .map((k) => <option key={k.id} value={k.id}>{kundeName(k)}</option>)}
             </select>
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Nummer</span>
+            <span className="text-sm font-medium text-schrift">{t('rechnung.nummer')}</span>
             <input value={form.nummer} onChange={setze('nummer')} className={feld} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Straße</span>
+            <span className="text-sm font-medium text-schrift">{t('allg.strasse')}</span>
             <input value={form.strasse} onChange={setze('strasse')} className={feld} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">PLZ / Ort</span>
+            <span className="text-sm font-medium text-schrift">{t('allg.plzOrt')}</span>
             <input value={form.plzOrt} onChange={setze('plzOrt')} className={feld} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Gewerk</span>
+            <span className="text-sm font-medium text-schrift">{t('projekte.gewerk')}</span>
             <input value={form.gewerk} onChange={setze('gewerk')} className={feld} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Status</span>
+            <span className="text-sm font-medium text-schrift">{t('allg.status')}</span>
             <select value={form.status} onChange={setze('status')} className={feld}>
-              {PROJEKT_STATUS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+              {PROJEKT_STATUS.map((s) => <option key={s.id} value={s.id}>{t(`projektstatus.${s.id}`)}</option>)}
             </select>
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Start-Datum</span>
+            <span className="text-sm font-medium text-schrift">{t('nt.startDatum')}</span>
             <input type="date" value={form.startDatum} onChange={setze('startDatum')} className={feld} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Ende-Datum</span>
+            <span className="text-sm font-medium text-schrift">{t('nt.endeDatum')}</span>
             <input type="date" value={form.endeDatum} onChange={setze('endeDatum')} className={feld} />
           </label>
           <label className="block col-span-2">
-            <span className="text-sm font-medium text-slate-700"><FeldLabel info={HINWEIS.projektVolumen}>Projektvolumen (€, netto)</FeldLabel></span>
+            <span className="text-sm font-medium text-schrift"><FeldLabel info={HINWEIS.projektVolumen}>{t('nt.volumen')}</FeldLabel></span>
             <input type="number" min="0" step="0.01" value={form.projektvolumen} onChange={setze('projektvolumen')} className={feld} />
           </label>
         </div>
         <div>
-          <span className="text-sm font-medium text-slate-700">Farbe</span>
+          <span className="text-sm font-medium text-schrift">{t('einst.farbe')}</span>
           <FarbPalette wert={form.farbe} onWert={(wert) => setForm({ ...form, farbe: wert })} />
         </div>
         <label className="block">
-          <span className="text-sm font-medium text-slate-700">Beschreibung</span>
+          <span className="text-sm font-medium text-schrift">{t('allg.beschreibung')}</span>
           <textarea value={form.beschreibung} onChange={setze('beschreibung')} rows={2} className={feld} />
         </label>
-        {fehler && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{fehler}</p>}
-        <button type="submit" disabled={laedt} className="w-full bg-praxis-600 hover:bg-praxis-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl">
-          {laedt ? 'Wird angelegt …' : 'Projekt anlegen und übernehmen'}
+        {fehler && <p className="text-sm text-red-600 bg-red-50 rounded-feld px-4 py-3">{fehler}</p>}
+        <button type="submit" disabled={laedt} className="w-full bg-praxis-600 hover:bg-praxis-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-feld">
+          {t(laedt ? 'nt.wirdAngelegt' : 'nt.projektAnlegen')}
         </button>
       </form>
     </Modal>
@@ -734,7 +779,7 @@ export function FarbPalette({ wert, onWert }) {
           title={f.label}
           onClick={() => onWert(f.wert)}
           className={`w-9 h-9 rounded-full transition flex items-center justify-center ${
-            wert === f.wert ? 'ring-2 ring-offset-2 ring-slate-900 scale-105' : 'ring-1 ring-black/10 hover:scale-105'
+            wert === f.wert ? 'ring-2 ring-offset-2 ring-schrift-stark scale-105' : 'ring-1 ring-black/10 hover:scale-105'
           }`}
           style={{ backgroundColor: f.wert }}
         >

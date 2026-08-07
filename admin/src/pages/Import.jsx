@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { withStore } from '../hooks.js'
 import { Icon } from '@shared/ui.jsx'
 import { useLang, tr } from '@shared/i18n.js'
+import * as S from '../stil.js'
+import { Seitenkopf, Leer, ChipReihe, Segment, Meldung } from '../components/Seite.jsx'
 
 const TT = {
   titel: { de: 'Kunden-Import aus dem Altsystem', en: 'Customer import from your old system', ar: 'استيراد العملاء من النظام القديم' },
@@ -158,12 +160,11 @@ export default function Import() {
   const pflichtOk = mapping.firma !== undefined || mapping.nachname !== undefined
 
   return (
-    <div className="p-4 lg:p-6 max-w-4xl">
-      <h1 className="text-xl font-bold text-slate-900 mb-1">{tr(TT.titel)}</h1>
-      <p className="text-sm text-slate-500 mb-5">{tr(TT.untertitel)}</p>
+    <div className={S.SEITE_SCHMAL}>
+      <Seitenkopf icon="upload" titel={tr(TT.titel)} sub={tr(TT.untertitel)} />
 
       {ergebnis && (
-        <div className="mb-5 bg-praxis-50 border border-praxis-200 rounded-2xl px-5 py-4 text-sm text-praxis-900 flex items-center gap-3">
+        <div className="mb-5 bg-praxis-50 border border-praxis-200 rounded-karte px-5 py-4 text-sm text-praxis-900 flex items-center gap-3">
           <Icon name="check" className="w-5 h-5 text-praxis-600" strokeWidth={2.5} />
           <span>
             <strong>{ergebnis.neu} {tr(TT.importiert)}</strong>
@@ -172,22 +173,22 @@ export default function Import() {
         </div>
       )}
 
-      <label className="block bg-white border-2 border-dashed border-slate-200 hover:border-praxis-400 rounded-2xl p-10 text-center cursor-pointer transition">
+      <label className="block bg-karte border-2 border-dashed border-rahmen hover:border-praxis-400 rounded-karte p-10 text-center cursor-pointer transition">
         <input type="file" accept=".csv,.txt" onChange={dateiGeladen} className="hidden" />
         <Icon name="upload" className="w-10 h-10 mx-auto text-praxis-500" />
-        <p className="mt-3 font-semibold text-slate-700">{tr(TT.waehlen)}</p>
-        <p className="text-xs text-slate-400 mt-1">{dateiName || tr(TT.trenner)}</p>
+        <p className="mt-3 font-semibold text-schrift">{tr(TT.waehlen)}</p>
+        <p className="text-xs text-schrift-zart mt-1">{dateiName || tr(TT.trenner)}</p>
       </label>
 
       {kopf.length > 0 && (
-        <div className="mt-6 bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-bold text-slate-800 text-sm mb-4">
-            {tr(TT.zuordnen)} <span className="text-slate-400 font-normal">({daten.length} {tr(TT.zeilen)})</span>
+        <div className="mt-6 bg-karte rounded-karte border border-rahmen p-6">
+          <h2 className="font-bold text-schrift-stark text-sm mb-4">
+            {tr(TT.zuordnen)} <span className="text-schrift-zart font-normal">({daten.length} {tr(TT.zeilen)})</span>
           </h2>
           <div className="grid sm:grid-cols-2 gap-3">
             {ZIELE.map((z) => (
               <label key={z.key} className="flex items-center gap-3 text-sm">
-                <span className={`w-32 shrink-0 ${z.pflicht ? 'font-semibold text-slate-800' : 'text-slate-600'}`}>
+                <span className={`w-32 shrink-0 ${z.pflicht ? 'font-semibold text-schrift-stark' : 'text-schrift'}`}>
                   {tr(TT.ziele[z.key])}{z.pflicht && ' *'}
                 </span>
                 <select
@@ -195,7 +196,7 @@ export default function Import() {
                   onChange={(e) =>
                     setMapping({ ...mapping, [z.key]: e.target.value === '' ? undefined : Number(e.target.value) })
                   }
-                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500"
+                  className="flex-1 rounded-feld border border-rahmen px-3 py-2 bg-karte text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500"
                 >
                   <option value="">{tr(TT.nicht)}</option>
                   {kopf.map((h, i) => (
@@ -207,21 +208,21 @@ export default function Import() {
           </div>
 
           {/* Vorschau */}
-          <h3 className="font-bold text-slate-800 text-sm mt-6 mb-2">{tr(TT.vorschau)}</h3>
-          <div className="overflow-x-auto border border-slate-100 rounded-xl">
+          <h3 className="font-bold text-schrift-stark text-sm mt-6 mb-2">{tr(TT.vorschau)}</h3>
+          <div className="overflow-x-auto border border-rahmen rounded-feld">
             <table className="w-full text-xs">
-              <thead className="bg-slate-50">
+              <thead className="bg-gedeckt">
                 <tr>
                   {ZIELE.filter((z) => mapping[z.key] !== undefined).map((z) => (
-                    <th key={z.key} className="text-left rtl:text-right px-3 py-2 font-semibold text-slate-600">{tr(TT.ziele[z.key])}</th>
+                    <th key={z.key} className="text-left rtl:text-right px-3 py-2 font-semibold text-schrift">{tr(TT.ziele[z.key])}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {daten.slice(0, 5).map((zeile, i) => (
-                  <tr key={i} className="border-t border-slate-50">
+                  <tr key={i} className="border-t border-rahmen">
                     {ZIELE.filter((z) => mapping[z.key] !== undefined).map((z) => (
-                      <td key={z.key} className="px-3 py-2 text-slate-700">
+                      <td key={z.key} className="px-3 py-2 text-schrift">
                         {zeile[mapping[z.key]]}
                       </td>
                     ))}
@@ -234,12 +235,12 @@ export default function Import() {
           <button
             onClick={importieren}
             disabled={!pflichtOk || laedt}
-            className="mt-5 w-full bg-praxis-600 hover:bg-praxis-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl"
+            className="mt-5 w-full bg-praxis-600 hover:bg-praxis-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-feld"
           >
             {laedt ? tr(TT.laeuft) : `${daten.length} ${tr(TT.importieren)}`}
           </button>
           {!pflichtOk && <p className="mt-2 text-xs text-red-600 text-center">{tr(TT.pflichtFehlt)}</p>}
-          <p className="mt-2 text-xs text-slate-400 text-center">{tr(TT.dubletten)}</p>
+          <p className="mt-2 text-xs text-schrift-zart text-center">{tr(TT.dubletten)}</p>
         </div>
       )}
     </div>

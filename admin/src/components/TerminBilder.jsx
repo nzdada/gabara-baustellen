@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { komprimiere } from '@shared/bild.js'
 import { Icon } from '@shared/ui.jsx'
 import { useWhere, withStore } from '../hooks.js'
 import { useLang, tr } from '@shared/i18n.js'
@@ -23,16 +24,6 @@ const T = {
 // Daten-URL gespeichert -> funktioniert im Lokal-Modus UND in Firestore
 // (je Foto ein Dokument, deutlich unter dem 1-MB-Limit), Live auf allen Geräten.
 
-async function komprimiere(file, maxKante = 1200, qualitaet = 0.72) {
-  const bitmap = await createImageBitmap(file)
-  const faktor = Math.min(1, maxKante / Math.max(bitmap.width, bitmap.height))
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.round(bitmap.width * faktor)
-  canvas.height = Math.round(bitmap.height * faktor)
-  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-  bitmap.close?.()
-  return canvas.toDataURL('image/jpeg', qualitaet)
-}
 
 export default function TerminBilder({ termin, user, dunkel = false }) {
   useLang()
@@ -66,10 +57,16 @@ export default function TerminBilder({ termin, user, dunkel = false }) {
         await withStore((s) =>
           s.add('photos', {
             terminId: termin.id,
+            // projektId MUSS mit: der Bilder-Bereich der Baustelle filtert genau
+            // danach (ProjektDetail.jsx). Ohne das Feld war ein hier
+            // hochgeladenes Foto zwar gespeichert, aber nirgends auffindbar.
+            projektId: termin.projektId || '',
+            phase: 'sonstig',
             patientId: termin.patientId || '',
             dataUrl,
             name: file.name,
             von: user?.name || 'Team',
+            vonId: user?.userId || '',
             createdAt: Date.now(),
           })
         )
@@ -89,16 +86,16 @@ export default function TerminBilder({ termin, user, dunkel = false }) {
   }
 
   const knopf = dunkel
-    ? 'bg-white/10 hover:bg-white/20 text-white border border-white/15'
-    : 'bg-white border border-slate-200 text-slate-700 hover:border-praxis-400'
+    ? 'bg-karte/10 hover:bg-karte/20 text-white border border-white/15'
+    : 'bg-karte border border-rahmen text-schrift hover:border-praxis-400'
 
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2">
-        <p className={`font-bold flex items-center gap-2 mr-auto rtl:mr-0 rtl:ml-auto ${dunkel ? 'text-lg' : 'text-slate-800'}`}>
+        <p className={`font-bold flex items-center gap-2 mr-auto rtl:mr-0 rtl:ml-auto ${dunkel ? 'text-lg' : 'text-schrift-stark'}`}>
           {tr(T.titel)}
           {meine.length > 0 && (
-            <span className={`text-xs font-bold rounded-full px-2 py-0.5 ${dunkel ? 'bg-white/15' : 'bg-praxis-100 text-praxis-800'}`}>
+            <span className={`text-xs font-bold rounded-full px-2 py-0.5 ${dunkel ? 'bg-karte/15' : 'bg-praxis-100 text-praxis-800'}`}>
               {meine.length}
             </span>
           )}
@@ -121,20 +118,20 @@ export default function TerminBilder({ termin, user, dunkel = false }) {
         onChange={(e) => e.target.files?.length && dateienVerarbeiten(e.target.files)} />
 
       {fehler && (
-        <p className={`mt-3 text-sm rounded-xl px-4 py-2.5 ${dunkel ? 'bg-red-500/15 text-red-300' : 'bg-red-50 text-red-600'}`}>{fehler}</p>
+        <p className={`mt-3 text-sm rounded-feld px-4 py-2.5 ${dunkel ? 'bg-red-500/15 text-red-300' : 'bg-red-50 text-red-600'}`}>{fehler}</p>
       )}
-      {laedt && <p className={`mt-3 text-sm ${dunkel ? 'text-slate-400' : 'text-slate-500'}`}>{tr(T.verarbeitet)}</p>}
+      {laedt && <p className={`mt-3 text-sm ${dunkel ? 'text-schrift-zart' : 'text-schrift-leise'}`}>{tr(T.verarbeitet)}</p>}
 
       {meine.length === 0 && !laedt ? (
-        <p className={`mt-3 text-sm ${dunkel ? 'text-slate-500' : 'text-slate-400'}`}>{tr(T.leer)}</p>
+        <p className={`mt-3 text-sm ${dunkel ? 'text-schrift-leise' : 'text-schrift-zart'}`}>{tr(T.leer)}</p>
       ) : (
         <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 gap-3">
           {meine.map((p) => (
-            <figure key={p.id} className="relative group rounded-xl overflow-hidden border border-black/10">
+            <figure key={p.id} className="relative group rounded-feld overflow-hidden border border-black/10">
               <button onClick={() => setGross(p)} className="block w-full">
                 <img src={p.dataUrl} alt={p.name} className="w-full h-24 sm:h-28 object-cover" />
               </button>
-              <figcaption className="absolute bottom-0 inset-x-0 bg-black/55 text-white text-[10px] px-2 py-1 truncate">
+              <figcaption className="absolute bottom-0 inset-x-0 bg-black/55 text-white text-[11px] px-2 py-1 truncate">
                 {new Date(p.createdAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · {p.von}
               </figcaption>
               <button onClick={() => loeschen(p)}
@@ -150,11 +147,11 @@ export default function TerminBilder({ termin, user, dunkel = false }) {
       {/* Vollbild-Ansicht */}
       {gross && (
         <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-4" onClick={() => setGross(null)}>
-          <img src={gross.dataUrl} alt={gross.name} className="max-h-[82vh] max-w-full rounded-xl shadow-2xl" />
+          <img src={gross.dataUrl} alt={gross.name} className="max-h-[82vh] max-w-full rounded-feld shadow-hoch" />
           <p className="mt-3 text-white/80 text-sm">
             {gross.name} · {new Date(gross.createdAt).toLocaleString('de-DE')} · {gross.von}
           </p>
-          <button className="mt-3 bg-white/15 hover:bg-white/25 text-white text-sm font-semibold rounded-full px-5 py-2">
+          <button className="mt-3 bg-karte/15 hover:bg-karte/25 text-white text-sm font-semibold rounded-full px-5 py-2">
             {tr(T.schliessen)}
           </button>
         </div>

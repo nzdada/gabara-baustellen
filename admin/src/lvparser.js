@@ -67,8 +67,16 @@ function istZahlenZeile(zeile) {
   return NUR_ZAHLEN_RE.test(zeile)
 }
 
+/**
+ * Zerlegt eingefügten LV-Text in Positionen.
+ * Liefert { eintraege, ignoriert } – `ignoriert` sind Zeilen, die zu keiner
+ * Position gehören (meist Kopfzeilen des PDFs). Sie werden dem Benutzer
+ * angezeigt, statt still zu verschwinden: sonst fehlen Positionen in der
+ * Abrechnung, ohne dass es jemand merkt.
+ */
 export function analysiereLvText(text) {
   const eintraege = []
+  const ignoriert = []
   let akt = null
 
   const abschliessen = () => {
@@ -135,11 +143,15 @@ export function analysiereLvText(text) {
       const hatteZahlen = zahlenUebernehmen(akt, zeile)
       // Zeilen, aus denen nur Zahlen kamen, nicht in den Langtext spiegeln
       if (!hatteZahlen || !istZahlenZeile(zeile)) akt.langtextZeilen.push(zeile.trim())
+    } else {
+      // Vor der ersten OZ: gehört zu keiner Position. Kurze Reste (Seitenzahlen,
+      // Striche) sind Rauschen und bleiben unerwähnt.
+      if (zeile.trim().length > 6) ignoriert.push(zeile.trim())
     }
   }
   abschliessen()
 
-  return markiereTitel(eintraege)
+  return { eintraege: markiereTitel(eintraege), ignoriert }
 }
 
 // Titel = Eintrag ohne Menge, unter dem weitere OZ hängen (z. B. „4.2" über „4.2.1")

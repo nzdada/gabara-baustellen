@@ -102,6 +102,16 @@ const STIL = `
 
   ul { padding-left: 16px; }
 
+  /* Stundenzettel: eine Zeile je Kalendertag, Tage ohne Einsatz bleiben blass */
+  table.stunden { break-inside: auto; }
+  table.stunden td { font-size: 9pt; padding: 3.5px 7px; }
+  table.stunden tr.leer td { color: #cbd5e1; }
+  /* Unstimmiger Tag: faellt auch auf dem Ausdruck auf, nicht nur am Bildschirm */
+  table.stunden tr.pruefen td { background: #fefce8 !important; }
+  table.stunden tr.pruefen td strong { color: #b45309; }
+  table.stunden tr.leer td:nth-child(-n+2) { color: #94a3b8; }
+  table.stunden tfoot tr.summe td { border-top: 2px solid ${ROT}; }
+
   /* 7 Unterschriften */
   .unterschriften { display: flex; gap: 22px; margin-top: 18px; break-inside: avoid; }
   .unterschriften > div { flex: 1 1 0; }
@@ -175,11 +185,27 @@ export function drucke({ titel, nummer = '', body, einst = {}, fussExtra = '' })
   })()`
   fenster.document.write(
     `<!doctype html><html lang="de"><head><meta charset="utf-8">` +
+    // Das Druckfenster ist about:blank und hat von sich aus KEINE Basis-Adresse:
+    // relative Bildpfade (/demo/foto-01.jpg, hochgeladene Dateien) blieben darin
+    // leer. Mit <base> loesen sie gegen die laufende Anwendung auf – egal ob
+    // localhost oder die veroeffentlichte Adresse. Damit duerfen in der Datenbank
+    // portable, relative Pfade stehen statt fest verdrahteter Hostnamen.
+    `<base href="${location.origin}/">` +
     `<title>${esc(titel)}${nummer ? ` ${esc(nummer)}` : ''}</title><style>${STIL}</style></head><body>` +
     kopf({ titel, nummer, einst }) + body + fuss(einst, fussExtra) +
     `<script>${wartenUndDrucken}</${'script'}></body></html>`
   )
   fenster.document.close()
+}
+
+// Gefahrene Kilometer: Tachostaende gewinnen gegen die getippte Strecke.
+// Gleiche Regel wie in shared/fahrten.js - hier eigenstaendig, weil drucken.js
+// bewusst ohne Abhaengigkeiten zum Datenmodell auskommt.
+function kmDerFahrt(f) {
+  const start = Number(f?.kmStart) || 0
+  const ende = Number(f?.kmEnde) || 0
+  if (start > 0 && ende > start) return Math.round((ende - start) * 100) / 100
+  return Math.round(Math.max(0, Number(f?.km) || 0) * 100) / 100
 }
 
 function datumDe(iso) {
@@ -328,8 +354,53 @@ export function druckeRegiebericht({ bericht, projekt, kunde, fotos = [], einst 
     </tbody>
   </table>` : ''
 
-  const gesamt = (stunden.length || material.length)
-    ? `<div class="gesamt">Gesamtsumme netto: ${euro(stundenSumme + materialSumme)}</div>`
+  // Fahrzeugeinsatz.
+  //
+  // Ohne Kennzeichen und Strecke ist eine Fahrtkostenposition im Streitfall
+  // wertlos - und steuerlich ist ein Fahrtenbuch ohne diese Angaben keines.
+  // Freie Fahrten stehen mit 0,00 EUR drin: dokumentiert, nicht berechnet.
+  const fahrten = bericht.fahrten || []
+  const fahrtSummeBetrag = fahrten.reduce(
+    (s, f) => s + (f.berechnen === false ? 0 : kmDerFahrt(f) * (Number(f.satz) || 0)), 0)
+  const fahrtKm = fahrten.reduce((s, f) => s + kmDerFahrt(f), 0)
+  const fahrtTabelle = fahrten.length ? `<h2>Fahrzeugeinsatz</h2><table>
+    <thead><tr>
+      <th>Datum</th><th>Kennzeichen</th><th>Fahrer</th><th>Von</th><th>Nach</th>
+      <th class="r">km</th><th class="r">Satz</th><th class="r">Betrag</th>
+    </tr></thead>
+    <tbody>
+    ${fahrten.map((f) => {
+      const km = kmDerFahrt(f)
+      const frei = f.berechnen === false
+      // Rückfahrten als solche kennzeichnen: Auf dem Papier stehen sonst zwei
+      // Zeilen mit vertauschten Adressen, und der Prüfer fragt sich, ob da
+      // jemand dieselbe Fahrt zweimal eingetragen hat.
+      const richtung = f.ausFahrt ? '<span class="meta">Rückfahrt</span><br>' : ''
+      // Tachostände werden nicht mehr erfasst; Altbestände zeigen sie weiter.
+      const tacho = (Number(f.kmStart) || 0) > 0 && (Number(f.kmEnde) || 0) > 0
+        ? `<span class="meta"><br>${Number(f.kmStart).toLocaleString('de-DE')} \u2013 ${Number(f.kmEnde).toLocaleString('de-DE')}</span>`
+        : ''
+      return `<tr>
+        <td>${datumDe(f.datum)}</td>
+        <td><strong>${esc(f.kennzeichen || '\u2013')}</strong>${f.fahrzeug ? `<span class="meta"><br>${esc(f.fahrzeug)}</span>` : ''}</td>
+        <td>${esc(f.fahrer || '\u2013')}</td>
+        <td>${richtung}${esc(f.von || '\u2013')}</td>
+        <td>${esc(f.nach || '\u2013')}${f.zweck ? `<span class="meta"><br>${esc(f.zweck)}</span>` : ''}</td>
+        <td class="r">${km.toLocaleString('de-DE')}${tacho}</td>
+        <td class="r">${frei ? '\u2013' : euro(f.satz)}</td>
+        <td class="r">${frei ? '<span class="meta">nicht berechnet</span>' : euro(km * (Number(f.satz) || 0))}</td>
+      </tr>`
+    }).join('')}
+    <tr class="summe">
+      <td colspan="5">Summe Fahrzeugeinsatz (${fahrtKm.toLocaleString('de-DE')} km gefahren)</td>
+      <td class="r">${fahrtKm.toLocaleString('de-DE')}</td><td></td>
+      <td class="r">${euro(fahrtSummeBetrag)}</td>
+    </tr>
+    </tbody>
+  </table>` : ''
+
+  const gesamt = (stunden.length || material.length || fahrten.length)
+    ? `<div class="gesamt">Gesamtsumme netto: ${euro(stundenSumme + materialSumme + fahrtSummeBetrag)}</div>`
     : ''
 
   // Anordnung/Anzeige der Stundenlohnarbeiten (VOB/B § 15 Abs. 3 Satz 1)
@@ -367,6 +438,7 @@ export function druckeRegiebericht({ bericht, projekt, kunde, fotos = [], einst 
       ${istReklamation && bericht.massnahme ? `<h2>Maßnahme zur Nachbesserung</h2><div class="feld">${escBr(bericht.massnahme)}</div>` : ''}
       ${stundenTabelle}
       ${materialTabelle}
+      ${fahrtTabelle}
       ${gesamt}
       ${fotoBereiche(fotos)}
       ${fiktion}
@@ -476,3 +548,282 @@ export function druckeArbeitsauftrag({ termin, projekt, kunde, positionen = [], 
 // Hinweis: Es gibt bewusst KEINEN Rechnungs-Eigendruck mehr.
 // Das Rechnungs-PDF (inkl. E-Rechnung) erzeugt ausschliesslich FastBill;
 // die Verwaltung verlinkt es ueber rechnung.dokumentUrl (Abrechnung -> PDF (FastBill)).
+
+// ---------------------------------------------------------------------------
+// Monats-Stundenliste je Mitarbeiter (BG-Bau-tauglicher Stundenzettel)
+//
+// Aufbau nach der Blanko-Vorlage von bautagebuch.org, auf einen MONAT umgebaut:
+//   Kopfdaten (Mitarbeiter/Firma, Zeitraum) -> Arbeitszeiten-Tabelle mit einer
+//   Zeile je Tag -> Summe & Bemerkungen -> zwei Unterschriftszeilen.
+//
+// Datengrundlage sind die Stundenzeilen aus den Regieberichten (§ 15 Abs. 3
+// VOB/B). Die Pause ergibt sich aus der Differenz zwischen Anwesenheit
+// (Von–Bis) und den gemeldeten Arbeitsstunden – genau so, wie ein
+// Stundenzettel gelesen wird.
+//
+// Bewusst deutsch: Das Blatt geht an Auftraggeber, Lohnbüro, Berufsgenossen-
+// schaft und im Streitfall ans Gericht.
+// ---------------------------------------------------------------------------
+
+const WOCHENTAG_LANG = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
+
+function stundenText(n) {
+  return (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+/**
+ * @param mitarbeiter  { name, qualifikation }
+ * @param tage         [{ datum, wochentag, beginn, ende, pauseMin, stunden, taetigkeit }]
+ * @param zeitraum     { von, bis, titel }   z. B. { titel: 'August 2026' }
+ * @param summe        Gesamtstunden des Zeitraums
+ */
+export function druckeStundenliste(daten) {
+  drucke({
+    titel: 'Stundenzettel',
+    einst: daten.einst || {},
+    fussExtra: `Zeitraum ${daten.zeitraum?.titel || ''}`,
+    body: stundenBlatt(daten),
+  })
+}
+
+/**
+ * Mehrere Stundenzettel in EINEM Dokument, je Person eine Seite.
+ *
+ * Warum nicht einfach druckeStundenliste() in einer Schleife: Browser lassen
+ * pro Klick nur EIN window.open durch. Ab dem zweiten Blatt kam bisher nur die
+ * Popup-Blocker-Meldung – wer zehn Monteure hat, bekam einen Zettel.
+ */
+export function druckeStundenlistenSammel(blaetter = [], einst = {}) {
+  if (!blaetter.length) return
+  const body = blaetter
+    .map((b, i) => `<section${i > 0 ? ' style="break-before:page"' : ''}>${stundenBlatt(b)}</section>`)
+    .join('')
+  drucke({
+    titel: 'Stundenzettel',
+    einst,
+    fussExtra: `Zeitraum ${blaetter[0].zeitraum?.titel || ''} · ${blaetter.length} Blätter`,
+    body,
+  })
+}
+
+function stundenBlatt({ mitarbeiter, tage = [], zeitraum, summe, bemerkungen = '', einst = {} }) {
+  const f = firma(einst)
+  const unstimmige = tage.filter((t) => t.unstimmig).length
+  const zeilen = tage.map((t) => {
+    const leer = !t.stunden
+    const klassen = [leer ? 'leer' : '', t.unstimmig ? 'pruefen' : ''].filter(Boolean).join(' ')
+    return `<tr${klassen ? ` class="${klassen}"` : ''}>
+      <td>${esc(t.wochentag)}</td>
+      <td>${esc(t.datum)}</td>
+      <td class="r">${esc(t.beginn || '')}</td>
+      <td class="r">${esc(t.ende || '')}</td>
+      <td class="r">${t.unstimmig ? '<strong>!</strong>' : (t.pauseMin ? esc(String(t.pauseMin)) : '')}</td>
+      <td class="r">${t.stunden ? esc(stundenText(t.stunden)) : ''}</td>
+      <td>${escBr(t.taetigkeit || '')}</td>
+    </tr>`
+  }).join('')
+
+  return `
+      <h2>Kopfdaten</h2>
+      <div class="spalten">
+        <div class="block">
+          <h3>Mitarbeiter/in</h3>
+          <strong>${esc(mitarbeiter?.name || '–')}</strong>
+          ${mitarbeiter?.qualifikation ? `<div class="meta">${esc(mitarbeiter.qualifikation)}</div>` : ''}
+        </div>
+        <div class="block">
+          <h3>Firma</h3>
+          <strong>${esc(f.name)}</strong>
+          <div class="meta">${esc(f.anschrift)}</div>
+        </div>
+      </div>
+      <div class="spalten">
+        <div class="block">
+          <h3>Abrechnungszeitraum</h3>
+          <strong>${esc(zeitraum?.titel || '–')}</strong>
+          <div class="meta">${esc(zeitraum?.von || '')} bis ${esc(zeitraum?.bis || '')}</div>
+        </div>
+        <div class="block">
+          <h3>Erfasste Arbeitstage</h3>
+          <strong>${tage.filter((t) => t.stunden > 0).length}</strong>
+          <div class="meta">von ${tage.length} Kalendertagen</div>
+        </div>
+      </div>
+
+      <h2>Arbeitszeiten</h2>
+      <table class="stunden">
+        <thead>
+          <tr>
+            <th>Tag</th><th>Datum</th><th class="r">Beginn</th><th class="r">Ende</th>
+            <th class="r">Pause (Min.)</th><th class="r">Stunden</th><th>Tätigkeit / Baustelle</th>
+          </tr>
+        </thead>
+        <tbody>${zeilen}</tbody>
+        <tfoot>
+          <tr class="summe">
+            <td colspan="5">Gesamtstunden im Zeitraum</td>
+            <td class="r">${esc(stundenText(summe))}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+
+      ${unstimmige > 0 ? `<div class="box warn">
+        <strong>Bitte prüfen:</strong> An ${unstimmige} mit „!" markierten Tag(en) sind mehr
+        Stunden gemeldet, als zwischen Beginn und Ende liegen. Solange das nicht geklärt ist,
+        trägt dieses Blatt für diese Tage keinen Nachweis.
+      </div>` : ''}
+
+      <h2>Summe &amp; Bemerkungen</h2>
+      <div class="feld">${escBr(bemerkungen || '')}</div>
+
+      <div class="box recht">
+        Grundlage sind die im System erfassten Stundennachweise (Regieberichte gemäß
+        § 15 Abs. 3 VOB/B). Die Pausenzeit ergibt sich aus der Differenz zwischen
+        Anwesenheit und gemeldeter Arbeitszeit.
+      </div>
+
+      <div class="unterschriften">
+        <div>
+          <div class="art">Mitarbeiter/in</div>
+          <div class="flaeche"></div>
+          <div class="linie"><div class="klar">${esc(mitarbeiter?.name || '')}</div><div class="rolle">Ort, Datum, Unterschrift</div></div>
+        </div>
+        <div>
+          <div class="art">Arbeitgeber / Bauleitung</div>
+          <div class="flaeche"></div>
+          <div class="linie"><div class="klar">&nbsp;</div><div class="rolle">Ort, Datum, Unterschrift</div></div>
+        </div>
+      </div>`
+}
+
+// ---------- Abschlussbericht / Fertigstellungsanzeige ----------
+//
+// "Wenn die Baustelle fertig ist, kann man anhand der Tätigkeiten einen Bericht
+// erstellen." Genau das leistet dieser Ausdruck: Er sammelt, was auf der
+// Baustelle tatsächlich abgehakt wurde, und macht daraus ein Dokument.
+//
+// WARUM AUSGERECHNET DIESES DOKUMENT
+// Ein "Abschlussbericht" ist kein Rechtsbegriff. Der Vorgang dahinter schon:
+// Nach § 12 Abs. 1 VOB/B zeigt der Auftragnehmer die Fertigstellung an und
+// verlangt die Abnahme; der Auftraggeber hat sie binnen 12 Werktagen
+// durchzuführen. Erst die Abnahme lässt die Schlussrechnung fällig werden und
+// startet die Gewährleistungsfrist. Deshalb ist das Papier so aufgebaut, dass
+// es diese Anzeige TRÄGT – und nicht nur eine hübsche Liste ist.
+//
+// WAS NICHT DRINSTEHT: keine Preise. Der Abschlussbericht weist die LEISTUNG
+// nach, die Rechnung stellt das Geld. Wer beides mischt, diskutiert bei der
+// Abnahme über Beträge statt über Mängel.
+export function druckeAbschluss({ projekt, kunde, raeume = [], positionen = [], berichte = [], einst = {}, fertigAm = '' }) {
+  const aktive = raeume.filter((r) => r.aktiv !== false)
+  const alleAufgaben = aktive.flatMap((r) => (Array.isArray(r.aufgaben) ? r.aufgaben : []))
+  const erledigt = alleAufgaben.filter((a) => a.fertig)
+  const flaecheSumme = Math.round(aktive.reduce((s, r) => s + (Number(r.flaeche) || 0), 0) * 100) / 100
+
+  // Räume: was wurde wann und von wem abgehakt
+  const raumZeilen = aktive.map((r) => {
+    const a = (Array.isArray(r.aufgaben) ? r.aufgaben : []).slice().sort((x, y) => (x.sort || 0) - (y.sort || 0))
+    const fertig = a.filter((x) => x.fertig)
+    const offen = a.filter((x) => !x.fertig)
+    const liste = fertig.length
+      ? fertig.map((x) => {
+        const wann = x.fertigAm ? new Date(x.fertigAm).toLocaleDateString('de-DE') : ''
+        const wer = x.fertigVon ? `, ${esc(x.fertigVon)}` : ''
+        return esc(x.text) + (wann ? ` <span class="meta">(${wann}${wer})</span>` : '')
+      }).join('<br>')
+      : '<span class="meta">noch keine Arbeitsschritte gemeldet</span>'
+    // Offenes wird BENANNT, nicht verschwiegen: ein Abschlussbericht, der
+    // Restleistungen unterschlägt, fällt bei der Abnahme auf die Füße.
+    const rest = offen.length
+      ? `<div class="meta" style="margin-top:3px">offen: ${offen.map((x) => esc(x.text)).join(', ')}</div>`
+      : ''
+    const kopf = `<strong>${esc(r.nummer || '')}</strong>${r.nummer && r.name ? ' · ' : ''}${esc(r.name || '')}`
+    const flaeche = r.flaeche ? `${Number(r.flaeche).toLocaleString('de-DE')} m²` : '–'
+    return `<tr><td>${kopf}</td><td class="r">${flaeche}</td><td>${liste}${rest}</td>`
+      + `<td class="r">${a.length ? `${fertig.length}/${a.length}` : '–'}</td></tr>`
+  }).join('')
+
+  const prozent = alleAufgaben.length ? Math.round((erledigt.length / alleAufgaben.length) * 100) : 0
+  const raumTabelle = aktive.length ? `<h2>Ausgeführte Arbeiten je Raum</h2><table>
+    <thead><tr><th>Raum</th><th class="r">Fläche</th><th>Ausgeführte Arbeitsschritte</th><th class="r">Stand</th></tr></thead>
+    <tbody>${raumZeilen}
+    <tr class="summe">
+      <td>Summe ${aktive.length} Räume</td>
+      <td class="r">${flaecheSumme ? `${flaecheSumme.toLocaleString('de-DE')} m²` : '–'}</td>
+      <td>${erledigt.length} von ${alleAufgaben.length} Arbeitsschritten erledigt</td>
+      <td class="r">${prozent} %</td>
+    </tr></tbody></table>` : ''
+
+  // Mengennachweis: Soll aus dem Vertrag, Ist aus den Meldungen
+  const mit = positionen.filter((p) => p.typ === 'position' && ((p.istMenge || 0) > 0 || (p.menge || 0) > 0))
+  const mengenZeilen = mit.map((p) => {
+    const ab = Math.round(((p.istMenge || 0) - (p.menge || 0)) * 1000) / 1000
+    const hinweis = Math.abs(ab) > 0.005
+      ? ` <span class="meta">(${ab > 0 ? '+' : ''}${ab.toLocaleString('de-DE')})</span>` : ''
+    return `<tr><td>${esc(p.oz || '')}</td><td>${esc(p.kurztext || '')}</td>`
+      + `<td class="r">${(p.menge || 0).toLocaleString('de-DE')}</td>`
+      + `<td class="r"><strong>${(p.istMenge || 0).toLocaleString('de-DE')}</strong>${hinweis}</td>`
+      + `<td>${esc(p.einheit || '')}</td></tr>`
+  }).join('')
+
+  const mengenTabelle = mit.length ? `<h2>Mengennachweis</h2><table>
+    <thead><tr><th>OZ</th><th>Leistung</th><th class="r">Vertrag</th><th class="r">Ausgeführt</th><th>Einheit</th></tr></thead>
+    <tbody>${mengenZeilen}</tbody></table>
+    <p class="meta">Mehr- und Mindermengen sind gegenüber dem Vertrag ausgewiesen. Weicht die ausgeführte Menge um
+    mehr als 10 % ab, kann nach § 2 Abs. 3 VOB/B jede Seite einen neuen Einheitspreis verlangen.</p>` : ''
+
+  // Regie- und Stundenlohnarbeiten nur als Verweis – sie haben eigene Nachweise
+  const regie = berichte.filter((b) => b.typ !== 'abnahme')
+  const regieZeilen = regie.map((b) => {
+    const text = String(b.beschreibung || '')
+    return `<tr><td>${datumDe(b.datum)}</td>`
+      + `<td>${b.typ === 'reklamation' ? 'Reklamation' : 'Regiebericht'}</td>`
+      + `<td>${esc(b.nummer || '–')}</td>`
+      + `<td>${esc(text.slice(0, 90))}${text.length > 90 ? '…' : ''}</td>`
+      + `<td>${esc(b.status || '')}</td></tr>`
+  }).join('')
+  const regieTabelle = regie.length ? `<h2>Zusätzlich erfasste Nachweise</h2><table>
+    <thead><tr><th>Datum</th><th>Art</th><th>Nr.</th><th>Beschreibung</th><th>Stand</th></tr></thead>
+    <tbody>${regieZeilen}</tbody></table>
+    <p class="meta">Stundenlohn- und Materialnachweise sind gesondert als Regiebericht beigefügt.</p>` : ''
+
+  const alleFertig = alleAufgaben.length > 0 && erledigt.length === alleAufgaben.length
+  // Die Anzeige nach § 12 Abs. 1 VOB/B wird nur ausgesprochen, wenn die Arbeiten
+  // tatsächlich vollständig sind. Sonst ist es ein Zwischenstand – und das muss
+  // auf dem Papier stehen, sonst läuft eine Frist, die niemand halten kann.
+  const anzeige = alleFertig
+    ? `<div class="box recht"><strong>Fertigstellungsanzeige:</strong> Die vertraglich geschuldeten Leistungen sind
+       vollständig erbracht und fertiggestellt${fertigAm ? ` (Fertigstellung am <strong>${datumDe(fertigAm)}</strong>)` : ''}.
+       Hiermit wird gemäß <strong>§ 12 Abs. 1 VOB/B</strong> die Abnahme verlangt. Die Abnahme ist binnen
+       <strong>12 Werktagen</strong> nach Zugang dieses Verlangens durchzuführen.</div>`
+    : `<div class="box warn"><strong>Zwischenstand – keine Fertigstellungsanzeige.</strong>
+       ${alleAufgaben.length - erledigt.length} von ${alleAufgaben.length} Arbeitsschritten sind noch offen.
+       Dieser Bericht dokumentiert den Leistungsstand; er löst keine Abnahmefrist aus.</div>`
+
+  const feld = (art, klar) => `<div>
+    <div class="art">${esc(art)}</div>
+    <div class="flaeche"></div>
+    <div class="linie">
+      <div class="klar">${klar ? esc(klar) : '&nbsp;'}</div>
+      <div class="rolle">Name in Klarschrift</div>
+      <div class="rolle">Datum:</div>
+    </div>
+  </div>`
+
+  drucke({
+    titel: alleFertig ? 'Fertigstellungsanzeige und Leistungsnachweis' : 'Leistungsstand (Zwischenbericht)',
+    nummer: projekt?.nummer || '',
+    einst,
+    fussExtra: `Ausdruck vom ${new Date().toLocaleDateString('de-DE')}`,
+    body: `
+      ${beteiligteBlock({ projekt, kunde, datum: fertigAm || '', datumLabel: 'Fertigstellung' })}
+      ${anzeige}
+      ${raumTabelle}
+      ${mengenTabelle}
+      ${regieTabelle}
+      <div class="unterschriften">
+        ${feld('Auftraggeber / Bauleitung', '')}
+        ${feld('Auftragnehmer', firma(einst).name || '')}
+      </div>`,
+  })
+}

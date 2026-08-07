@@ -2,8 +2,11 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useCollection } from '../hooks.js'
 import { Icon } from '@shared/ui.jsx'
+import { useLang, t, datumLok } from '@shared/i18n.js'
 import TerminModal, { KATEGORIE_INFO } from '../components/TerminModal.jsx'
 import NeuerTermin, { KATEGORIEN } from '../components/NeuerTermin.jsx'
+import * as S from '../stil.js'
+import { Seitenkopf, Leer, ChipReihe, Segment, Meldung } from '../components/Seite.jsx'
 
 function fmtDatum(iso) {
   if (!iso) return '–'
@@ -12,17 +15,19 @@ function fmtDatum(iso) {
 
 // "Erstellt/Erledigt am"-Text einer Zeile (createdAt gibt es nur bei neueren Terminen)
 function erstelltText(a) {
-  if (a.erledigt && a.erledigtAm) return `Erledigt ${fmtDatum(a.erledigtAm)}`
-  if (a.erledigt) return 'Erledigt'
-  if (a.createdAt) return `Erstellt ${new Date(a.createdAt).toLocaleDateString('de-DE')}`
+  if (a.erledigt && a.erledigtAm) return t('termine.erledigtAm', { datum: fmtDatum(a.erledigtAm) })
+  if (a.erledigt) return t('monteur.erledigt')
+  if (a.createdAt) return t('termine.erstelltAm', { datum: new Date(a.createdAt).toLocaleDateString('de-DE') })
   return '–'
 }
 
 const FILTER_LEER = { start: '', ende: '', titel: '', kategorie: '', projekt: '', anschrift: '', mitarbeiter: '', erledigt: '' }
 
-const SPALTEN = ['Start', 'Ende', 'Titel', 'Kategorie', 'Projekt', 'Anschrift', 'Mitarbeiter', 'Erstellt/Erledigt']
+const SPALTEN = ['termine.start', 'termine.ende', 'termine.titelSpalte', 'termine.kategorie',
+  'berichte.projekt', 'allg.anschrift', 'berichte.mitarbeiter', 'termine.erstelltErledigt']
 
 export default function Termine({ user }) {
+  const lang = useLang()
   const appointments = useCollection('appointments')
   const patients = useCollection('patients')
   const projekte = useCollection('projekte')
@@ -71,75 +76,61 @@ export default function Termine({ user }) {
       if (!c(erstelltText(a), filter.erledigt)) return false
       return true
     })
-  }, [zeilen, tab, filter, user])
+  }, [zeilen, tab, filter, user, lang])
 
-  const filterInput = (key, platzhalter = 'Filtern …') => (
+  const filterInput = (key) => (
     <input
       value={filter[key]}
       onChange={(e) => setzeFilter(key, e.target.value)}
-      placeholder={platzhalter}
-      className="w-full min-w-[70px] rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-normal focus:outline-none focus:ring-2 focus:ring-praxis-500"
+      placeholder={t('allg.filtern')}
+      className={S.FELD_S}
     />
   )
 
   return (
-    <div className="p-4 lg:p-6">
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <h1 className="text-xl font-bold text-slate-900">Termine</h1>
-        <div className="flex items-center gap-1 bg-white rounded-full border border-slate-200 p-1">
-          {[['meine', 'Meine Termine'], ['alle', 'Alle Termine']].map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`text-xs font-semibold px-3.5 py-1.5 rounded-full transition ${
-                tab === key ? 'bg-praxis-600 text-white' : 'text-slate-500 hover:bg-slate-100'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <span className="text-xs text-slate-400 bg-white border border-slate-200 rounded-full px-2.5 py-1">
-          {gefiltert.length}
-        </span>
-        <button
-          onClick={() => setNeu(true)}
-          className="ml-auto inline-flex items-center gap-1.5 bg-praxis-600 hover:bg-praxis-700 text-white text-sm font-semibold px-4 py-2.5 rounded-full"
-        >
-          <Icon name="plus" className="w-4 h-4" /> Termin
+    <div className={S.SEITE}>
+      <Seitenkopf icon="list" titel={t('termine.titel')}>
+        <Segment
+          optionen={[['meine', t('termine.meine'), 'person'], ['alle', t('termine.alle'), 'list']]}
+          aktiv={tab}
+          onWahl={setTab}
+        />
+        <span className={S.ZAEHLER_STILL}>{gefiltert.length}</span>
+        <button onClick={() => setNeu(true)} className={S.BTN_PRIMAER}>
+          <Icon name="plus" groesse="s" /> {t('termine.neu')}
         </button>
-      </div>
+      </Seitenkopf>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+      <div className="bg-karte rounded-karte border border-rahmen shadow-karte overflow-x-auto">
         <table className="w-full min-w-[1080px] text-sm">
           <thead>
-            <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+            <tr className="text-left text-xs text-schrift-leise border-b border-rahmen">
               {SPALTEN.map((s) => (
-                <th key={s} className="px-3 py-3 font-semibold whitespace-nowrap first:pl-4 last:pr-4">{s}</th>
+                <th key={s} className={S.TH}>{t(s)}</th>
               ))}
             </tr>
             {/* Filterzeile: Textsuche je Spalte + Kategorie-Auswahl */}
-            <tr className="border-b border-slate-100 bg-slate-50/60">
-              <th className="px-3 py-2 pl-4">{filterInput('start', 'Datum/Zeit …')}</th>
-              <th className="px-3 py-2">{filterInput('ende', 'Ende …')}</th>
-              <th className="px-3 py-2">{filterInput('titel', 'Titel …')}</th>
+            <tr className="border-b border-rahmen bg-gedeckt/60">
+              <th className={S.TH_FILTER}>{filterInput('start')}</th>
+              <th className={S.TH_FILTER}>{filterInput('ende')}</th>
+              <th className={S.TH_FILTER}>{filterInput('titel')}</th>
               <th className="px-3 py-2">
                 <select
                   value={filter.kategorie}
                   onChange={(e) => setzeFilter('kategorie', e.target.value)}
-                  className="w-full min-w-[110px] rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-normal bg-white focus:outline-none focus:ring-2 focus:ring-praxis-500"
+                  className="w-full min-w-[110px] rounded-feld border border-rahmen px-2 py-1.5 text-xs font-normal bg-karte focus:outline-none focus:ring-2 focus:ring-praxis-500"
                 >
-                  <option value="">Alle</option>
-                  {KATEGORIEN.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                  <option value="">{t('allg.alle')}</option>
+                  {KATEGORIEN.map(([id]) => <option key={id} value={id}>{t(`kat.${id}`)}</option>)}
                 </select>
               </th>
-              <th className="px-3 py-2">{filterInput('projekt', 'Nummer/Name …')}</th>
-              <th className="px-3 py-2">{filterInput('anschrift', 'Ort …')}</th>
-              <th className="px-3 py-2">{filterInput('mitarbeiter', 'Name …')}</th>
-              <th className="px-3 py-2 pr-4">{filterInput('erledigt', 'Erledigt …')}</th>
+              <th className={S.TH_FILTER}>{filterInput('projekt')}</th>
+              <th className={S.TH_FILTER}>{filterInput('anschrift')}</th>
+              <th className={S.TH_FILTER}>{filterInput('mitarbeiter')}</th>
+              <th className={S.TH_FILTER}>{filterInput('erledigt')}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="divide-y divide-rahmen">
             {gefiltert.map(({ a, projekt, mitarbeiter }) => {
               const kat = KATEGORIE_INFO[a.kategorie]
               return (
@@ -148,18 +139,18 @@ export default function Termine({ user }) {
                   onClick={() => setGewaehlt(a)}
                   className={`cursor-pointer hover:bg-praxis-50/50 transition ${a.erledigt ? 'opacity-50' : ''}`}
                 >
-                  <td className="px-3 py-3 pl-4 whitespace-nowrap font-semibold text-slate-900">
-                    {fmtDatum(a.datum)} <span className="text-slate-400 font-normal">·</span> {a.start}
+                  <td className="px-3 py-3 pl-4 whitespace-nowrap font-semibold text-schrift-stark">
+                    {fmtDatum(a.datum)} <span className="text-schrift-zart font-normal">·</span> {a.start}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-slate-600">{a.ende}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-schrift">{a.ende}</td>
                   <td className="px-3 py-3 max-w-[240px]">
-                    <p className="font-medium text-slate-800 truncate">{a.titel || a.behandlung || '–'}</p>
+                    <p className="font-medium text-schrift-stark truncate">{a.titel || a.behandlung || '–'}</p>
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap">
                     {kat ? (
-                      <span className={`text-[11px] font-bold rounded-full px-2.5 py-1 ${kat.farbe}`}>{kat.label}</span>
+                      <span className={`text-[12px] font-bold rounded-full px-2.5 py-1 ${kat.farbe}`}>{t(kat.schluessel)}</span>
                     ) : (
-                      <span className="text-slate-400">–</span>
+                      <span className="text-schrift-zart">–</span>
                     )}
                   </td>
                   <td className="px-3 py-3 max-w-[240px]">
@@ -172,10 +163,10 @@ export default function Termine({ user }) {
                         {projekt.nummer} · {projekt.name}
                       </Link>
                     ) : (
-                      <span className="text-slate-400">–</span>
+                      <span className="text-schrift-zart">–</span>
                     )}
                   </td>
-                  <td className="px-3 py-3 max-w-[200px] text-slate-600">
+                  <td className="px-3 py-3 max-w-[200px] text-schrift">
                     <p className="truncate">
                       {projekt?.anschrift
                         ? [projekt.anschrift.strasse, projekt.anschrift.plzOrt].filter(Boolean).join(', ') || '–'
@@ -186,31 +177,31 @@ export default function Termine({ user }) {
                     {mitarbeiter.length > 0 ? (
                       <span className="flex flex-wrap gap-x-3 gap-y-1">
                         {mitarbeiter.map((u) => (
-                          <span key={u.id} className="inline-flex items-center gap-1.5 whitespace-nowrap text-slate-700">
+                          <span key={u.id} className="inline-flex items-center gap-1.5 whitespace-nowrap text-schrift">
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ background: u.farbe || '#94a3b8' }} />
                             {u.name}
                           </span>
                         ))}
                       </span>
                     ) : (
-                      <span className="text-slate-500">{a.arzt || '–'}</span>
+                      <span className="text-schrift-leise">{a.arzt || '–'}</span>
                     )}
                   </td>
-                  <td className="px-3 py-3 pr-4 whitespace-nowrap text-xs text-slate-500">{erstelltText(a)}</td>
+                  <td className="px-3 py-3 pr-4 whitespace-nowrap text-xs text-schrift-leise">{erstelltText(a)}</td>
                 </tr>
               )
             })}
           </tbody>
         </table>
         {gefiltert.length === 0 && (
-          <p className="text-sm text-slate-400 text-center px-4 py-10">
-            {tab === 'meine' ? 'Keine Termine, die dir zugewiesen sind.' : 'Keine Termine gefunden – Filter prüfen oder neuen Termin anlegen.'}
+          <p className="text-sm text-schrift-zart text-center px-4 py-10">
+            {t(tab === 'meine' ? 'termine.keineMeine' : 'termine.keineAlle')}
           </p>
         )}
       </div>
 
-      <p className="mt-3 text-xs text-slate-400">
-        Klick auf eine Zeile öffnet die Termin-Details (erledigt markieren, kopieren, absagen).
+      <p className="mt-3 text-xs text-schrift-zart">
+        {t('termine.hinweis')}
       </p>
 
       {gewaehlt && (

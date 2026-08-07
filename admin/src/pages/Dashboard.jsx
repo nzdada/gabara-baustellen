@@ -4,8 +4,11 @@ import { Icon } from '@shared/ui.jsx'
 import { euro } from '@shared/format.js'
 import { heuteISO, addTage } from '@shared/slots.js'
 import { useCollection } from '../hooks.js'
+import * as S from '../stil.js'
+import { Seitenkopf, Leer, ChipReihe, Segment, Meldung } from '../components/Seite.jsx'
 import { teamFuerTermin } from '@shared/teams.js'
 import { istOffen, normalisiereStatus, statusInfo, istUeberfaellig } from '@shared/projektstatus.js'
+import { useLang, t, datumLok } from '@shared/i18n.js'
 
 // Finanz-Dashboard: Verdienst/Gewinn je Baustelle (Näherung), offene Rechnungen,
 // überfällige Projekte. Alle Zahlen aus Ist-Mengen, Regieberichten und internen Sätzen.
@@ -29,10 +32,10 @@ function stundenAus(start, ende) {
   return Math.max(0, (h2 * 60 + m2 - h1 * 60 - m1) / 60)
 }
 
-function Kpi({ icon, label, wert, farbe = 'text-slate-900' }) {
+function Kpi({ icon, label, wert, farbe = 'text-schrift-stark' }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-      <p className="text-xs text-slate-400 flex items-center gap-1.5"><Icon name={icon} className="w-3.5 h-3.5" /> {label}</p>
+    <div className="bg-karte rounded-karte border border-rahmen shadow-karte p-4">
+      <p className="text-xs text-schrift-zart flex items-center gap-1.5"><Icon name={icon} className="w-3.5 h-3.5" /> {label}</p>
       <p className={`mt-1 text-xl font-bold ${farbe}`}>{wert}</p>
     </div>
   )
@@ -40,9 +43,9 @@ function Kpi({ icon, label, wert, farbe = 'text-slate-900' }) {
 
 function Karte({ titel, hinweis, kinder, leer }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-      <p className="text-sm font-bold text-slate-800">{titel}</p>
-      {hinweis && <p className="text-xs text-slate-400 mt-0.5">{hinweis}</p>}
+    <div className="bg-karte rounded-karte border border-rahmen shadow-karte p-5">
+      <p className="text-sm font-bold text-schrift-stark">{titel}</p>
+      {hinweis && <p className="text-xs text-schrift-zart mt-0.5">{hinweis}</p>}
       <div className="mt-4">{leer || kinder}</div>
     </div>
   )
@@ -53,7 +56,7 @@ function Legende({ eintraege }) {
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-3">
       {eintraege.map((e) => (
-        <span key={e.label} className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+        <span key={e.label} className="inline-flex items-center gap-1.5 text-xs text-schrift">
           <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: e.farbe }} />
           {e.label}
         </span>
@@ -88,6 +91,7 @@ function StapelBalken({ segmente, gesamt, hoehe = 'h-3.5' }) {
 }
 
 export default function Dashboard() {
+  const lang = useLang()
   const projekte = useCollection('projekte')
   const lv = useCollection('lvpositionen')
   const berichte = useCollection('berichte')
@@ -165,12 +169,12 @@ export default function Dashboard() {
     const spesenGes = zeilen.reduce((s, z) => s + z.spesenSumme, 0)
     const rest = Math.max(0, gesamtErloes - material - lohn - spesenGes)
     return [
-      { label: 'Lohn intern', wert: lohn, farbe: KAT[0] },
-      { label: 'Material (EK)', wert: material, farbe: KAT[1] },
-      { label: 'Spesen', wert: spesenGes, farbe: KAT[2] },
-      { label: 'Ergebnis', wert: rest, farbe: KAT[3] },
+      { label: t('dash.lohnIntern'), wert: lohn, farbe: KAT[0] },
+      { label: t('dash.materialEk'), wert: material, farbe: KAT[1] },
+      { label: t('monteur.spesen'), wert: spesenGes, farbe: KAT[2] },
+      { label: t('dash.ergebnis'), wert: rest, farbe: KAT[3] },
     ]
-  }, [zeilen, gesamtErloes])
+  }, [zeilen, gesamtErloes, lang])
 
   // --- Diagramm 5: Abgerechnet nach Quelle ---
   // Jede Rechnungsposition trägt ihre Herkunft (quelle): LV-Position, Regiebericht
@@ -195,10 +199,10 @@ export default function Dashboard() {
     }
     const gesamt = topf.lv + topf.regie + topf.spesen + topf.frei
     const segmente = [
-      { label: 'LV-Positionen', wert: topf.lv, farbe: KAT[0] },
-      { label: 'Regie (Stunden + Material)', wert: topf.regie, farbe: KAT[1] },
-      { label: 'Spesen', wert: topf.spesen, farbe: KAT[2] },
-      { label: 'Freie Positionen', wert: topf.frei, farbe: KAT[3] },
+      { label: t('dash.lvPositionen'), wert: topf.lv, farbe: KAT[0] },
+      { label: t('dash.regieQuelle'), wert: topf.regie, farbe: KAT[1] },
+      { label: t('monteur.spesen'), wert: topf.spesen, farbe: KAT[2] },
+      { label: t('dash.freiePositionen'), wert: topf.frei, farbe: KAT[3] },
     ]
     const projektListe = [...jeProjekt.entries()]
       .map(([id, z]) => ({ projekt: projekte.find((p) => p.id === id), ...z }))
@@ -212,15 +216,15 @@ export default function Dashboard() {
   const auslastung = useMemo(() => {
     const von = addTage(heute, -30)
     const map = new Map()
-    for (const t of appointments) {
-      if (t.status === 'abgesagt' || t.intern) continue
-      if (!t.datum || t.datum < von || t.datum > heute) continue
-      const std = stundenAus(t.start, t.ende)
+    for (const termin of appointments) {
+      if (termin.status === 'abgesagt' || termin.intern) continue
+      if (!termin.datum || termin.datum < von || termin.datum > heute) continue
+      const std = stundenAus(termin.start, termin.ende)
       if (std <= 0) continue
-      const team = teamFuerTermin(t, users)
+      const team = teamFuerTermin(termin, users)
       if (!team.zugewiesen) continue
       // Stunden je beteiligter Person zählen (2 Monteure × 8 Std. = 16 Std. Einsatzzeit)
-      const anzahl = Math.max(1, (t.mitarbeiterIds || []).length)
+      const anzahl = Math.max(1, (termin.mitarbeiterIds || []).length)
       const vorher = map.get(team.name) || { name: team.name, farbe: team.farbe, stunden: 0 }
       vorher.stunden += std * anzahl
       map.set(team.name, vorher)
@@ -229,47 +233,44 @@ export default function Dashboard() {
     return { liste, max: Math.max(1, ...liste.map((x) => x.stunden)) }
   }, [appointments, users, heute])
 
-  const leerHinweis = (text) => <p className="text-sm text-slate-400 py-6 text-center">{text}</p>
+  const leerHinweis = (text) => <p className="text-sm text-schrift-zart py-6 text-center">{text}</p>
 
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-      <div className="mb-5">
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-sm text-slate-500">Finanzielle Auswertung je Baustelle – Näherung auf Basis Ist-Mengen und internen Sätzen</p>
-      </div>
+    <div className={S.SEITE}>
+      <Seitenkopf icon="diagramm" titel={t('nav.dashboard')} sub={t('dash.sub')} />
 
       {/* Leitzahl + Kennzahlen */}
       <div className="grid lg:grid-cols-3 gap-3 mb-3">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 lg:col-span-1">
-          <p className="text-xs text-slate-400">Ergebnis über alle Baustellen</p>
+        <div className="bg-karte rounded-karte border border-rahmen shadow-karte p-5 lg:col-span-1">
+          <p className="text-xs text-schrift-zart">{t('dash.gesamtergebnis')}</p>
           <p
             className="mt-1 text-5xl font-bold leading-none"
             style={{ color: gesamtErgebnis >= 0 ? STATUS.gut : STATUS.schlecht }}
           >
             {euro(gesamtErgebnis)}
           </p>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-schrift-leise">
             {gesamtErloes > 0
-              ? <>bei {euro(gesamtErloes)} Erlös · <strong className="text-slate-700">{marge} % Marge</strong></>
-              : 'noch kein Erlös erfasst'}
+              ? <>{t('dash.beiErloes', { erloes: euro(gesamtErloes) })} · <strong className="text-schrift">{t('dash.marge', { n: marge })}</strong></>
+              : t('dash.keinErloes')}
           </p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3 lg:col-span-2">
-          <Kpi icon="folder" label="Laufende Baustellen" wert={laufende} />
-          <Kpi icon="euro" label="Offene Rechnungen" wert={euro(offeneSumme)} farbe="text-amber-600" />
-          <Kpi icon="check" label="Bezahlt" wert={euro(bezahltSumme)} farbe="text-emerald-600" />
-          <Kpi icon="bericht" label="Berichte eingereicht" wert={eingereicht} />
-          <Kpi icon="truck" label="Offene Spesen" wert={euro(offeneSpesen)} />
-          <Kpi icon="alert" label="Überfällig" wert={ueberfaellig.length} farbe={ueberfaellig.length ? 'text-red-600' : 'text-slate-900'} />
+          <Kpi icon="folder" label={t('dash.laufende')} wert={laufende} />
+          <Kpi icon="euro" label={t('dash.offeneRechnungen')} wert={euro(offeneSumme)} farbe="text-amber-600" />
+          <Kpi icon="check" label={t('dash.bezahlt')} wert={euro(bezahltSumme)} farbe="text-emerald-600" />
+          <Kpi icon="bericht" label={t('dash.berichteEingereicht')} wert={eingereicht} />
+          <Kpi icon="truck" label={t('dash.offeneSpesen')} wert={euro(offeneSpesen)} />
+          <Kpi icon="alert" label={t('dash.ueberfaellig')} wert={ueberfaellig.length} farbe={ueberfaellig.length ? 'text-red-600' : 'text-schrift-stark'} />
         </div>
       </div>
 
       {ueberfaellig.length > 0 && (
-        <div className="mb-3 bg-red-50 border border-red-200 rounded-2xl p-4">
-          <p className="text-sm font-bold text-red-700 mb-1.5 flex items-center gap-1.5"><Icon name="alert" className="w-4 h-4" /> Überfällige Projekte</p>
+        <div className="mb-3 bg-red-50 border border-red-200 rounded-karte p-4">
+          <p className="text-sm font-bold text-red-700 mb-1.5 flex items-center gap-1.5"><Icon name="alert" className="w-4 h-4" /> {t('dash.ueberfaelligeProjekte')}</p>
           {ueberfaellig.map((p) => (
             <Link key={p.id} to={`/projekte/${p.id}`} className="block text-sm text-red-700 hover:underline">
-              {p.nummer} · {p.name} – geplantes Ende {new Date(p.endeDatum + 'T12:00:00').toLocaleDateString('de-DE')}
+              {p.nummer} · {p.name} – {t('dash.geplantesEnde', { datum: datumLok(p.endeDatum, { day: '2-digit', month: '2-digit', year: 'numeric' }) })}
             </Link>
           ))}
         </div>
@@ -278,15 +279,15 @@ export default function Dashboard() {
       {/* Diagramme */}
       <div className="grid lg:grid-cols-2 gap-3 mb-3">
         <Karte
-          titel="Fortschritt je Baustelle"
-          hinweis="Anteil am LV-Auftragswert · größte 8 offene Baustellen"
-          leer={fortschritt.length === 0 ? leerHinweis('Noch keine Baustelle mit Leistungsverzeichnis.') : null}
+          titel={t('dash.fortschritt')}
+          hinweis={t('dash.fortschrittSub')}
+          leer={fortschritt.length === 0 ? leerHinweis(t('dash.keinLv')) : null}
           kinder={
             <>
               <Legende eintraege={[
-                { label: 'Abgerechnet', farbe: RAMPE.abgerechnet },
-                { label: 'Geleistet, noch nicht fakturiert', farbe: RAMPE.geleistet },
-                { label: 'Noch nicht geleistet', farbe: RAMPE.offen },
+                { label: t('dash.abgerechnet'), farbe: RAMPE.abgerechnet },
+                { label: t('dash.geleistetOffen'), farbe: RAMPE.geleistet },
+                { label: t('dash.nochNicht'), farbe: RAMPE.offen },
               ]} />
               <div className="space-y-3">
                 {fortschritt.map((z) => {
@@ -296,25 +297,25 @@ export default function Dashboard() {
                   return (
                     <div key={z.p.id}>
                       <div className="flex items-baseline justify-between gap-3 mb-1">
-                        <Link to={`/projekte/${z.p.id}`} className="text-xs font-medium text-slate-700 hover:text-praxis-700 truncate">
+                        <Link to={`/projekte/${z.p.id}`} className="text-xs font-medium text-schrift hover:text-praxis-700 truncate">
                           {z.p.nummer} · {z.p.name}
                         </Link>
-                        <span className="text-xs text-slate-500 shrink-0 tabular-nums">
+                        <span className="text-xs text-schrift-leise shrink-0 tabular-nums">
                           {proz} % · {euro(z.auftragswert)}
                         </span>
                       </div>
                       <StapelBalken
                         gesamt={z.auftragswert}
                         segmente={[
-                          { label: 'Abgerechnet', wert: z.abgerechnet, farbe: RAMPE.abgerechnet },
-                          { label: 'Geleistet, noch nicht fakturiert', wert: geleistetOffen, farbe: RAMPE.geleistet },
-                          { label: 'Noch nicht geleistet', wert: nochOffen, farbe: RAMPE.offen },
+                          { label: t('dash.abgerechnet'), wert: z.abgerechnet, farbe: RAMPE.abgerechnet },
+                          { label: t('dash.geleistetOffen'), wert: geleistetOffen, farbe: RAMPE.geleistet },
+                          { label: t('dash.nochNicht'), wert: nochOffen, farbe: RAMPE.offen },
                         ]}
                       />
                       {/* Regie liegt AUSSERHALB des LV – separat ausweisen, nicht in die Quote mischen */}
                       {z.regieErloes > 0 && (
-                        <p className="mt-1 text-[11px] text-slate-500">
-                          zusätzlich <strong className="text-slate-700">{euro(z.regieErloes)}</strong> aus Regieberichten (nicht im LV)
+                        <p className="mt-1 text-[12px] text-schrift-leise">
+                          {t('dash.zusaetzlichRegie', { betrag: euro(z.regieErloes) })}
                         </p>
                       )}
                     </div>
@@ -326,9 +327,9 @@ export default function Dashboard() {
         />
 
         <Karte
-          titel="Ergebnis je Baustelle"
-          hinweis="Erlös minus Material, Lohn und Spesen · links Verlust, rechts Gewinn"
-          leer={ergebnisse.liste.length === 0 ? leerHinweis('Noch keine geleisteten Mengen erfasst.') : null}
+          titel={t('dash.ergebnisJe')}
+          hinweis={t('dash.ergebnisJeSub')}
+          leer={ergebnisse.liste.length === 0 ? leerHinweis(t('dash.keineMengen')) : null}
           kinder={
             <div className="space-y-2.5">
               {ergebnisse.liste.map((z) => {
@@ -337,7 +338,7 @@ export default function Dashboard() {
                 return (
                   <div key={z.p.id}>
                     <div className="flex items-baseline justify-between gap-3 mb-1">
-                      <Link to={`/projekte/${z.p.id}`} className="text-xs font-medium text-slate-700 hover:text-praxis-700 truncate">
+                      <Link to={`/projekte/${z.p.id}`} className="text-xs font-medium text-schrift hover:text-praxis-700 truncate">
                         {z.p.nummer} · {z.p.name}
                       </Link>
                       <span className="text-xs font-semibold shrink-0 tabular-nums" style={{ color: positiv ? '#166534' : '#b91c1c' }}>
@@ -369,9 +370,9 @@ export default function Dashboard() {
         />
 
         <Karte
-          titel="Wohin geht der Umsatz"
-          hinweis={`Aufteilung von ${euro(gesamtErloes)} Erlös über alle Baustellen`}
-          leer={gesamtErloes <= 0 ? leerHinweis('Noch kein Erlös erfasst.') : null}
+          titel={t('dash.wohin')}
+          hinweis={t('dash.wohinSub', { erloes: euro(gesamtErloes) })}
+          leer={gesamtErloes <= 0 ? leerHinweis(t('dash.keinUmsatz')) : null}
           kinder={
             <>
               <Legende eintraege={verwendung.map((v) => ({ label: v.label, farbe: v.farbe }))} />
@@ -379,12 +380,12 @@ export default function Dashboard() {
               <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {verwendung.map((v) => (
                   <div key={v.label}>
-                    <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                    <p className="text-xs text-schrift-zart flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: v.farbe }} />
                       {v.label}
                     </p>
-                    <p className="text-sm font-bold text-slate-800 tabular-nums">{euro(v.wert)}</p>
-                    <p className="text-[11px] text-slate-400 tabular-nums">
+                    <p className="text-sm font-bold text-schrift-stark tabular-nums">{euro(v.wert)}</p>
+                    <p className="text-[12px] text-schrift-zart tabular-nums">
                       {gesamtErloes > 0 ? Math.round((v.wert / gesamtErloes) * 100) : 0} %
                     </p>
                   </div>
@@ -395,28 +396,28 @@ export default function Dashboard() {
         />
 
         <Karte
-          titel="Einsatzstunden je Team"
-          hinweis="Geplante Personenstunden der letzten 30 Tage"
-          leer={auslastung.liste.length === 0 ? leerHinweis('In den letzten 30 Tagen keine zugewiesenen Einsätze.') : null}
+          titel={t('dash.stundenTeam')}
+          hinweis={t('dash.stundenTeamSub')}
+          leer={auslastung.liste.length === 0 ? leerHinweis(t('dash.keineEinsaetze30')) : null}
           kinder={
             <div className="space-y-3">
-              {auslastung.liste.map((t) => (
-                <div key={t.name}>
+              {auslastung.liste.map((reihe) => (
+                <div key={reihe.name}>
                   <div className="flex items-baseline justify-between gap-3 mb-1">
-                    <span className="text-xs font-medium text-slate-700 inline-flex items-center gap-1.5 truncate">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.farbe }} />
-                      {t.name}
+                    <span className="text-xs font-medium text-schrift inline-flex items-center gap-1.5 truncate">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: reihe.farbe }} />
+                      {reihe.name}
                     </span>
-                    <span className="text-xs text-slate-500 shrink-0 tabular-nums">
-                      {t.stunden.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Std.
+                    <span className="text-xs text-schrift-leise shrink-0 tabular-nums">
+                      {reihe.stunden.toLocaleString('de-DE', { maximumFractionDigits: 1 })} {t('allg.stunden')}
                     </span>
                   </div>
                   <div className="h-3.5 w-full" style={{ backgroundColor: SPUR }}>
                     <div
-                      title={`${t.name}: ${t.stunden.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Stunden`}
+                      title={`${reihe.name}: ${reihe.stunden.toLocaleString('de-DE', { maximumFractionDigits: 1 })}`}
                       className="h-full"
                       style={{
-                        width: `${(t.stunden / auslastung.max) * 100}%`,
+                        width: `${(reihe.stunden / auslastung.max) * 100}%`,
                         backgroundColor: RAMPE.geleistet,
                         borderTopRightRadius: 4,
                         borderBottomRightRadius: 4,
@@ -431,11 +432,11 @@ export default function Dashboard() {
         {/* Woraus die gestellten Rechnungen bestehen – macht Regie-Umsatz sichtbar */}
         <div className="lg:col-span-2">
           <Karte
-            titel="Abgerechnet nach Quelle"
+            titel={t('dash.nachQuelle')}
             hinweis={nachQuelle.gesamt > 0
-              ? `${euro(nachQuelle.gesamt)} in Rechnungen · davon ${nachQuelle.regieAnteil} % aus Regieberichten`
-              : 'Woraus sich die gestellten Rechnungen zusammensetzen'}
-            leer={nachQuelle.gesamt <= 0 ? leerHinweis('Noch keine Rechnung erstellt. Sobald eine Rechnung Positionen aus einem Regiebericht enthält, erscheint der Anteil hier.') : null}
+              ? t('dash.nachQuelleSub', { summe: euro(nachQuelle.gesamt), n: nachQuelle.regieAnteil })
+              : t('dash.nachQuelleLeerSub')}
+            leer={nachQuelle.gesamt <= 0 ? leerHinweis(t('dash.keineRechnung')) : null}
             kinder={
               <>
                 <Legende eintraege={nachQuelle.segmente.map((s) => ({ label: s.label, farbe: s.farbe }))} />
@@ -443,12 +444,12 @@ export default function Dashboard() {
                 <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {nachQuelle.segmente.map((s) => (
                     <div key={s.label}>
-                      <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                      <p className="text-xs text-schrift-zart flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: s.farbe }} />
                         {s.label}
                       </p>
-                      <p className="text-sm font-bold text-slate-800 tabular-nums">{euro(s.wert)}</p>
-                      <p className="text-[11px] text-slate-400 tabular-nums">
+                      <p className="text-sm font-bold text-schrift-stark tabular-nums">{euro(s.wert)}</p>
+                      <p className="text-[12px] text-schrift-zart tabular-nums">
                         {nachQuelle.gesamt > 0 ? Math.round((s.wert / nachQuelle.gesamt) * 100) : 0} %
                       </p>
                     </div>
@@ -456,29 +457,29 @@ export default function Dashboard() {
                 </div>
 
                 {nachQuelle.projektListe.length > 0 && (
-                  <div className="mt-5 border-t border-slate-100 pt-4">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2.5">Je Baustelle</p>
+                  <div className="mt-5 border-t border-rahmen pt-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-schrift-zart mb-2.5">{t('dash.jeBaustelle')}</p>
                     <div className="space-y-3">
                       {nachQuelle.projektListe.map((z) => (
                         <div key={z.projekt?.id || z.summe}>
                           <div className="flex items-baseline justify-between gap-3 mb-1">
                             {z.projekt ? (
-                              <Link to={`/projekte/${z.projekt.id}`} className="text-xs font-medium text-slate-700 hover:text-praxis-700 truncate">
+                              <Link to={`/projekte/${z.projekt.id}`} className="text-xs font-medium text-schrift hover:text-praxis-700 truncate">
                                 {z.projekt.nummer} · {z.projekt.name}
                               </Link>
-                            ) : <span className="text-xs text-slate-400">ohne Projekt</span>}
-                            <span className="text-xs text-slate-500 shrink-0 tabular-nums">
+                            ) : <span className="text-xs text-schrift-zart">{t('dash.ohneProjekt')}</span>}
+                            <span className="text-xs text-schrift-leise shrink-0 tabular-nums">
                               {euro(z.summe)}
-                              {z.regie > 0 && <span className="text-slate-400"> · {Math.round((z.regie / z.summe) * 100)} % Regie</span>}
+                              {z.regie > 0 && <span className="text-schrift-zart"> · {t('dash.regieAnteil', { n: Math.round((z.regie / z.summe) * 100) })}</span>}
                             </span>
                           </div>
                           <StapelBalken
                             gesamt={z.summe}
                             segmente={[
-                              { label: 'LV-Positionen', wert: z.lv, farbe: KAT[0] },
-                              { label: 'Regie (Stunden + Material)', wert: z.regie, farbe: KAT[1] },
-                              { label: 'Spesen', wert: z.spesen, farbe: KAT[2] },
-                              { label: 'Freie Positionen', wert: z.frei, farbe: KAT[3] },
+                              { label: t('dash.lvPositionen'), wert: z.lv, farbe: KAT[0] },
+                              { label: t('dash.regieQuelle'), wert: z.regie, farbe: KAT[1] },
+                              { label: t('monteur.spesen'), wert: z.spesen, farbe: KAT[2] },
+                              { label: t('dash.freiePositionen'), wert: z.frei, farbe: KAT[3] },
                             ]}
                           />
                         </div>
@@ -493,48 +494,48 @@ export default function Dashboard() {
       </div>
 
       {/* Tabellen-Ansicht: alle Werte auch ohne Farbwahrnehmung lesbar */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-        <p className="text-sm font-bold text-slate-800 px-4 pt-4">Alle Zahlen je Baustelle</p>
+      <div className="bg-karte rounded-karte border border-rahmen shadow-karte overflow-x-auto">
+        <p className="text-sm font-bold text-schrift-stark px-4 pt-4">{t('dash.tabelle')}</p>
         <table className="w-full text-sm min-w-[980px] mt-2">
           <thead>
-            <tr className="text-left text-xs uppercase text-slate-400 border-b border-slate-100">
-              <th className="px-4 py-3">Baustelle</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">LV-Auftragswert</th>
-              <th className="px-4 py-3 text-right">Geleistet (Ist)</th>
-              <th className="px-4 py-3 text-right">Abgerechnet</th>
-              <th className="px-4 py-3 text-right">Regie-Erlös</th>
-              <th className="px-4 py-3 text-right">Material</th>
-              <th className="px-4 py-3 text-right">Lohn intern</th>
-              <th className="px-4 py-3 text-right">Spesen</th>
-              <th className="px-4 py-3 text-right">Ergebnis</th>
+            <tr className="text-left text-xs uppercase text-schrift-zart border-b border-rahmen">
+              <th className="px-4 py-3">{t('dash.baustelle')}</th>
+              <th className="px-4 py-3">{t('allg.status')}</th>
+              <th className="px-4 py-3 text-right">{t('dash.lvWert')}</th>
+              <th className="px-4 py-3 text-right">{t('dash.geleistetIst')}</th>
+              <th className="px-4 py-3 text-right">{t('dash.abgerechnet')}</th>
+              <th className="px-4 py-3 text-right">{t('dash.regieErloes')}</th>
+              <th className="px-4 py-3 text-right">{t('dash.material')}</th>
+              <th className="px-4 py-3 text-right">{t('dash.lohnIntern')}</th>
+              <th className="px-4 py-3 text-right">{t('monteur.spesen')}</th>
+              <th className="px-4 py-3 text-right">{t('dash.ergebnis')}</th>
             </tr>
           </thead>
           <tbody className="tabular-nums">
             {zeilen.map(({ p, auftragswert, geleistet, abgerechnet, regieErloes, materialKosten, lohnKosten, spesenSumme, ergebnis }) => {
               const st = statusInfo(p.status)
               return (
-                <tr key={p.id} className="border-b border-slate-50">
+                <tr key={p.id} className="border-b border-rahmen">
                   <td className="px-4 py-3">
                     <Link to={`/projekte/${p.id}`} className="font-medium text-praxis-600 hover:underline">{p.nummer}</Link>
-                    <p className="text-xs text-slate-500 truncate max-w-[200px]">{p.name}</p>
+                    <p className="text-xs text-schrift-leise truncate max-w-[200px]">{p.name}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ color: st.farbe, backgroundColor: `${st.farbe}1f` }}>{st.label}</span>
+                    <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ color: st.farbe, backgroundColor: `${st.farbe}1f` }}>{t(`projektstatus.${st.id}`)}</span>
                   </td>
                   <td className="px-4 py-3 text-right">{auftragswert ? euro(auftragswert) : '–'}</td>
                   <td className="px-4 py-3 text-right">{euro(geleistet)}</td>
                   <td className="px-4 py-3 text-right">{euro(abgerechnet)}</td>
                   <td className="px-4 py-3 text-right">{euro(regieErloes)}</td>
-                  <td className="px-4 py-3 text-right text-slate-500">− {euro(materialKosten)}</td>
-                  <td className="px-4 py-3 text-right text-slate-500">− {euro(lohnKosten)}</td>
-                  <td className="px-4 py-3 text-right text-slate-500">− {euro(spesenSumme)}</td>
+                  <td className="px-4 py-3 text-right text-schrift-leise">− {euro(materialKosten)}</td>
+                  <td className="px-4 py-3 text-right text-schrift-leise">− {euro(lohnKosten)}</td>
+                  <td className="px-4 py-3 text-right text-schrift-leise">− {euro(spesenSumme)}</td>
                   <td className={`px-4 py-3 text-right font-bold ${ergebnis >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{euro(ergebnis)}</td>
                 </tr>
               )
             })}
             {zeilen.length === 0 && (
-              <tr><td colSpan={10} className="px-4 py-10 text-center text-sm text-slate-400">Noch keine Baustellen erfasst.</td></tr>
+              <tr><td colSpan={10} className="px-4 py-10 text-center text-sm text-schrift-zart">{t('dash.keineBaustellen')}</td></tr>
             )}
           </tbody>
         </table>

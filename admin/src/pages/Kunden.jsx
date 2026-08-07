@@ -2,9 +2,12 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useCollection, useEinstellungen, withStore } from '../hooks.js'
 import { Icon } from '@shared/ui.jsx'
+import { useLang, t, datumLok } from '@shared/i18n.js'
 import { euro } from '@shared/format.js'
 import { statusInfo } from '@shared/projektstatus.js'
 import Modal from '../components/Modal.jsx'
+import * as S from '../stil.js'
+import { Seitenkopf, Leer, ChipReihe, Segment, Meldung } from '../components/Seite.jsx'
 
 // Kunden-Spiegel: FastBill ist das führende System, diese Liste ist der Arbeits-Spiegel.
 // Collection heißt aus Vorlagen-Gründen weiterhin 'patients'.
@@ -36,6 +39,7 @@ function datumDe(iso) {
 }
 
 export default function Kunden() {
+  const lang = useLang()
   const kunden = useCollection('patients')
   const projekte = useCollection('projekte')
   const [suche, setSuche] = useState('')
@@ -66,35 +70,35 @@ export default function Kunden() {
           (k.plzOrt || '').toLowerCase().includes(q)
       )
       .sort((a, b) => kundenName(a).localeCompare(kundenName(b), 'de'))
-  }, [kunden, suche])
+  }, [kunden, suche, lang])
 
   return (
-    <div className="p-4 lg:p-6 max-w-6xl mx-auto">
+    <div className={S.SEITE}>
       {/* Kopf */}
       <div className="flex flex-wrap items-start gap-3 mb-4">
         <div className="mr-auto">
-          <h1 className="text-xl font-bold text-slate-900">Kunden</h1>
-          <p className="text-sm text-slate-500 mt-0.5">FastBill ist führend – hier liegt der Arbeits-Spiegel</p>
+          <h1 className="text-xl font-bold text-schrift-stark">{t('kunden.titel')}</h1>
+          <p className="text-sm text-schrift-leise mt-0.5">{t('kunden.sub')}</p>
         </div>
         <button
           onClick={() => setSyncHinweis(true)}
-          className="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:border-praxis-400 text-slate-600 text-sm font-semibold px-4 py-2 rounded-full"
+          className="inline-flex items-center gap-1.5 bg-karte border border-rahmen hover:border-praxis-400 text-schrift text-sm font-semibold px-4 py-2 rounded-full"
         >
-          <Icon name="inbox" className="w-4 h-4" /> Aus FastBill laden
+          <Icon name="inbox" className="w-4 h-4" /> {t('einst.ausFastbill')}
         </button>
         <button
           onClick={() => setBearbeite('neu')}
           className="inline-flex items-center gap-1.5 bg-praxis-600 hover:bg-praxis-700 text-white text-sm font-semibold px-4 py-2 rounded-full"
         >
-          <Icon name="plus" className="w-4 h-4" /> Neuer Kunde
+          <Icon name="plus" className="w-4 h-4" /> {t('kunden.neu')}
         </button>
       </div>
 
       {syncHinweis && (
-        <div className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3 text-sm">
+        <div className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-karte px-4 py-3 text-sm">
           <Icon name="alert" className="w-4 h-4 mt-0.5 shrink-0" />
           <p className="flex-1">
-            FastBill-Sync wird mit der Abrechnung (AP2) aktiviert – Zugang unter Einstellungen → Integrationen.
+            {t('kunden.syncHinweis')}
           </p>
           <button onClick={() => setSyncHinweis(false)} className="text-amber-500 hover:text-amber-800 shrink-0">
             <Icon name="x" className="w-4 h-4" />
@@ -106,26 +110,26 @@ export default function Kunden() {
       <input
         value={suche}
         onChange={(e) => setSuche(e.target.value)}
-        placeholder="Suchen: Firma, Ansprechpartner, Telefon, E-Mail, Ort …"
-        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-praxis-500"
+        placeholder={t('kunden.suchen')}
+        className="w-full rounded-feld border border-rahmen bg-karte px-4 py-3 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-praxis-500"
       />
 
       {/* Tabelle */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+      <div className="bg-karte rounded-karte border border-rahmen shadow-karte overflow-x-auto">
         <table className="w-full text-sm min-w-[760px]">
           <thead>
-            <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-100">
-              <th className="px-4 py-3 font-semibold">Kunde</th>
-              <th className="px-4 py-3 font-semibold">Telefon</th>
-              <th className="px-4 py-3 font-semibold">E-Mail</th>
-              <th className="px-4 py-3 font-semibold">Ort</th>
-              <th className="px-4 py-3 font-semibold">Typ</th>
-              <th className="px-4 py-3 font-semibold">USt</th>
+            <tr className="text-left text-xs text-schrift-zart uppercase tracking-wide border-b border-rahmen">
+              <th className="px-4 py-3 font-semibold">{t('kunden.kunde')}</th>
+              <th className="px-4 py-3 font-semibold">{t('allg.telefon')}</th>
+              <th className="px-4 py-3 font-semibold">{t('allg.email')}</th>
+              <th className="px-4 py-3 font-semibold">{t('kunden.ort')}</th>
+              <th className="px-4 py-3 font-semibold">{t('kunden.typ')}</th>
+              <th className="px-4 py-3 font-semibold">{t('kunden.ust')}</th>
               <th className="px-4 py-3 font-semibold">FastBill</th>
-              <th className="px-4 py-3 font-semibold text-right">Projekte</th>
+              <th className="px-4 py-3 font-semibold text-right">{t('nav.projekte')}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="divide-y divide-rahmen">
             {liste.map((k) => {
               const anzahl = (projekteJeKunde[k.id] || []).length
               return (
@@ -135,39 +139,39 @@ export default function Kunden() {
                   className="cursor-pointer hover:bg-praxis-50/60 transition"
                 >
                   <td className="px-4 py-3">
-                    <p className="font-semibold text-slate-900">{kundenName(k)}</p>
+                    <p className="font-semibold text-schrift-stark">{kundenName(k)}</p>
                     {k.firma && k.ansprechpartner && (
-                      <p className="text-xs text-slate-400 mt-0.5">{k.ansprechpartner}</p>
+                      <p className="text-xs text-schrift-zart mt-0.5">{k.ansprechpartner}</p>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{k.telefon || '–'}</td>
-                  <td className="px-4 py-3 text-slate-600">{k.email || '–'}</td>
-                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{k.plzOrt || '–'}</td>
+                  <td className="px-4 py-3 text-schrift whitespace-nowrap">{k.telefon || '–'}</td>
+                  <td className="px-4 py-3 text-schrift">{k.email || '–'}</td>
+                  <td className="px-4 py-3 text-schrift whitespace-nowrap">{k.plzOrt || '–'}</td>
                   <td className="px-4 py-3">
                     {k.typ === 'privat' ? (
-                      <span className="text-[10px] font-bold rounded-full px-2.5 py-1 bg-sky-100 text-sky-700">Privat</span>
+                      <span className="text-[11px] font-bold rounded-full px-2.5 py-1 bg-sky-100 text-sky-700">{t('kunden.privatKurz')}</span>
                     ) : (
-                      <span className="text-[10px] font-bold rounded-full px-2.5 py-1 bg-slate-100 text-slate-600">GU</span>
+                      <span className="text-[11px] font-bold rounded-full px-2.5 py-1 bg-gedeckt-tief text-schrift">GU</span>
                     )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     {k.ustModus === 'ust19' ? (
-                      <span className="text-[10px] font-bold rounded-full px-2.5 py-1 bg-emerald-100 text-emerald-700">19 % USt</span>
+                      <span className="text-[11px] font-bold rounded-full px-2.5 py-1 bg-emerald-100 text-emerald-700">{t('kunden.ust19')}</span>
                     ) : (
-                      <span className="text-[10px] font-bold rounded-full px-2.5 py-1 bg-amber-100 text-amber-700">§13b netto</span>
+                      <span className="text-[11px] font-bold rounded-full px-2.5 py-1 bg-amber-100 text-amber-700">{t('kunden.ust13b')}</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
                     {k.fastbillCustomerId ? (
-                      <span className="text-[10px] font-bold rounded-full px-2.5 py-1 bg-emerald-100 text-emerald-700 inline-flex items-center gap-1">
-                        <Icon name="check" className="w-3 h-3" /> verknüpft
+                      <span className="text-[11px] font-bold rounded-full px-2.5 py-1 bg-emerald-100 text-emerald-700 inline-flex items-center gap-1">
+                        <Icon name="check" className="w-3 h-3" /> {t('einst.verknuepft')}
                       </span>
                     ) : (
-                      <span className="text-slate-300">—</span>
+                      <span className="text-schrift-zart">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <span className={`text-xs font-bold rounded-full px-2.5 py-1 ${anzahl > 0 ? 'bg-praxis-100 text-praxis-800' : 'bg-slate-100 text-slate-400'}`}>
+                    <span className={`text-xs font-bold rounded-full px-2.5 py-1 ${anzahl > 0 ? 'bg-praxis-100 text-praxis-800' : 'bg-gedeckt-tief text-schrift-zart'}`}>
                       {anzahl}
                     </span>
                   </td>
@@ -176,8 +180,8 @@ export default function Kunden() {
             })}
             {liste.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
-                  {kunden.length === 0 ? 'Noch keine Kunden angelegt.' : 'Keine Treffer.'}
+                <td colSpan={8} className="px-4 py-10 text-center text-schrift-zart">
+                  {t(kunden.length === 0 ? 'kunden.nochKeine' : 'kunden.keineTreffer')}
                 </td>
               </tr>
             )}
@@ -209,6 +213,7 @@ function typVorgaben(typ, einstellungen) {
 }
 
 function KundenForm({ kunde, projekteDesKunden, onClose }) {
+  useLang()
   const einstellungen = useEinstellungen()
   const [form, setForm] = useState(() =>
     kunde ? { ...LEER, ...kunde } : { ...LEER, typ: 'gu', ...typVorgaben('gu', einstellungen) }
@@ -216,7 +221,7 @@ function KundenForm({ kunde, projekteDesKunden, onClose }) {
   const [fehler, setFehler] = useState('')
 
   const feldKlasse =
-    'mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500'
+    'mt-1.5 w-full rounded-feld border border-rahmen px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-praxis-500'
 
   function setzeFeld(key, wert) {
     setForm((f) => ({ ...f, [key]: wert }))
@@ -235,7 +240,7 @@ function KundenForm({ kunde, projekteDesKunden, onClose }) {
     e.preventDefault()
     const ansprechpartner = (form.ansprechpartner || '').trim()
     if (!form.firma.trim() && !ansprechpartner) {
-      setFehler('Bitte Firma oder Ansprechpartner angeben.')
+      setFehler(t('kunden.fehlerName'))
       return
     }
     // Ansprechpartner intern in vorname/nachname spiegeln (erstes Wort / Rest)
@@ -258,58 +263,58 @@ function KundenForm({ kunde, projekteDesKunden, onClose }) {
 
   async function loeschen() {
     if (projekteDesKunden.length > 0) {
-      setFehler('Löschen nicht möglich: Der Kunde hat noch verknüpfte Projekte. Erst die Projekte umhängen oder archivieren.')
+      setFehler(t('kunden.fehlerLoeschen'))
       return
     }
-    if (!confirm(`Kunde "${kundenName(form)}" wirklich löschen?`)) return
+    if (!confirm(t('kunden.loeschenFrage', { name: kundenName(form) }))) return
     await withStore((s) => s.remove('patients', kunde.id))
     onClose()
   }
 
   return (
-    <Modal titel={kunde ? `Kunde bearbeiten – ${kundenName(kunde)}` : 'Neuer Kunde'} onClose={onClose} breite="max-w-2xl">
+    <Modal titel={kunde ? t('kunden.bearbeiten', { name: kundenName(kunde) }) : t('kunden.neu')} onClose={onClose} breite="max-w-2xl">
       <form onSubmit={speichern} className="space-y-3.5">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="block sm:col-span-2">
-            <span className="text-sm font-medium text-slate-700">Firma (leer bei Privatkunde)</span>
+            <span className="text-sm font-medium text-schrift">{t('kunden.firma')}</span>
             <input value={form.firma || ''} onChange={(e) => setzeFeld('firma', e.target.value)} className={feldKlasse} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Ansprechpartner / Name</span>
+            <span className="text-sm font-medium text-schrift">{t('kunden.ansprechpartner')}</span>
             <input value={form.ansprechpartner || ''} onChange={(e) => setzeFeld('ansprechpartner', e.target.value)} className={feldKlasse} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Telefon</span>
+            <span className="text-sm font-medium text-schrift">{t('allg.telefon')}</span>
             <input type="tel" value={form.telefon || ''} onChange={(e) => setzeFeld('telefon', e.target.value)} className={feldKlasse} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">E-Mail</span>
+            <span className="text-sm font-medium text-schrift">{t('allg.email')}</span>
             <input type="email" value={form.email || ''} onChange={(e) => setzeFeld('email', e.target.value)} className={feldKlasse} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Straße</span>
+            <span className="text-sm font-medium text-schrift">{t('allg.strasse')}</span>
             <input value={form.strasse || ''} onChange={(e) => setzeFeld('strasse', e.target.value)} className={feldKlasse} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">PLZ / Ort</span>
+            <span className="text-sm font-medium text-schrift">{t('allg.plzOrt')}</span>
             <input value={form.plzOrt || ''} onChange={(e) => setzeFeld('plzOrt', e.target.value)} className={feldKlasse} />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Typ</span>
+            <span className="text-sm font-medium text-schrift">{t('kunden.typ')}</span>
             <select value={form.typ || 'gu'} onChange={(e) => setzeTyp(e.target.value)} className={feldKlasse}>
-              <option value="gu">Generalunternehmer (GU)</option>
-              <option value="privat">Privatkunde</option>
+              <option value="gu">{t('kunden.gu')}</option>
+              <option value="privat">{t('kunden.privat')}</option>
             </select>
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">USt-Modus</span>
+            <span className="text-sm font-medium text-schrift">{t('kunden.ustModus')}</span>
             <select value={form.ustModus || '13b'} onChange={(e) => setzeFeld('ustModus', e.target.value)} className={feldKlasse}>
-              <option value="13b">§13b netto (Reverse-Charge)</option>
-              <option value="ust19">19 % USt</option>
+              <option value="13b">{t('kunden.ust13bLang')}</option>
+              <option value="ust19">{t('kunden.ust19')}</option>
             </select>
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Zahlungsziel (Tage)</span>
+            <span className="text-sm font-medium text-schrift">{t('kunden.zahlungsziel')}</span>
             <input
               type="number"
               min="0"
@@ -319,7 +324,7 @@ function KundenForm({ kunde, projekteDesKunden, onClose }) {
             />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Sicherheitseinbehalt (%)</span>
+            <span className="text-sm font-medium text-schrift">{t('kunden.einbehalt')}</span>
             <input
               type="number"
               min="0"
@@ -333,7 +338,7 @@ function KundenForm({ kunde, projekteDesKunden, onClose }) {
         </div>
 
         <label className="block">
-          <span className="text-sm font-medium text-slate-700">Notizen (Vertragskonditionen, Besonderheiten …)</span>
+          <span className="text-sm font-medium text-schrift">{t('kunden.notizen')}</span>
           <textarea
             value={form.notizen || ''}
             onChange={(e) => setzeFeld('notizen', e.target.value)}
@@ -343,22 +348,22 @@ function KundenForm({ kunde, projekteDesKunden, onClose }) {
         </label>
 
         {kunde && (
-          <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 space-y-3">
-            <p className="text-xs text-slate-500 flex items-center gap-1.5">
+          <div className="bg-gedeckt border border-rahmen rounded-feld px-4 py-3 space-y-3">
+            <p className="text-xs text-schrift-leise flex items-center gap-1.5">
               <Icon name="doc" className="w-3.5 h-3.5 shrink-0" />
-              FastBill-Kundennr.:{' '}
+              {t('kunden.fbNummer')}:{' '}
               {kunde.fastbillCustomerId ? (
                 <span className="font-mono font-semibold text-emerald-700">{kunde.fastbillCustomerId}</span>
               ) : (
-                <span className="text-slate-400">noch nicht verknüpft (Sync folgt mit AP2)</span>
+                <span className="text-schrift-zart">{t('kunden.nichtVerknuepft')}</span>
               )}
             </p>
             <div>
-              <p className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
-                Projekte ({projekteDesKunden.length})
+              <p className="text-xs font-bold text-schrift uppercase tracking-wide mb-1.5">
+                {t('nav.projekte')} ({projekteDesKunden.length})
               </p>
               {projekteDesKunden.length === 0 ? (
-                <p className="text-xs text-slate-400">Keine Projekte verknüpft.</p>
+                <p className="text-xs text-schrift-zart">{t('kunden.keineProjekte')}</p>
               ) : (
                 <div className="space-y-1.5">
                   {[...projekteDesKunden]
@@ -369,18 +374,18 @@ function KundenForm({ kunde, projekteDesKunden, onClose }) {
                         <Link
                           key={p.id}
                           to={`/projekte/${p.id}`}
-                          className="flex items-center gap-2 bg-white border border-slate-100 rounded-lg px-3 py-2 text-sm hover:border-praxis-400 transition"
+                          className="flex items-center gap-2 bg-karte border border-rahmen rounded-feld px-3 py-2 text-sm hover:border-praxis-400 transition"
                         >
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: st.farbe }} />
-                          <span className="font-mono text-xs text-slate-400 shrink-0">{p.nummer}</span>
-                          <span className="flex-1 min-w-0 truncate font-medium text-slate-800">{p.name}</span>
-                          <span className="text-xs text-slate-400 whitespace-nowrap hidden sm:inline">
-                            {st.label} · ab {datumDe(p.startDatum)}
+                          <span className="font-mono text-xs text-schrift-zart shrink-0">{p.nummer}</span>
+                          <span className="flex-1 min-w-0 truncate font-medium text-schrift-stark">{p.name}</span>
+                          <span className="text-xs text-schrift-zart whitespace-nowrap hidden sm:inline">
+                            {t(`projektstatus.${st.id}`)} · {t('kunden.ab')} {datumDe(p.startDatum)}
                           </span>
                           {p.projektvolumen > 0 && (
-                            <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">{euro(p.projektvolumen)}</span>
+                            <span className="text-xs font-semibold text-schrift whitespace-nowrap">{euro(p.projektvolumen)}</span>
                           )}
-                          <Icon name="arrowRight" className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                          <Icon name="arrowRight" className="w-3.5 h-3.5 text-schrift-zart shrink-0" />
                         </Link>
                       )
                     })}
@@ -390,20 +395,20 @@ function KundenForm({ kunde, projekteDesKunden, onClose }) {
           </div>
         )}
 
-        {fehler && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{fehler}</p>}
+        {fehler && <p className="text-sm text-red-600 bg-red-50 rounded-feld px-4 py-3">{fehler}</p>}
 
         <div className="flex gap-2">
-          <button type="submit" className="flex-1 bg-praxis-600 hover:bg-praxis-700 text-white font-bold py-3 rounded-xl">
-            Speichern
+          <button type="submit" className="flex-1 bg-praxis-600 hover:bg-praxis-700 text-white font-bold py-3 rounded-feld">
+            {t('allg.speichern')}
           </button>
           {kunde && (
             <button
               type="button"
               onClick={loeschen}
-              title="Kunde löschen"
-              className="bg-white border border-red-200 text-red-600 hover:bg-red-50 font-semibold px-4 rounded-xl text-sm"
+              title={t('kunden.loeschen')}
+              className="bg-karte border border-red-200 text-red-600 hover:bg-red-50 font-semibold px-4 rounded-feld text-sm"
             >
-              Löschen
+              {t('allg.loeschen')}
             </button>
           )}
         </div>
