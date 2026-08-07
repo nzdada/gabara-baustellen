@@ -1,13 +1,16 @@
-// Mehrsprachigkeit (Deutsch / Englisch / Arabisch) für Webseite und Verwaltung.
+// Mehrsprachigkeit (Deutsch / Arabisch) für Webseite, Verwaltung und Monteur-App.
 // - useLang(): React-Hook, abonniert die aktuelle Sprache
-// - tr(obj):   übersetzt {de,en,ar}-Objekte (Strings gehen unverändert durch)
+// - tr(obj):   übersetzt {de,ar}-Objekte (Strings gehen unverändert durch)
+// - t(key):    schlägt einen Schlüssel im zentralen Wörterbuch nach (shared/texte.js)
 // - Arabisch schaltet das ganze Dokument auf RTL (rechts-nach-links)
+//
+// Zwei Sprachen (Wunsch des Auftraggebers, 01.08.2026). Alte {de,en,ar}-Objekte
+// funktionieren weiter – der überzählige en-Schlüssel wird schlicht ignoriert.
 
 import { useSyncExternalStore } from 'react'
 
 export const SPRACHEN = [
   { code: 'de', label: 'DE', name: 'Deutsch' },
-  { code: 'en', label: 'EN', name: 'English' },
   { code: 'ar', label: 'ع', name: 'العربية' },
 ]
 
@@ -44,11 +47,38 @@ export function useLang() {
   )
 }
 
-// Übersetzt ein {de,en,ar}-Objekt in die aktuelle Sprache (Fallback: Deutsch)
+// Übersetzt ein {de,ar}-Objekt in die aktuelle Sprache (Fallback: Deutsch)
 export function tr(obj) {
   if (obj == null) return ''
   if (typeof obj === 'string') return obj
   return obj[lang] ?? obj.de ?? ''
+}
+
+// Zentrales Wörterbuch (shared/texte.js) wird beim Start einmal registriert –
+// so bleibt i18n.js frei von Inhalten und es gibt keinen Import-Ringschluss.
+let woerterbuch = {}
+export function registriereTexte(katalog) {
+  woerterbuch = { ...woerterbuch, ...katalog }
+}
+
+/**
+ * Schlüssel-Übersetzung mit Platzhaltern:
+ *   t('projekt.anzahl', { n: 3 })  ->  "3 Projekte" / "3 مشاريع"
+ * Unbekannte Schlüssel geben den Schlüssel selbst zurück – so fällt im
+ * Betrieb sofort auf, was noch fehlt (statt leerer Fläche).
+ */
+export function t(schluessel, werte) {
+  const eintrag = woerterbuch[schluessel]
+  let text = eintrag == null ? schluessel : (eintrag[lang] ?? eintrag.de ?? schluessel)
+  if (werte) {
+    for (const [k, v] of Object.entries(werte)) text = text.split(`{${k}}`).join(String(v))
+  }
+  return text
+}
+
+// Ist gerade eine Rechts-nach-links-Sprache aktiv?
+export function istRtl() {
+  return lang === 'ar'
 }
 
 // Zentrale Wochentagsnamen (0 = Sonntag … 6 = Samstag) – eine Quelle für
@@ -67,6 +97,11 @@ export const T_GESCHLOSSEN = { de: 'geschlossen', en: 'closed', ar: 'مغلق' }
 export const T_NUR_TELEFON = { de: 'nur telefonisch erreichbar', en: 'reachable by phone only', ar: 'متاحون هاتفيًا فقط' }
 
 const LOCALES = { de: 'de-DE', en: 'en-GB', ar: 'ar' }
+
+// Aktuelles Gebietsschema – für Intl-Formate, die kein eigenes Wörterbuch brauchen
+export function lokale() {
+  return LOCALES[lang] || 'de-DE'
+}
 
 // Lokalisiertes Datum, z. B. datumLok('2026-07-08', { weekday:'long', day:'numeric', month:'long' })
 export function datumLok(iso, opts = { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }) {

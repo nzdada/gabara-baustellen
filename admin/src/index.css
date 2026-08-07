@@ -1,22 +1,305 @@
 @import 'tailwindcss';
 
-/* Einflug-Animation für die Anfragen-Toast-Benachrichtigung */
+/* Gemeinsame Komponenten (shared/ui.jsx, shared/unterschrift.jsx) liegen
+   AUSSERHALB dieses Arbeitsbereichs. Tailwind durchsucht von sich aus nur den
+   eigenen Ordner – ohne diese Zeile fehlen alle Klassen, die es nur dort gibt,
+   ersatzlos im fertigen CSS. Das ist lange unbemerkt geblieben: touch-none auf
+   der Unterschriftsfläche wurde nie erzeugt, weshalb der Finger auf dem Handy
+   die Seite gescrollt hat, statt zu zeichnen. */
+@source '../../shared';
+
+/* ============================================================
+   Gabara-Verwaltung – Design-Fundament
+   Stand 01.08.2026: heller, ruhiger, ikonisch.
+
+   Regeln:
+   - DREI Radien (feld/karte/modal), DREI Schatten, VIER Textfarben.
+   - Dunkelrot #8b1a1a trägt Bedeutung (aktiv, primär, markiert),
+     nicht Dekoration – die Flächen sind hell.
+   - Jedes Muster kommt aus admin/src/stil.js, keine Seite baut eigene
+     Feld-/Knopf-/Kartenklassen.
+   ============================================================ */
+
+@theme {
+  /* ---------- Marke: Original-Farbwelt (HERO-Stil) ----------
+     praxis-300/400 waren NICHT definiert – Klassen wie hover:border-praxis-400
+     erzeugt Tailwind dann gar nicht, die Effekte liefen ins Leere. Die beiden
+     Stufen sind ergänzt, alle übrigen Werte sind die ursprünglichen. */
+  --color-praxis-50:  #f7f7f8;
+  --color-praxis-100: #ededef;
+  --color-praxis-200: #d9d9dc;
+  --color-praxis-300: #c9a3a3;
+  --color-praxis-400: #b46b6b;
+  --color-praxis-500: #a32222;
+  --color-praxis-600: #8b1a1a;   /* MARKE */
+  --color-praxis-700: #701414;
+  --color-praxis-800: #232329;
+  --color-praxis-900: #1a1a1e;   /* dunkle Seitenleiste */
+
+  /* Markenrot, wenn es SCHRIFT ist. Getrennt von praxis-600/700, weil eine
+     Farbe nicht zugleich Knopfhintergrund (braucht weisse Schrift darauf) und
+     lesbare Schrift auf dunklem Grund sein kann - das schliessen sich
+     rechnerisch aus. Im dunklen Bild wird der Wert unten ueberschrieben. */
+  --color-marke-text: #8b1a1a;
+
+  /* ---------- Flächen: die feineren Werte (ruhiger als die alten slate-Töne) ---------- */
+  --color-flaeche:      #f4f5f7;
+  --color-karte:        #ffffff;
+  --color-gedeckt:      #f8f9fb;
+  --color-gedeckt-tief: #eef0f4;
+
+  /* ---------- Rahmen ---------- */
+  --color-rahmen:       #e4e6ea;
+  --color-rahmen-stark: #cfd3da;
+
+  /* ---------- Schrift ---------- */
+  --color-schrift-stark: #16181d;
+  --color-schrift:       #3f434b;
+  --color-schrift-leise: #757a84;
+  --color-schrift-zart:  #a6abb4;
+
+  /* ---------- Projekt-Status (identisch zu shared/projektstatus.js) ---------- */
+  --color-st-offen:      #64748b;
+  --color-st-beauftragt: #6366f1;
+  --color-st-arbeit:     #f97316;
+  --color-st-abrechnung: #0ea5e9;
+  --color-st-fertig:     #22c55e;
+
+  /* ---------- Signale: Ton + Fläche ---------- */
+  --color-ok:      #15803d;   --color-ok-flaeche:      #e8f8ee;
+  --color-warnung: #b45309;   --color-warnung-flaeche: #fef4e2;
+  --color-gefahr:  #b91c1c;   --color-gefahr-flaeche:  #fdeaea;
+  --color-info:    #0369a1;   --color-info-flaeche:    #e6f3fb;
+
+  /* ---------- Radien: entsprechen rounded-xl / -2xl / -3xl ---------- */
+  --radius-feld:  12px;
+  --radius-karte: 16px;
+  --radius-modal: 24px;
+
+  /* ---------- Schatten: entsprechen shadow-sm / shadow-2xl ---------- */
+  --shadow-karte: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-knopf: none;
+  --shadow-hoch:  0 25px 50px -12px rgb(0 0 0 / 0.25);
+
+  --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --text-titel: 22px;
+  --text-titel--line-height: 1.2;
+  --text-abschnitt: 15px;
+  --text-abschnitt--line-height: 1.35;
+}
+
+/* Grundschriftgröße: 17px statt 16px – alle Tailwind-Größen rechnen in rem,
+   dadurch wächst die gesamte Oberfläche gleichmäßig mit (Wunsch: größere Schrift). */
+html { font-size: 17px; }
+
+/* Einheitlicher Select-Pfeil (ersetzt die appearance-none-Basteleien) */
+.select-pfeil {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23757a84' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9.5l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 18px 18px;
+  padding-right: 34px;
+}
+
+/* Zahlen in Spalten untereinander ausrichten */
+.zahl { font-variant-numeric: tabular-nums; }
+
+/* Einflug-Animation für die Toast-Benachrichtigung */
 @keyframes toast-rein {
   from { opacity: 0; transform: translateY(-10px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .toast-rein { animation: toast-rein 0.25s ease-out; }
 
-/* Gabara-Farbwelt im HERO-Stil: fast schwarze Sidebar (praxis-900), Grautöne,
-   Dunkelrot als Akzent (praxis-500/600/700). Token-NAMEN bleiben wie in der Vorlage. */
-@theme {
-  --color-praxis-50: #f7f7f8;
-  --color-praxis-100: #ededef;
-  --color-praxis-200: #d9d9dc;
-  --color-praxis-500: #a32222;
-  --color-praxis-600: #8b1a1a;
-  --color-praxis-700: #701414;
-  --color-praxis-800: #232329;
-  --color-praxis-900: #1a1a1e;
-  --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+/* ============================================================
+   DUNKLE DARSTELLUNG
+   Gesetzt wird sie ueber data-thema am <html> (shared/thema.js).
+   Hier stehen NUR umgefaerbte Werte derselben Variablen - kein Bauteil
+   braucht eine eigene Dunkel-Klasse, jede Ansicht zieht automatisch mit.
+   ============================================================ */
+:root[data-thema='dunkel'] {
+  /* Flaechen: Karte hebt sich vom Untergrund ab, sonst verschwimmt alles */
+  --color-flaeche:      #0f1014;
+  --color-karte:        #1e2129;
+  --color-gedeckt:      #262932;
+  --color-gedeckt-tief: #2f333d;
+
+  --color-rahmen:       #454b5a;
+  --color-rahmen-stark: #5d6474;
+
+  --color-schrift-stark: #f2f3f5;
+  --color-schrift:       #d4d7dd;
+  --color-schrift-leise: #9ba1ac;
+  --color-schrift-zart:  #8d94a0;
+
+  /* Markenrot. praxis-600 bleibt DUNKEL, weil es ueberwiegend Knopf-
+     hintergrund mit weisser Schrift ist (64 Verwendungen gegenueber 30 als
+     Textfarbe). Fuer die Textfaelle gibt es weiter unten eine eigene Regel -
+     eine einzige Farbe kann beides rechnerisch nicht: fuer weisse Schrift
+     darauf braeuchte sie eine Helligkeit unter 0,18, als Text auf dunkler
+     Karte ueber 0,23. */
+  --color-praxis-50:  #2b1d20;   /* nur Flaeche (39x bg, 1x text) -> dunkler Ton */
+  --color-praxis-100: #362428;   /* ueberwiegend Flaeche; Textfaelle s. Regel unten */
+  --color-praxis-200: #cfd4dc;   /* AUSSCHLIESSLICH Schrift auf der dunklen Leiste (12x
+                                    text, 0x bg) -> muss hell bleiben */
+  --color-praxis-300: #8a5a5e;   /* nur Rahmen */
+  --color-praxis-400: #b06a6a;
+  --color-praxis-500: #b52a2a;
+  --color-praxis-600: #a32222;
+  --color-praxis-700: #8b1a1a;
+  --color-praxis-800: #f0dada;   /* nur als Textfarbe im Einsatz -> hell */
+  --color-praxis-900: #1a1d24;   /* Seitenleiste: HELLER als der Untergrund (#0f1014),
+                                    sonst verschwimmt sie mit der Seite */
+  --color-marke-text: #ff9a90;
+
+  /* Statusfarben aufhellen: die hellen Fassungen verschwinden sonst */
+  --color-st-offen:      #94a3b8;
+  --color-st-beauftragt: #a5b4fc;
+  --color-st-arbeit:     #fb923c;
+  --color-st-abrechnung: #38bdf8;
+  --color-st-fertig:     #4ade80;
+
+  --color-ok:      #4ade80;   --color-ok-flaeche:      #12271b;
+  --color-warnung: #fbbf24;   --color-warnung-flaeche: #2a2009;
+  --color-gefahr:  #f87171;   --color-gefahr-flaeche:  #2b1414;
+  --color-info:    #38bdf8;   --color-info-flaeche:    #0d2233;
+}
+
+/* Markenrot als SCHRIFT: hier muss es hell sein, sonst steht dunkelrot auf
+   dunkelgrau. Greift nur im dunklen Bild und nur bei Textklassen - die
+   Knopfhintergruende (bg-praxis-600) bleiben unberuehrt. */
+:root[data-thema='dunkel'] .text-praxis-600,
+:root[data-thema='dunkel'] .text-praxis-700,
+:root[data-thema='dunkel'] .hover\:text-praxis-600:hover {
+  color: var(--color-marke-text);
+}
+
+/* praxis-900 ist der Hintergrund der Seitenleiste - an vier Stellen wird es
+   aber als SCHRIFT auf hellen Hinweiskaesten benutzt (Hilfe, Import,
+   ProjektDetail). Im dunklen Bild stand damit Dunkel auf Dunkel: gemessener
+   Kontrast 1,04, also praktisch unsichtbar. */
+:root[data-thema='dunkel'] .text-praxis-900 {
+  color: var(--color-schrift-stark);
+}
+
+/* praxis-100 ist ueberwiegend eine Flaeche (bg-praxis-100), wird aber an drei
+   Stellen als SCHRIFT auf der dunklen Seitenleiste benutzt - darunter die
+   Navigationsliste selbst (NAV_AUS in admin/src/stil.js: text-praxis-100/80).
+   Als dunkler Ton war die komplette Liste praktisch unlesbar. */
+:root[data-thema='dunkel'] .text-praxis-100,
+:root[data-thema='dunkel'] .text-praxis-100\/80 {
+  color: #dfe3ea;
+}
+
+/* Auf einem farbigen Knopf soll die Schrift weiss bleiben, auch wenn eine
+   Elternregel etwas anderes will. */
+:root[data-thema='dunkel'] .bg-praxis-600.text-white,
+:root[data-thema='dunkel'] .bg-praxis-700.text-white {
+  color: #ffffff;
+}
+
+/* Bilder und Unterschriften stehen bewusst auf Weiss (Papier) - im dunklen
+   Bild leicht daempfen, damit sie nicht blenden. */
+:root[data-thema='dunkel'] img[src^='data:image/png'] {
+  filter: brightness(0.94);
+}
+
+/* ------------------------------------------------------------------
+   FEST VERDRAHTETE NEUTRALFARBEN IM DUNKLEN BILD MITZIEHEN
+
+   In den Bauteilen stehen 623 feste Tailwind-Farbklassen. Die farbigen
+   Paare (bg-emerald-100 + text-emerald-700 usw.) bleiben in sich lesbar –
+   ein helles Kaestchen mit dunkler Schrift auf dunkler Karte ist laut,
+   aber lesbar. Gefaehrlich sind nur die NEUTRALEN: eine weisse Flaeche
+   erbt im dunklen Bild helle Schrift (unsichtbar), und dunkles Slate-Grau
+   steht auf dunkler Karte (ebenfalls unsichtbar).
+
+   Deshalb hier gesammelt umbiegen statt in 35 Dateien einzeln zu suchen.
+   Ausnahme: die Unterschriftsflaeche bleibt bewusst weiss (Papier) – sie
+   setzt ihre Farbe per Stil-Attribut und schlaegt damit diese Regeln.
+   ------------------------------------------------------------------ */
+:root[data-thema='dunkel'] .bg-white       { background-color: var(--color-karte); }
+:root[data-thema='dunkel'] .bg-slate-50    { background-color: var(--color-gedeckt); }
+:root[data-thema='dunkel'] .bg-slate-100   { background-color: var(--color-gedeckt-tief); }
+:root[data-thema='dunkel'] .bg-slate-200   { background-color: var(--color-rahmen); }
+
+:root[data-thema='dunkel'] .text-slate-900,
+:root[data-thema='dunkel'] .text-slate-800 { color: var(--color-schrift-stark); }
+:root[data-thema='dunkel'] .text-slate-700,
+:root[data-thema='dunkel'] .text-slate-600 { color: var(--color-schrift); }
+:root[data-thema='dunkel'] .text-slate-500 { color: var(--color-schrift-leise); }
+:root[data-thema='dunkel'] .text-slate-400,
+:root[data-thema='dunkel'] .text-slate-300 { color: var(--color-schrift-zart); }
+
+:root[data-thema='dunkel'] .border-slate-200,
+:root[data-thema='dunkel'] .border-slate-300 { border-color: var(--color-rahmen); }
+:root[data-thema='dunkel'] .divide-slate-200 > * + * { border-color: var(--color-rahmen); }
+
+/* ------------------------------------------------------------------
+   EINGABEFELDER IM DUNKLEN BILD
+
+   Eingabefelder setzen ihre Schriftfarbe fast nie selbst – sie erben sie
+   vom Browser, und der nimmt bei color-scheme:dark WEISS. Trägt das Feld
+   dann eine helle Zustandsfläche (bg-amber-50 bei Übermenge, bg-red-50 bei
+   unlesbarer Zahl), steht Weiss auf Fast-Weiss: gemessen Hintergrund
+   oklch(0.987 …) gegen rgb(255,255,255). Das Feld ist unlesbar, ausgerechnet
+   dann, wenn es eine Warnung zeigen soll.
+
+   Hinweis-Kästen daneben sind unauffällig geblieben, weil sie ihre
+   Schriftfarbe mitbringen (text-amber-700). Nur Formularelemente sind
+   betroffen – deshalb diese Regel und nicht eine allgemeine.
+   ------------------------------------------------------------------ */
+:root[data-thema='dunkel'] input,
+:root[data-thema='dunkel'] select,
+:root[data-thema='dunkel'] textarea {
+  background-color: var(--color-karte);
+  color: var(--color-schrift-stark);
+}
+
+/* Aufklappmenüs: manche Browser färben die Einträge sonst weiterhin hell */
+:root[data-thema='dunkel'] select option {
+  background-color: var(--color-karte);
+  color: var(--color-schrift-stark);
+}
+
+:root[data-thema='dunkel'] input::placeholder,
+:root[data-thema='dunkel'] textarea::placeholder {
+  color: var(--color-schrift-zart);
+}
+
+/* Gesperrte Felder bleiben erkennbar gesperrt */
+:root[data-thema='dunkel'] input:disabled,
+:root[data-thema='dunkel'] select:disabled,
+:root[data-thema='dunkel'] textarea:disabled {
+  background-color: var(--color-gedeckt);
+  color: var(--color-schrift-zart);
+}
+
+/* Zustandsfarben bleiben sichtbar – aber als DUNKLER Ton, damit die helle
+   Schrift darauf lesbar ist. Der farbige Rahmen trägt die Warnung ohnehin. */
+:root[data-thema='dunkel'] input.bg-amber-50,
+:root[data-thema='dunkel'] input.bg-amber-100,
+:root[data-thema='dunkel'] textarea.bg-amber-50 {
+  background-color: var(--color-warnung-flaeche);
+}
+:root[data-thema='dunkel'] input.bg-red-50,
+:root[data-thema='dunkel'] input.bg-red-100,
+:root[data-thema='dunkel'] textarea.bg-red-50 {
+  background-color: var(--color-gefahr-flaeche);
+}
+:root[data-thema='dunkel'] input.bg-emerald-50,
+:root[data-thema='dunkel'] input.bg-emerald-100 {
+  background-color: var(--color-ok-flaeche);
+}
+
+/* Gesperrte Eingabefelder waren im HELLEN Bild kaum zu entziffern: gemessener
+   Kontrast 2,19 (schrift-zart #a6abb4 auf gedeckt #f8f9fb). Gesperrt heisst
+   nicht unlesbar – die Werte darin sind oft genau die, die man nachschlagen
+   will (freigegebener Bericht, abgerechnete Position). Eine Stufe kraeftiger,
+   der gesperrte Eindruck bleibt durch die graue Flaeche erhalten. */
+input:disabled,
+select:disabled,
+textarea:disabled {
+  color: var(--color-schrift-leise);
 }
