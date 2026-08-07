@@ -1,18 +1,49 @@
 @import 'tailwindcss';
 
-/* Gabara-Farbwelt: Dunkelrot als Markenfarbe (praxis-500/600/700), warme Grautöne. */
+/* Gemeinsame Komponenten (shared/ui.jsx, shared/unterschrift.jsx) liegen
+   AUSSERHALB dieses Arbeitsbereichs. Tailwind durchsucht von sich aus nur den
+   eigenen Ordner – ohne diese Zeile fehlen alle Klassen, die es nur dort gibt,
+   ersatzlos im fertigen CSS. Das ist lange unbemerkt geblieben: touch-none auf
+   der Unterschriftsfläche wurde nie erzeugt, weshalb der Finger auf dem Handy
+   die Seite gescrollt hat, statt zu zeichnen. */
+@source '../../shared';
+
+/* Gabara-Farbwelt der bestehenden Webseite gabara-service.de:
+   Marineblau als Markenfarbe (#1C244B / #10346B), kühle Grautöne.
+   Die Werte stammen aus der laufenden Seite – Farbe und Schriftbild sollen
+   sich für Kunden nicht ändern, nur der Unterbau. */
 @theme {
-  --color-praxis-50: #fbf7f6;
-  --color-praxis-100: #f4e9e7;
-  --color-praxis-200: #e6cdc9;
-  --color-praxis-500: #a32222;
-  --color-praxis-600: #8b1a1a;
-  --color-praxis-700: #701414;
-  --color-praxis-800: #45191b;
-  --color-praxis-900: #2b0d0e;
+  --color-praxis-50: #f4f7fb;
+  --color-praxis-100: #e6ecf5;
+  --color-praxis-200: #c8d5e8;
+  --color-praxis-300: #93a9cc;
+  --color-praxis-400: #4f6ea8;
+  --color-praxis-500: #13438b;
+  --color-praxis-600: #10346b;   /* MARKE */
+  --color-praxis-700: #1c244b;   /* dunkler Kopf-/Fußbereich */
+  --color-praxis-800: #161d3c;
+  --color-praxis-900: #0f1429;
   --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
 html {
   scroll-behavior: smooth;
+}
+
+/* Vollflächiges Foto mit dunklem Schleier – Schrift bleibt lesbar,
+   egal wie hell das Bild an der Stelle ist. */
+.bild-flaeche {
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+.bild-flaeche > * {
+  position: relative;
+  z-index: 1;
+}
+.bild-flaeche::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 20, 41, 0.72) 0%, rgba(15, 20, 41, 0.82) 100%);
 }
