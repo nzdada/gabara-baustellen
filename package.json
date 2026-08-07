@@ -1,6 +1,7 @@
 {
   "name": "gabara-baustellen",
   "private": true,
+  "type": "module",
   "version": "1.0.0",
   "description": "Gabara Service GmbH – Baustellen-Abwicklung & Abrechnung (Webseite + Büro-Verwaltung)",
   "workspaces": [
@@ -11,7 +12,8 @@
     "dev:website": "npm run dev -w website",
     "dev:admin": "npm run dev -w admin",
     "build": "npm run build -w website && npm run build -w admin",
-    "pruefe-importe": "node pruefe-importe.mjs"
+    "pruefe-importe": "node pruefe-importe.mjs",
+    "test": "node pruefung/aufmass.test.mjs"
   },
   "devDependencies": {
     "sharp": "^0.35.3"
