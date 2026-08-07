@@ -284,6 +284,137 @@ service cloud.firestore {
       allow delete: if darfVerwalten();
     }
 
+    // ===============================================================
+    // V2-Sammlungen (Umbau nach Plan vom 07.08.2026).
+    // Grundsatz wie oben: Lesen darf das Team, Schreiben nach Rolle.
+    // delete überall darfVerwalten() statt "if false" – sonst zerbrechen
+    // Projektlöschung (ANHAENGE) und resetDemo, siehe Kommentar bei
+    // /leistungen. Die harte Rollentrennung (Custom Claims, Vorarbeiter)
+    // kommt in AP 2 und ersetzt darfVerwalten() Schritt für Schritt.
+    // ===============================================================
+
+    // Arbeitseinheit Raum × Schritt. Der Monteur meldet nur Zustand und
+    // Fertig-Felder – Menge, Preis und Zuweisung bleiben beim Büro.
+    match /aufgaben/{id} {
+      allow read: if angemeldet();
+      allow create, delete: if darfVerwalten();
+      allow update: if darfVerwalten()
+        || (istMonteur() && nurFelder([
+             'status', 'anteil', 'fertigAm', 'fertigVon', 'fertigVonName',
+             'fertigFotoId', 'wartetGrund', 'wartetBis', 'geaendertAm',
+           ]));
+    }
+
+    // Zuweisung Kolonne × Baustelle × Tage – nur das Büro plant.
+    match /einsaetze/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
+
+    // Idempotenzschutz je Meldung. Die feste Dokument-ID
+    // b-<raumId>-<schrittId>-<art> macht die zweite Meldung desselben
+    // Schritts zu einem update – und update ist VERBOTEN. Weil die Meldung
+    // als ein Batch läuft, scheitert damit der ganze zweite Batch samt
+    // increment: keine Doppelbuchung, auch nicht aus dem Funkloch.
+    match /buchungen/{id} {
+      allow read: if angemeldet();
+      allow create: if angemeldet();
+      allow update: if false;
+      allow delete: if darfVerwalten();
+    }
+
+    // Stammdaten der Arbeitsschritte (zweisprachig) – nur Büro.
+    match /arbeitsschritte/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
+
+    // Das Geldatom. Entsteht beim Fertigmelden (auch durch den Monteur),
+    // aber ändern und stornieren kann nur das Büro. abgerechnetIn wird
+    // ausschließlich vom Rechnungslauf gesetzt.
+    match /aufmasszeilen/{id} {
+      allow read: if angemeldet();
+      allow create: if angemeldet();
+      allow update, delete: if darfVerwalten();
+    }
+
+    // Regieanordnung + Anerkennungsuhr (§ 15 Abs. 3 VOB/B). Anlegen darf
+    // auch der Monteur (Anordnung kommt mündlich auf der Baustelle an),
+    // die Fristenfelder pflegt das Büro.
+    match /regieanordnungen/{id} {
+      allow read: if angemeldet();
+      allow create: if angemeldet();
+      allow update, delete: if darfVerwalten();
+    }
+
+    // V2-Fotos: NUR Verweise (Storage-Pfade), nie Bilddaten im Dokument.
+    // Die dataUrl-Sperre erzwingt das – wer sie doch schreibt, scheitert.
+    match /fotos/{id} {
+      allow read: if angemeldet();
+      allow create: if angemeldet() && !('dataUrl' in request.resource.data);
+      allow update: if (darfVerwalten()
+          || (angemeldet() && resource.data.vonId == request.auth.uid))
+        && !('dataUrl' in request.resource.data);
+      allow delete: if darfVerwalten()
+        || (angemeldet() && resource.data.vonId == request.auth.uid);
+    }
+
+    // Stunden je Person und Tag (art auftrag|regie). Der Monteur schreibt
+    // nur die eigene Zeile und nur solange sie nicht eingereicht ist.
+    match /stunden/{id} {
+      allow read: if angemeldet();
+      allow create: if darfVerwalten()
+        || (istMonteur() && request.resource.data.userId == request.auth.uid);
+      allow update: if darfVerwalten()
+        || (istMonteur()
+            && resource.data.userId == request.auth.uid
+            && resource.data.status == 'erfasst');
+      allow delete: if darfVerwalten();
+    }
+
+    // Sicherheitseinbehalte, Abwesenheiten, Tagesstand, Rechnungsläufe:
+    // reine Büro-Sammlungen.
+    match /einbehalte/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
+    match /abwesenheiten/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
+    match /tagesstand/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
+    match /rechnungslaeufe/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
+
+    // Lebenszeichen je Handy: jedes Gerät schreibt sein eigenes Dokument
+    // (id = Auth-UID), das Büro liest die Übersicht.
+    match /geraete/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten() || (angemeldet() && id == request.auth.uid);
+    }
+
+    // Prüfspur: anlegen ja, ändern nie. delete vorerst darfVerwalten()
+    // (resetDemo/Projektlöschung, s. o.) – AP 2 zieht das auf serverseitig
+    // nach, dann ist sie für niemanden mehr löschbar.
+    match /pruefspur/{id} {
+      allow read: if darfVerwalten();
+      allow create: if angemeldet();
+      allow update: if false;
+      allow delete: if darfVerwalten();
+    }
+
+    // Kennzahlen je Projekt als Unterdokument: die Meldungs-Batches der
+    // Monteure schreiben hier ihr EINES aggregiertes increment.
+    match /projekte/{projektId}/kennzahlen/{doc} {
+      allow read: if angemeldet();
+      allow write: if angemeldet();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

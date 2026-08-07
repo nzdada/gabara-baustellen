@@ -55,6 +55,25 @@ const COLLECTIONS = [
   'patients', 'appointments', 'requests', 'photos', 'katalog', 'bausteine', 'settings',
   'users', 'projekte', 'lvpositionen', 'berichte', 'spesen', 'rechnungen', 'apilog',
   'integrationen', 'leistungen', 'raeume', 'raumsoll',
+  // --- V2 (Umbau nach Plan vom 07.08.2026). Jede neue Sammlung braucht
+  // FÜNF Eintragungen: Regel in firestore.rules VOR der Sperr-Regel, diesen
+  // Eintrag hier, Demodaten in demoData.js, Anhang-Löschung in Projekte.jsx
+  // (ANHAENGE) und – bei zusammengesetzten Abfragen – einen Verbundindex in
+  // firestore.indexes.json. Fehlt eine, scheitert es STILL.
+  'aufgaben',         // Raum × Arbeitsschritt – die Arbeitseinheit
+  'einsaetze',        // Kolonne × Baustelle × tage[] – die einzige Zuweisung
+  'buchungen',        // Idempotenzschutz je Meldung, update NIE erlaubt
+  'arbeitsschritte',  // Stammdaten je Betrieb, zweisprachig DE/AR
+  'aufmasszeilen',    // das Geldatom: Ansatz-Formeltext + abgerechnetIn
+  'regieanordnungen', // Anordnung + Anerkennungsuhr (§ 15 Abs. 3 VOB/B)
+  'fotos',            // V2-Fotos: nur Verweise auf Storage, nie dataUrl
+  'stunden',          // je Person und Tag, art auftrag|regie
+  'einbehalte',       // Sicherheitseinbehalte mit Fälligkeit
+  'abwesenheiten',    // Urlaub/Krank für die Wochentafel
+  'geraete',          // Lebenszeichen je Handy (wartende Fotos)
+  'pruefspur',        // wer hat wann was geändert – nie löschen
+  'tagesstand',       // EIN Dokument je Tag (Nachtlauf, Archiv)
+  'rechnungslaeufe',  // macht den Rechnungslauf wiederaufnehmbar
 ]
 
 function uuid() {

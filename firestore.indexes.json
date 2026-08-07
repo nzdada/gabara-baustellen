@@ -1,4 +1,71 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "aufgaben",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teamId", "order": "ASCENDING" },
+        { "fieldPath": "tage", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "aufgaben",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "projektId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "schrittSort", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "aufgaben",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "projektId", "order": "ASCENDING" },
+        { "fieldPath": "raumId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "einsaetze",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teamId", "order": "ASCENDING" },
+        { "fieldPath": "tage", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "stunden",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "datum", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "stunden",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "projektId", "order": "ASCENDING" },
+        { "fieldPath": "datum", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "aufmasszeilen",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "projektId", "order": "ASCENDING" },
+        { "fieldPath": "positionId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "fotos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "projektId", "order": "ASCENDING" },
+        { "fieldPath": "raumId", "order": "ASCENDING" },
+        { "fieldPath": "aufgenommenAm", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

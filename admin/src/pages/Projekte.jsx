@@ -28,8 +28,16 @@ const SPALTEN = [
   { key: 'aktion', schluessel: '', ohneFilter: true },
 ]
 
-// Anhänge eines Projekts – werden beim Löschen mit entfernt (sonst Datenleichen)
-const ANHAENGE = ['lvpositionen', 'berichte', 'photos', 'appointments', 'spesen', 'rechnungen', 'leistungen', 'raeume', 'raumsoll']
+// Anhänge eines Projekts – werden beim Löschen mit entfernt (sonst Datenleichen).
+// V2-Sammlungen (aufgaben … rechnungslaeufe) gehören dazu, sobald sie Daten
+// tragen: alle haben projektId. arbeitsschritte/geraete/pruefspur/tagesstand
+// sind NICHT projektgebunden und bleiben draußen.
+const ANHAENGE = [
+  'lvpositionen', 'berichte', 'photos', 'appointments', 'spesen', 'rechnungen',
+  'leistungen', 'raeume', 'raumsoll',
+  'aufgaben', 'einsaetze', 'buchungen', 'aufmasszeilen', 'regieanordnungen',
+  'fotos', 'stunden', 'einbehalte', 'rechnungslaeufe',
+]
 
 function fmtDatum(iso) {
   if (!iso) return '–'

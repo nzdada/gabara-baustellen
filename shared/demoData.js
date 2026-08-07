@@ -479,5 +479,33 @@ export function erzeugeDemoDaten() {
     // Sammlung scheitern.
     raeume: [],
     raumsoll: [],
+    // --- V2-Sammlungen (Plan vom 07.08.2026). Vorerst leer registriert,
+    // damit resetDemo und der lokale Modus sie kennen. Echte Beispieldaten
+    // kommen mit den jeweiligen Arbeitspaketen (AP 4 ff.) – eine fehlende
+    // Sammlung hier scheitert STILL (Fuenf-Eintragungen-Regel).
+    aufgaben: [],
+    einsaetze: [],
+    buchungen: [],
+    // Startvorlage Maler: die sieben Schritte, zweisprachig. bezug steuert,
+    // welche Flaeche des Raums die Menge liefert (shared/aufmass.js).
+    arbeitsschritte: [
+      { id: 'as-abkleben', nameDe: 'Abkleben und abdecken', nameAr: 'لصق الشريط والتغطية', kuerzel: 'AB', sort: 1, bezug: 'stueck', aktiv: true },
+      { id: 'as-spachteln', nameDe: 'Spachteln Q2', nameAr: 'المعجون Q2', kuerzel: 'SP', sort: 2, bezug: 'wanddecke', aktiv: true },
+      { id: 'as-schleifen', nameDe: 'Schleifen', nameAr: 'الصنفرة', kuerzel: 'SCH', sort: 3, bezug: 'wanddecke', aktiv: true },
+      { id: 'as-grundieren', nameDe: 'Grundieren', nameAr: 'التأسيس', kuerzel: 'GR', sort: 4, bezug: 'wanddecke', aktiv: true },
+      { id: 'as-anstrich1', nameDe: '1. Anstrich', nameAr: 'الطلاء الأول', kuerzel: 'A1', sort: 5, bezug: 'wanddecke', aktiv: true },
+      { id: 'as-anstrich2', nameDe: '2. Anstrich', nameAr: 'الطلاء الثاني', kuerzel: 'A2', sort: 6, bezug: 'wanddecke', aktiv: true },
+      { id: 'as-endreinigung', nameDe: 'Endreinigung', nameAr: 'التنظيف النهائي', kuerzel: 'ER', sort: 7, bezug: 'stueck', aktiv: true },
+    ],
+    aufmasszeilen: [],
+    regieanordnungen: [],
+    fotos: [],
+    stunden: [],
+    einbehalte: [],
+    abwesenheiten: [],
+    geraete: [],
+    pruefspur: [],
+    tagesstand: [],
+    rechnungslaeufe: [],
   }
 }
