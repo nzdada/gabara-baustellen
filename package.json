@@ -10,7 +10,8 @@
   "scripts": {
     "dev:website": "npm run dev -w website",
     "dev:admin": "npm run dev -w admin",
-    "build": "npm run build -w website && npm run build -w admin"
+    "build": "npm run build -w website && npm run build -w admin",
+    "pruefe-importe": "node pruefe-importe.mjs"
   },
   "devDependencies": {
     "sharp": "^0.35.3"

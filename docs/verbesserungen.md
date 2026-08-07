@@ -30,7 +30,7 @@ Zwei Prüfungen: **Produkt/UX** (Handwerker-Software-Blick) und **Baurecht**
 | ✅ | **Rechnung löschen bucht zurück**: LV-Mengen/Berichte/Spesen werden wieder abrechenbar (vorher: Geld für immer „vergessen") |
 | ✅ | **+ Rechnung direkt aus dem Projekt** (Wizard startet mit dem Projekt vorbelegt) |
 | ✅ | Freigabe mit Zeitstempel + Person; „Bearbeiten" nur bei Entwurf/Eingereicht |
-| ⏳ | Anfrage → Kunde → Projekt in einem Zug + Maler-Wording im Bestätigen-Dialog (statt Zahnarzt-Restdialog) — Aufwand mittel |
+| ⏳ | Anfrage → Kunde → Projekt in einem Zug (Wording ist bereinigt, der Durchstich fehlt noch) — Aufwand mittel |
 | ⏳ | Kalender-Chips: Projekt + Monteur-Farbpunkte („Wer ist morgen wo?") — klein |
 | ⏳ | Mehrtägige Einsätze: „Täglich wiederholen bis"-Datum beim Anlegen — mittel |
 | ⏳ | Monteur: Plus/Minus-Stepper + „Fertig"-Knopf für Ist-Mengen — klein |

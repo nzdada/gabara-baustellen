@@ -5,3 +5,7 @@ dist/
 .env
 .env.local
 firebase-debug.log
+
+# Test-Paket (wird über seed/generate_test_zip.py erzeugt)
+gabara_test_suite.zip
+seed/gabara_test_assets/

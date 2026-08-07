@@ -1,6 +1,6 @@
 ---
 name: gabara
-description: Technik & Betrieb der Gabara-Baustellen-Plattform (C:\Users\dadah\gabara-baustellen) – Webseite + Verwaltung, wo Kalender/Projekte/LV/Berichte/Abrechnung liegen, Start- und Build-Kommandos, PDF-Layout, FastBill-Anbindung, Go-Live-Checkliste Firebase. Nutzen bei jeder Änderung an der Gabara-Web-App ("Kalender anpassen", "LV-Import", "Bericht/PDF ändern", "Deploy", "/gabara").
+description: Technik & Betrieb der Gabara-Baustellen-Plattform (C:\Users\dadah\gabara-baustellen) – Webseite + Verwaltung, wo Kalender/Projekte/LV/Berichte/Abrechnung liegen, Start- und Build-Kommandos, PDF-Layout, FastBill-Anbindung, Go-Live-Checkliste Firebase, Arbeitsstand und Aufgabenteilung für parallel arbeitende Agenten. Nutzen bei jeder Änderung an der Gabara-Web-App ("Kalender anpassen", "LV-Import", "Bericht/PDF ändern", "Deploy", "/gabara").
 ---
 
 # Gabara Baustellen – Webseite + Verwaltung
@@ -9,8 +9,15 @@ Baustellen-Abwicklung der **Gabara Service GmbH** (Maler & Lackierer, Münchener
 86551 Aichach, +49 176 25700609, Info@gabara-service.de). Kopie der erprobten
 Wertachbrücke-/Zahnarzt-Vorlage – **Architektur nicht umbauen, nur weiterentwickeln.**
 
-Pflichtlektüre vor Änderungen: `docs/projekt-dokumentation.md` (Datenmodell, Prozesse,
-Go-Live-Checkliste). Repo: `C:\Users\dadah\gabara-baustellen` (git, Branch `master`, **kein Remote**).
+> **ZUERST LESEN: `STAND.md`** (im selben Ordner wie diese Datei) – aktueller
+> Arbeitsstand, offene Blocker und die Aufgabenteilung für den Fall, dass
+> **mehrere Agenten gleichzeitig** an diesem Projekt arbeiten. Dort steht, welche
+> Dateien sich zwei Aufgaben teilen und wie man sich dabei nicht gegenseitig
+> überschreibt.
+
+Weiter: `docs/projekt-dokumentation.md` (Datenmodell, Prozesse, Go-Live-Checkliste) ·
+`docs/aenderungsbericht-2026-08-01.md` (was zuletzt geändert wurde und warum).
+Repo: `C:\Users\dadah\gabara-baustellen` (git, Branch `master`, Remote `nzdada/gabara-baustellen`, privat).
 
 ## Start & Build
 
@@ -49,8 +56,28 @@ Demo-Logins (nur Lokal-Modus): `buero@gabara-demo.de` / `monteur@gabara-demo.de`
 | Rechnungs-Assistent | `admin/src/components/RechnungWizard.jsx` |
 | Monteur-Handy-Ansicht | `admin/src/pages/monteur/` |
 | Sicherheitsregeln Firestore | `firestore.rules` |
+| **Sprachen DE/AR – Wörterbuch (~700 Schlüssel)** | `shared/texte.js` |
+| Sprach-Infrastruktur (`t`, `tr`, `useLang`, `datumLok`, `lokale`) | `shared/i18n.js` |
+| **Entwurfs-Sicherung gegen Datenverlust** | `shared/entwurf.js` |
+| Info-Blase am ⓘ-Zeichen (Portal, nicht beschneidbar) | `admin/src/components/InfoHinweis.jsx` |
+| FastBill-Proxy für Produktion (GAS) | `seed/gabara-fastbill-proxy.gs` |
+| **Monats-Stundenlisten (BG-Bau-Stundenzettel)** | `admin/src/pages/Stunden.jsx` + `druckeStundenliste()` |
+| Test-Paket erzeugen (`python seed/generate_test_zip.py`) | `seed/generate_test_zip.py` |
+| **Wissensdatenbank – INHALTE** (9 Bereiche, 30 Artikel, de+ar) | `shared/wissen.js` |
+| Wissensdatenbank – Darstellung | `admin/src/pages/Hilfe.jsx` |
 
 ## Feste Regeln dieses Projekts
+
+0. **Zweisprachig DE/AR.** Jeder sichtbare Text kommt aus `shared/texte.js` über
+   `t('bereich.schluessel')`. Nie ein deutsches Literal ins JSX schreiben. Fehlt ein
+   Schlüssel, rendert `t()` den Schlüsselnamen – so fällt die Lücke auf.
+   **Ausnahmen, die deutsch BLEIBEN:** juristische Passagen (§ 15 Abs. 3 / § 11 / § 12
+   VOB/B, § 13b UStG) und sämtliche PDF-Ausgaben – Empfänger sind deutsche
+   Auftraggeber, Finanzamt und ggf. Gericht.
+   Vorsicht: In mehreren Dateien heißt eine Schleifenvariable `t` (`termine.map((t) =>`)
+   und verdeckt die Übersetzungsfunktion. Beim Übersetzen umbenennen.
+   Kalender.jsx nutzt weiterhin ein eigenes `T`-Objekt mit `tr()` – dort dieses Muster
+   beibehalten, nicht mischen.
 
 1. **Keine Blockaden im Planungs-UI.** Termine dürfen sich überschneiden, Zeiten sind frei
    wählbar. Es gibt bewusst KEINE „freie Uhrzeiten"-Prüfung mehr.
@@ -68,11 +95,23 @@ Demo-Logins (nur Lokal-Modus): `buero@gabara-demo.de` / `monteur@gabara-demo.de`
 4. **Datum immer lokal** über `heuteISO()` aus `shared/slots.js` – niemals
    `new Date().toISOString().slice(0,10)` (liefert UTC und nachts das Vortagsdatum).
 5. **Interne Feldnamen der Vorlage bleiben** (`patients` = Kunden, `appointments` = Termine,
-   `arzt` = erster Monteur, `ZahnLogo` = Gabara-Logo). Keine Massen-Renames.
+   `arzt` = erster Monteur, `behandlung` = Termintitel, `ZahnLogo` = Gabara-Logo,
+   `patientId`/`patientEmail` in Google-Events). Keine Massen-Renames – daran hängen
+   gespeicherte Daten und bereits angelegte Kalender-Einträge.
+   **ABER:** Kein Vorlagen-Wording in SICHTBAREM Text – weder deutsch noch arabisch,
+   nicht in Kalender-Titeln, nicht in Mails, nicht in `website/public/`.
+   Prüfen mit: `grep -rniE "zahn|dental|prophylax|PZR|wertachbr|مريض|Praxis" --include=*.jsx
+   --include=*.js --include=*.html . | grep -v node_modules | grep -v /dist/`
 6. **Eingaben debouncen** (600 ms + Flush bei Blur), nie jeden Tastendruck in den Store.
 7. **Massen-Schreibvorgänge** über `store.addMany` / `removeMany`, nicht in einer Schleife
    einzeln – im Lokal-Modus wird sonst je Zeile die ganze DB serialisiert.
-8. **Mitarbeiter-Stammdaten** steuern zwei Dinge: `team` + `farbe` = Kalenderfarbe/Legende,
+8. **Wissensdatenbank mitpflegen.** Wer eine Funktion ändert, zieht den passenden
+   Artikel in `shared/wissen.js` nach – sonst erklärt die Hilfe bald etwas, das es
+   nicht mehr gibt. Absatzformen: `{p}` Fließtext · `{schritte:[]}` Anleitung ·
+   `{merke}` Hinweis (rot-Marke) · `{achtung}` Warnung (gelb). `zu` verlinkt die Seite.
+   **Immer beide Sprachen füllen** – ein fehlendes `ar` fällt still auf Deutsch zurück.
+
+9. **Mitarbeiter-Stammdaten** steuern zwei Dinge: `team` + `farbe` = Kalenderfarbe/Legende,
    `qualifikation` (facharbeiter/helfer) = Stundensatz im Regiebericht.
 
 ## Go-Live-Checkliste (Firebase)
@@ -89,9 +128,13 @@ Reihenfolge einhalten – Punkte 1–3 sind Voraussetzung, 4–5 sind Pflicht vo
 4. **Impressum vervollständigen** (`website/src/pages/Recht.jsx`): Geschäftsführer,
    Handelsregister/HRB, USt-IdNr. – für eine GmbH gesetzlich vorgeschrieben (§ 5 TMG).
    Steht aktuell als Platzhalter drin.
-5. FastBill-Proxy bereitstellen (`seed/gabara-fastbill-proxy.gs` als GAS-Web-App),
-   URL in Einstellungen → FastBill → Proxy-URL. Im Dev übernimmt das der Vite-Proxy;
-   das Feld muss lokal **leer** bleiben.
+5. FastBill-Proxy bereitstellen (`seed/gabara-fastbill-proxy.gs` als GAS-Web-App):
+   im Skript `SECRET` auf einen langen Zufallswert setzen, bereitstellen als
+   Web-App (Ausführen als **Ich**, Zugriff **Jeder**), dann die Adresse
+   **einschließlich `?secret=<derselbe Wert>`** in Einstellungen → FastBill →
+   Proxy-URL eintragen, **speichern**, danach testen. Ohne das `?secret=` meldet
+   der Proxy "kein Secret übermittelt". Im Dev übernimmt der Vite-Proxy; dort
+   bleibt das Feld leer.
 6. Zwei Hosting-Sites (Webseite + Admin), danach `npm run build` und
    `npx --yes firebase-tools deploy --only hosting,firestore:rules --project <id>`.
 
