@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { komprimiere } from '@shared/bild.js'
+import { istMonteurRolle } from '@shared/auth.js'
 import Modal from './Modal.jsx'
 import { Icon } from '@shared/ui.jsx'
 import { UnterschriftFeld, unterschriftAlsDataUrl } from '@shared/unterschrift.jsx'
@@ -108,7 +109,7 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
   const gesperrt = Boolean(bericht && ['freigegeben', 'abgerechnet'].includes(bericht.status))
   // Monteure duerfen Berichte ausschliesslich unter eigenem Namen anlegen –
   // so verlangt es firestore.rules. Das Feld deshalb gar nicht erst oeffnen.
-  const nurEigene = user?.rolle === 'mitarbeiter'
+  const nurEigene = istMonteurRolle(user?.rolle)
 
   const draftId = useRef(bericht?.id || (crypto.randomUUID ? crypto.randomUUID() : `b-${Date.now()}`))
   const docAngelegt = useRef(Boolean(bericht))

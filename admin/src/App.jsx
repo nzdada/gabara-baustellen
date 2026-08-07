@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { beobachteAnmeldung, abmelden } from '@shared/auth.js'
+import { beobachteAnmeldung, abmelden, istMonteurRolle } from '@shared/auth.js'
 import * as S from './stil.js'
 import { useLang, t } from '@shared/i18n.js'
 import { storeModus } from '@shared/store.js'
@@ -301,7 +301,7 @@ export default function App() {
   // Admins erreichen sie als Vorschau über /monteur.
   // Auch die Handy-Ansicht abgesichert: draußen auf der Baustelle ist ein
   // weißer Bildschirm ohne jeden Hinweis am schlimmsten.
-  if (user.rolle === 'mitarbeiter') {
+  if (istMonteurRolle(user.rolle)) {
     return <Fehlerschutz schluessel={location.pathname}><MonteurApp user={user} /></Fehlerschutz>
   }
   if (location.pathname.startsWith('/monteur')) {

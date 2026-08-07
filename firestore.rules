@@ -14,26 +14,49 @@ service cloud.firestore {
     function angemeldet() {
       return request.auth != null;
     }
+    // ---------------------------------------------------------------
+    // V2: Die Rolle steht als CUSTOM CLAIM im Anmelde-Token
+    // (scripts/setze-rolle.mjs schreibt sie und widerruft die alten
+    // Token). Ein Claim kann vom Client nicht geschrieben werden –
+    // anders als ein users-Dokument. Der Dokument-Weg bleibt als
+    // ÜBERGANG bestehen, bis das Skript einmal gelaufen ist.
+    //
+    // Rollen: 'admin' (Büro) | 'vorarbeiter' | 'mitarbeiter' (Monteur).
+    // Der Vorarbeiter darf zusätzlich die Kolonnen-Stundenzeile
+    // absenden – fachlich Monteur, mit einem Zusatzrecht.
+    // ---------------------------------------------------------------
+    function claimRolle() {
+      return angemeldet() && ('rolle' in request.auth.token)
+        ? request.auth.token.rolle : '';
+    }
     function eigenesProfil() {
       return angemeldet() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
     function istBuero() {
-      return eigenesProfil()
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rolle == 'admin';
+      return claimRolle() == 'admin'
+        || (claimRolle() == '' && eigenesProfil()
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rolle == 'admin');
     }
-    // Übergangsphase: noch kein UID-basiertes Profil vorhanden -> wie bisher
-    // jeder Angemeldete. Sobald die UIDs gepflegt sind, greift die Rollenprüfung.
+    // Übergangsphase: noch kein Claim UND kein UID-Profil -> wie bisher
+    // jeder Angemeldete. SONNENUNTERGANG: Sobald setze-rolle.mjs für alle
+    // Konten gelaufen ist (Prüfliste AP 2), wird diese Funktion auf
+    // `return false;` gestellt – wer keine Rolle hat, hat dann KEINE Rechte.
     function keinRollenmodell() {
-      return angemeldet() && !eigenesProfil();
+      return angemeldet() && claimRolle() == '' && !eigenesProfil();
     }
     function darfVerwalten() {
       return istBuero() || keinRollenmodell();
     }
-    // Greift erst, wenn das UID-Profil existiert – vorher ist niemand "Monteur"
-    // und alles läuft über darfVerwalten() weiter wie bisher.
+    function istVorarbeiter() {
+      return claimRolle() == 'vorarbeiter';
+    }
+    // Greift, sobald Claim ODER UID-Profil existiert – vorher ist niemand
+    // "Monteur" und alles läuft über darfVerwalten() weiter wie bisher.
+    // Der Vorarbeiter zählt überall dort mit, wo der Monteur darf.
     function istMonteur() {
-      return eigenesProfil()
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rolle == 'mitarbeiter';
+      return claimRolle() == 'mitarbeiter' || istVorarbeiter()
+        || (claimRolle() == '' && eigenesProfil()
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rolle == 'mitarbeiter');
     }
     // Nur diese Felder wurden angefasst
     function nurFelder(felder) {
@@ -158,7 +181,13 @@ service cloud.firestore {
       // Größencheck NUR bei create/update – bei read/delete existiert
       // request.resource nicht (Zugriff darauf würde alles verweigern).
       allow read: if angemeldet();
-      allow create, update: if angemeldet()
+      allow create: if angemeldet()
+        && (!('dataUrl' in request.resource.data) || request.resource.data.dataUrl.size() < 980000);
+      // ÄNDERN wie Löschen: nur das Büro oder der eigene Upload (vonId).
+      // Vorher durfte jeder Angemeldete FREMDE Baustellenfotos überschreiben –
+      // ein Beweisfoto, das jemand anders austauschen kann, ist keins.
+      allow update: if (darfVerwalten()
+          || (angemeldet() && resource.data.get('vonId', '') == request.auth.uid))
         && (!('dataUrl' in request.resource.data) || request.resource.data.dataUrl.size() < 980000);
       // Fremde Baustellen-Fotos löschen darf nur das Büro. Der Monteur darf
       // seine eigenen wieder entfernen (Fehlaufnahme) – erkannt an vonId,
@@ -203,7 +232,9 @@ service cloud.firestore {
       allow get: if id in ['pausen', 'oeffnungszeiten'] || angemeldet();
       // Ganze Liste: nur mit Login – und ohne ID-Bedingung, sonst scheitert sie
       allow list: if angemeldet();
-      allow write: if angemeldet();
+      // Schreiben NUR die Verwaltung. Vorher stand hier angemeldet() – damit
+      // konnte jeder Monteur Firmendaten, Sätze und Nummernkreis überschreiben.
+      allow write: if darfVerwalten();
     }
 
     // Zugangsdaten zu Fremdsystemen (Dokument 'fastbill': E-Mail, API-Key,

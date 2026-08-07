@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { istMonteurRolle } from '@shared/auth.js'
 import Modal from './Modal.jsx'
 import TerminBilder from './TerminBilder.jsx'
 import { Icon } from '@shared/ui.jsx'
@@ -42,7 +43,7 @@ export default function TerminModal({ termin, patient, user, onClose }) {
   const [mitarbeiterIds, setMitarbeiterIds] = useState(termin.mitarbeiterIds || [])
 
   const projekt = projekte.find((p) => p.id === termin.projektId)
-  const monteure = users.filter((u) => u.rolle === 'mitarbeiter' && u.aktiv !== false)
+  const monteure = users.filter((u) => istMonteurRolle(u.rolle) && u.aktiv !== false)
 
   // Zuweisung direkt im Modal ändern (Chips an-/abwählen)
   async function zuweisungToggle(id) {

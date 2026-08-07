@@ -1,6 +1,6 @@
 import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom'
 import { useMemo, useState } from 'react'
-import { abmelden } from '@shared/auth.js'
+import { abmelden, istMonteurRolle } from '@shared/auth.js'
 import { ZahnLogo, Icon, SprachSchalter, ThemaSchalter } from '@shared/ui.jsx'
 import { euro } from '@shared/format.js'
 import { useLang, t, datumLok } from '@shared/i18n.js'
@@ -324,7 +324,7 @@ export default function MonteurApp({ user, vorschau = false }) {
       </header>
 
       <main>
-        {!user?.userId && user?.rolle === 'mitarbeiter' && (
+        {!user?.userId && istMonteurRolle(user?.rolle) && (
           <p className="m-4 mb-0 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
             {t('monteur.keinProfil')}
           </p>

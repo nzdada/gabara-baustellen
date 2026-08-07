@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { istMonteurRolle } from '@shared/auth.js'
 import Modal from './Modal.jsx'
 import DatumWahl from './DatumWahl.jsx'
 import { Icon } from '@shared/ui.jsx'
@@ -109,7 +110,7 @@ export default function NeuerTermin({ patients, appointments, vorbelegt = {}, be
   }
 
   const alleUsers = useCollection('users')
-  const monteure = useMemo(() => alleUsers.filter((u) => u.rolle === 'mitarbeiter' && u.aktiv !== false), [alleUsers])
+  const monteure = useMemo(() => alleUsers.filter((u) => istMonteurRolle(u.rolle) && u.aktiv !== false), [alleUsers])
   const gewaehlteNamen = mitarbeiterIds.map((id) => alleUsers.find((u) => u.id === id)?.name).filter(Boolean)
 
   const projekte = useCollection('projekte')

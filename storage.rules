@@ -1,0 +1,62 @@
+rules_version = '2';
+
+// Speicher-Regeln für die V2-Fotos (Firebase Storage).
+//
+// WICHTIG: Diese Regeln können NICHT in die Datenbank schauen (kein get()
+// auf Firestore). Deshalb: Rolle über den Custom Claim im Anmelde-Token,
+// Zugehörigkeit über die Pfadstruktur, Urheber über die Datei-Metadaten.
+//
+// Pfadstruktur (Kapitel 5.5 des V2-Entwurfs):
+//   projekte/{projektId}/raeume/{raumId}/{auftrag|regie}/{vorher|nachher}/{datei}
+//   projekte/{projektId}/berichte/{berichtId}/{datei}
+//
+// Ausliefern IMMER zusammen mit den Datenbank-Regeln:
+//   firebase deploy --only hosting,firestore:rules,firestore:indexes,storage
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function angemeldet() {
+      return request.auth != null;
+    }
+    function istBuero() {
+      return angemeldet() && request.auth.token.get('rolle', '') == 'admin';
+    }
+    // Eigene Datei: der Uploader schreibt seine UID in die Metadaten
+    // (metadata.vonId). Beim Upload wird sie gegen das Token geprüft.
+    function eigeneDatei() {
+      return angemeldet()
+        && resource != null
+        && resource.metadata != null
+        && resource.metadata.vonId == request.auth.uid;
+    }
+
+    match /projekte/{projektId}/{alleWeiteren=**} {
+      // Lesen: das ganze Team. Die Bilder sind Arbeitsgrundlage von Büro
+      // UND Kolonne; feiner geht es ohne Datenbankzugriff nicht.
+      allow read: if angemeldet();
+
+      // Schreiben: angemeldet, nur Bilder, höchstens 2 MB (das 1600er-
+      // Derivat liegt bei ~400 KB – 2 MB ist Puffer, kein Freibrief),
+      // und die Uploader-UID muss stimmen (sonst wäre eigeneDatei()
+      // später wertlos).
+      allow create: if angemeldet()
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.metadata.vonId == request.auth.uid;
+
+      // Überschreiben: nie. Ein Beweisfoto wird ersetzt, indem ein neues
+      // hochgeladen und das alte (vom Büro oder Urheber) gelöscht wird –
+      // so bleibt die Prüfsumme im fotos-Dokument immer gültig.
+      allow update: if false;
+
+      // Löschen: Büro oder eigener Upload.
+      allow delete: if istBuero() || eigeneDatei();
+    }
+
+    // Alles andere: kein Zugriff.
+    match /{alles=**} {
+      allow read, write: if false;
+    }
+  }
+}

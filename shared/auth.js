@@ -1,10 +1,27 @@
 // Anmeldung für die Verwaltung (und später die Mitarbeiter-App).
 // Lokaler Modus: Demo-Zugänge (unten). Firebase-Modus: Firebase Authentication.
-// Rollen: 'admin' (Büro, alles) | 'mitarbeiter' (Monteur, nur Zugewiesenes).
-// Die Rolle kommt aus der users-Collection (Lookup per E-Mail); Fallback 'mitarbeiter'.
+// Rollen: 'admin' (Büro, alles) | 'vorarbeiter' (Monteur + Kolonnenstunden)
+//         | 'mitarbeiter' (Monteur, nur Zugewiesenes).
+//
+// V2: Die Rolle steht bevorzugt als CUSTOM CLAIM im Anmelde-Token
+// (scripts/setze-rolle.mjs) – ein Claim kann vom Client nicht gefälscht
+// werden. Das users-Dokument bleibt Übergangs-Fallback, bis das Skript für
+// alle Konten gelaufen ist (dann fällt keinRollenmodell() in den Regeln).
 
 import { FIREBASE_CONFIG } from './firebase-config.js'
 import { getStore } from './store.js'
+
+// Der Vorarbeiter IST fachlich Monteur (Handy-Ansicht, eigene Baustellen) –
+// mit genau einem Zusatzrecht: die Kolonnen-Stundenzeile absenden.
+// ALLE Oberflächen-Weichen laufen über diese zwei Helfer, nie über einen
+// direkten Vergleich mit 'mitarbeiter' – sonst fällt ein Vorarbeiter
+// unbemerkt in die Büro-Ansicht.
+export function istMonteurRolle(rolle) {
+  return rolle === 'mitarbeiter' || rolle === 'vorarbeiter'
+}
+export function istVorarbeiterRolle(rolle) {
+  return rolle === 'vorarbeiter'
+}
 
 export const DEMO_ZUGAENGE = [
   { email: 'buero@gabara-demo.de', passwort: 'demo2026', name: 'Büro Gabara (Demo)', rolle: 'admin' },
@@ -42,6 +59,22 @@ async function nutzerProfil(email, uid = null) {
     return { profil: treffer, leer: alle.length === 0 }
   } catch (e) {
     return { profil: null, leer: false }
+  }
+}
+
+// Rolle aus dem Anmelde-Token (Custom Claim). Liefert '' wenn keiner
+// gesetzt ist. `erzwingen` holt ein frisches Token vom Server – nötig beim
+// App-Start, damit ein Rollenwechsel (revokeRefreshTokens) sofort wirkt und
+// nicht erst nach bis zu einer Stunde. Offline schlägt das Erzwingen fehl;
+// dann gilt das zwischengespeicherte Token – besser als gar keine Anmeldung.
+async function rolleAusToken(user, erzwingen = false) {
+  try {
+    const t = await user.getIdTokenResult(erzwingen)
+    const rolle = t?.claims?.rolle
+    return typeof rolle === 'string' ? rolle : ''
+  } catch (e) {
+    if (erzwingen) return rolleAusToken(user, false)
+    return ''
   }
 }
 
@@ -84,11 +117,13 @@ export async function anmelden(email, passwort) {
   const { getAuth, signInWithEmailAndPassword } = await import('firebase/auth')
   const auth = getAuth(store.app)
   const cred = await signInWithEmailAndPassword(auth, email.trim(), passwort)
+  const claim = await rolleAusToken(cred.user)
   const gefunden = await nutzerProfil(cred.user.email, cred.user.uid)
   return {
     email: cred.user.email,
     name: gefunden.profil?.name || cred.user.displayName || cred.user.email,
-    rolle: rolleAus(gefunden),
+    // Der Claim schlägt das Dokument – er ist fälschungssicher.
+    rolle: claim || rolleAus(gefunden),
     userId: gefunden.profil?.id || cred.user.uid,
   }
 }
@@ -133,6 +168,21 @@ export function beobachteAnmeldung(cb) {
     const auth = getAuth(store.app)
     unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) return cb(null)
+      // Beim App-Start EINMAL ein frisches Token erzwingen: Nach einem
+      // Rollenwechsel (setze-rolle.mjs widerruft die alten Token) wirkt die
+      // neue Rolle so sofort statt erst nach bis zu einer Stunde.
+      const claim = await mitFrist(rolleAusToken(user, true), 8000, '')
+      if (claim) {
+        // Der Claim genügt für die Rolle; das Profil liefert nur noch den
+        // Anzeigenamen und darf deshalb auch scheitern, ohne zu blockieren.
+        const { profil } = await mitFrist(nutzerProfil(user.email, user.uid), 8000, { profil: null })
+        return cb({
+          email: user.email,
+          name: profil?.name || user.displayName || user.email,
+          rolle: claim,
+          userId: profil?.id || user.uid,
+        })
+      }
       const AUSFALL = { profil: null, leer: false, zeitueberschreitung: true }
       const gefunden = await mitFrist(nutzerProfil(user.email, user.uid), 8000, AUSFALL)
       if (gefunden.zeitueberschreitung) {
