@@ -23,22 +23,43 @@ function aktuelleLokaleSession() {
   }
 }
 
-// users-Doc nachschlagen -> {name, rolle, id} oder null.
+// users-Doc nachschlagen -> { profil, leer } .
 // Bevorzugt wird das Dokument, dessen ID die Firebase-Auth-UID ist – nur so
 // können die Firestore-Regeln die Rolle prüfen (siehe firestore.rules).
 // Fallback: Suche über die E-Mail (Demo-/Bestandsdaten mit eigenen IDs).
+//
+// `leer` = die users-Sammlung wurde ERFOLGREICH gelesen und ist komplett leer.
+// Das ist der Zustand einer frisch angelegten Datenbank. Wichtig: Bei einem
+// LESEFEHLER ist leer=false – sonst würde eine verweigerte Abfrage wie eine
+// leere Datenbank aussehen und Rechte verschenken.
 async function nutzerProfil(email, uid = null) {
   try {
     const store = await getStore()
     const alle = await store.list('users')
-    if (uid) {
-      const perUid = alle.find((u) => u.id === uid)
-      if (perUid) return perUid
-    }
-    return alle.find((u) => (u.email || '').toLowerCase() === (email || '').toLowerCase()) || null
+    const treffer = (uid && alle.find((u) => u.id === uid))
+      || alle.find((u) => (u.email || '').toLowerCase() === (email || '').toLowerCase())
+      || null
+    return { profil: treffer, leer: alle.length === 0 }
   } catch (e) {
-    return null
+    return { profil: null, leer: false }
   }
+}
+
+// Welche Rolle gilt für diesen Anmeldevorgang?
+//
+// Ohne passendes users-Dokument gilt normalerweise 'mitarbeiter' – der
+// vorsichtigere Fall. ABER: In einer frisch angelegten Datenbank gibt es noch
+// GAR KEINE users-Dokumente. Wer sich dort als Erster anmeldet, käme mit
+// 'mitarbeiter' in die Monteur-Ansicht und hätte keine Möglichkeit mehr, die
+// Benutzerverwaltung zu erreichen und sich selbst einzutragen – eine Sackgasse.
+//
+// Deshalb: Ist die users-Sammlung nachweislich leer, gilt der erste Anmeldende
+// als Büro. Das entspricht genau der Übergangsregel keinRollenmodell() in
+// firestore.rules. Sobald das erste users-Dokument existiert, greift wieder
+// ausschließlich die dort eingetragene Rolle.
+function rolleAus({ profil, leer }) {
+  if (profil?.rolle) return profil.rolle
+  return leer ? 'admin' : 'mitarbeiter'
 }
 
 export async function anmelden(email, passwort) {
@@ -47,10 +68,11 @@ export async function anmelden(email, passwort) {
       (z) => z.email.toLowerCase() === email.trim().toLowerCase() && z.passwort === passwort
     )
     if (!nutzer) throw new Error('E-Mail oder Passwort falsch.')
-    const profil = await nutzerProfil(nutzer.email)
+    const { profil } = await nutzerProfil(nutzer.email)
     const session = {
       email: nutzer.email,
       name: profil?.name || nutzer.name,
+      // Im Demo-Modus gibt der Zugang selbst die Rolle vor
       rolle: profil?.rolle || nutzer.rolle,
       userId: profil?.id || null,
     }
@@ -62,12 +84,12 @@ export async function anmelden(email, passwort) {
   const { getAuth, signInWithEmailAndPassword } = await import('firebase/auth')
   const auth = getAuth(store.app)
   const cred = await signInWithEmailAndPassword(auth, email.trim(), passwort)
-  const profil = await nutzerProfil(cred.user.email, cred.user.uid)
+  const gefunden = await nutzerProfil(cred.user.email, cred.user.uid)
   return {
     email: cred.user.email,
-    name: profil?.name || cred.user.displayName || cred.user.email,
-    rolle: profil?.rolle || 'mitarbeiter',
-    userId: profil?.id || null,
+    name: gefunden.profil?.name || cred.user.displayName || cred.user.email,
+    rolle: rolleAus(gefunden),
+    userId: gefunden.profil?.id || cred.user.uid,
   }
 }
 
@@ -82,7 +104,23 @@ export async function abmelden() {
   await signOut(getAuth(store.app))
 }
 
+// Wartet höchstens `ms` auf ein Versprechen und liefert sonst `ersatz`.
+// Nötig, weil Firestore-Abfragen KEINE eingebaute Frist haben: bei gestörter
+// Verbindung versucht der Client es unbegrenzt weiter, ohne je abzubrechen.
+function mitFrist(versprechen, ms, ersatz) {
+  return Promise.race([
+    versprechen,
+    new Promise((auf) => setTimeout(() => auf(ersatz), ms)),
+  ])
+}
+
 // Meldet den aktuellen Anmeldestatus (sofort + bei jeder Änderung)
+//
+// WICHTIG: Dieser Rückruf MUSS in jedem Fall genau einmal feuern – auch im
+// Fehlerfall. Die Verwaltung zeigt bis dahin nur das Ladebild. Vorher fehlte
+// hier sowohl ein .catch() als auch eine Frist um die Profilabfrage: eine
+// gestörte Firestore-Verbindung führte deshalb zu einem endlosen Ladebild ohne
+// Meldung und ohne Ausweg.
 export function beobachteAnmeldung(cb) {
   if (!FIREBASE_CONFIG.enabled) {
     cb(aktuelleLokaleSession())
@@ -95,14 +133,28 @@ export function beobachteAnmeldung(cb) {
     const auth = getAuth(store.app)
     unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) return cb(null)
-      const profil = await nutzerProfil(user.email, user.uid)
+      const AUSFALL = { profil: null, leer: false, zeitueberschreitung: true }
+      const gefunden = await mitFrist(nutzerProfil(user.email, user.uid), 8000, AUSFALL)
+      if (gefunden.zeitueberschreitung) {
+        // Die Rolle ist jetzt UNBEKANNT. Sie einfach auf 'mitarbeiter' zu
+        // setzen, wäre falsch: das Büro landete stillschweigend in der
+        // Monteur-Ansicht. Lieber ehrlich melden und neu laden lassen.
+        return cb({ email: user.email, name: user.displayName || user.email, rolle: null, fehler: 'profil' })
+      }
       cb({
         email: user.email,
-        name: profil?.name || user.displayName || user.email,
-        rolle: profil?.rolle || 'mitarbeiter',
-        userId: profil?.id || null,
+        name: gefunden.profil?.name || user.displayName || user.email,
+        rolle: rolleAus(gefunden),
+        // Ohne eigenes Dokument gilt die Auth-UID – daran hängen die
+        // Firestore-Regeln (eigene Berichte, eigene Spesen)
+        userId: gefunden.profil?.id || user.uid,
       })
     })
+  }).catch((e) => {
+    // Firebase konnte gar nicht erst starten (Netz, Konfiguration, blockierte
+    // Skripte). Ohne dieses catch bliebe das Ladebild ewig stehen.
+    console.error('Anmeldung konnte nicht initialisiert werden:', e)
+    cb({ rolle: null, fehler: 'start', meldung: e?.message || String(e) })
   })
   return () => unsub()
 }

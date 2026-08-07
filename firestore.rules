@@ -29,6 +29,20 @@ service cloud.firestore {
     function darfVerwalten() {
       return istBuero() || keinRollenmodell();
     }
+    // Greift erst, wenn das UID-Profil existiert – vorher ist niemand "Monteur"
+    // und alles läuft über darfVerwalten() weiter wie bisher.
+    function istMonteur() {
+      return eigenesProfil()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rolle == 'mitarbeiter';
+    }
+    // Nur diese Felder wurden angefasst
+    function nurFelder(felder) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(felder);
+    }
+    // Berichte mit diesem Status sind Beweismittel und dürfen sich nicht mehr ändern
+    function gesperrterStatus(status) {
+      return status == 'freigegeben' || status == 'abgerechnet' || status == 'erstattet';
+    }
 
     // Anfragen von der öffentlichen Gabara-Webseite:
     // Jeder darf ANLEGEN (Formular), aber niemand ohne Login darf lesen/ändern.
@@ -59,24 +73,117 @@ service cloud.firestore {
       allow write: if angemeldet();
     }
 
-    // Interne Kern-Daten: nur mit Login (Gabara-Team).
-    match /patients/{id} { allow read, write: if angemeldet(); }
-    match /appointments/{id} { allow read, write: if angemeldet(); }
-    match /projekte/{id} { allow read, write: if angemeldet(); }
-    match /lvpositionen/{id} { allow read, write: if angemeldet(); }
-    match /berichte/{id} { allow read, write: if angemeldet(); }
-    match /spesen/{id} { allow read, write: if angemeldet(); }
+    // ---------------------------------------------------------------
+    // Interne Kern-Daten. LESEN darf das ganze Team (Kalender, Berichte und
+    // Handy-Ansicht brauchen Kunden-, Projekt- und Mitarbeiternamen).
+    // SCHREIBEN ist nach Rolle getrennt.
+    //
+    // Bewusst NICHT eingeschränkt: das Lesen von /projekte auf die zugewiesenen
+    // Baustellen. Dafür bräuchte jedes Projekt eine Zuweisungsliste – die gibt
+    // es heute nur am Termin (mitarbeiterIds). Vermerkt in der Go-Live-Liste.
+    // ---------------------------------------------------------------
+
+    // Kunden: Stammdaten pflegt das Büro (FastBill ist führend).
+    match /patients/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
+
+    // Termine: plant das Büro. Der Monteur darf an SEINEN Einsätzen nur
+    // das Häkchen "erledigt" setzen – sonst nichts.
+    match /appointments/{id} {
+      allow read: if angemeldet();
+      allow create, delete: if darfVerwalten();
+      allow update: if darfVerwalten()
+        || (istMonteur()
+            && request.auth.uid in resource.data.get('mitarbeiterIds', [])
+            && nurFelder(['erledigt', 'erledigtAm']));
+    }
+
+    // Baustellen: legt das Büro an.
+    match /projekte/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
+
+    // Leistungsverzeichnis: Preise und Mengen kommen aus dem Vertrag – nur Büro.
+    // Der Monteur meldet ausschließlich die geleistete Menge (Ist).
+    match /lvpositionen/{id} {
+      allow read: if angemeldet();
+      allow create, delete: if darfVerwalten();
+      // istQuelle/istAktualisiertAm gehören dazu: Der Monteur meldet über die
+      // Sammlung 'leistungen', und derselbe Vorgang schreibt istMenge fort.
+      // Ohne diese beiden Schlüssel scheitert die Meldung an nurFelder().
+      allow update: if darfVerwalten()
+        || (istMonteur() && nurFelder(['istMenge', 'istVon', 'istAm', 'istQuelle', 'istAktualisiertAm']));
+    }
+
+    // Regieberichte/Reklamationen/Abnahmen: der Monteur schreibt nur unter
+    // seinem eigenen Namen und nur solange der Bericht nicht freigegeben ist.
+    // Freigegebene/abgerechnete Berichte sind Beweismittel (§ 15 Abs. 3 VOB/B)
+    // und dürfen sich auch für das Büro nicht mehr unbemerkt ändern -> Freigabe
+    // erst zurücknehmen, dann bearbeiten.
+    match /berichte/{id} {
+      allow read: if angemeldet();
+      allow create: if darfVerwalten()
+        || (istMonteur()
+            && request.resource.data.get('mitarbeiterId', '') == request.auth.uid
+            && !gesperrterStatus(request.resource.data.get('status', '')));
+      allow update: if (darfVerwalten() && !gesperrterStatus(resource.data.get('status', '')))
+        || (darfVerwalten() && nurFelder(['status', 'freigegebenAm', 'freigegebenVon']))
+        || (istMonteur()
+            && resource.data.get('mitarbeiterId', '') == request.auth.uid
+            && !gesperrterStatus(resource.data.get('status', ''))
+            && !gesperrterStatus(request.resource.data.get('status', '')));
+      allow delete: if darfVerwalten();
+    }
+
+    // Spesen: gleiche Logik. Den Status auf erstattet setzt nur das Büro.
+    match /spesen/{id} {
+      allow read: if angemeldet();
+      allow create: if darfVerwalten()
+        || (istMonteur()
+            && request.resource.data.get('mitarbeiterId', '') == request.auth.uid
+            && !gesperrterStatus(request.resource.data.get('status', '')));
+      allow update: if (darfVerwalten() && !gesperrterStatus(resource.data.get('status', '')))
+        || (darfVerwalten() && nurFelder(['status']))
+        || (istMonteur()
+            && resource.data.get('mitarbeiterId', '') == request.auth.uid
+            && !gesperrterStatus(resource.data.get('status', ''))
+            && !gesperrterStatus(request.resource.data.get('status', '')));
+      allow delete: if darfVerwalten();
+    }
+
     match /photos/{id} {
       // Größencheck NUR bei create/update – bei read/delete existiert
       // request.resource nicht (Zugriff darauf würde alles verweigern).
-      allow read, delete: if angemeldet();
+      allow read: if angemeldet();
       allow create, update: if angemeldet()
         && (!('dataUrl' in request.resource.data) || request.resource.data.dataUrl.size() < 980000);
+      // Fremde Baustellen-Fotos löschen darf nur das Büro. Der Monteur darf
+      // seine eigenen wieder entfernen (Fehlaufnahme) – erkannt an vonId,
+      // NICHT am Anzeigenamen 'von'.
+      allow delete: if darfVerwalten()
+        || (istMonteur() && resource.data.get('vonId', '') == request.auth.uid);
     }
-    match /rechnungen/{id} { allow read, write: if angemeldet(); }
-    match /apilog/{id} { allow read, write: if angemeldet(); }
-    match /katalog/{id} { allow read, write: if angemeldet(); }
-    match /bausteine/{id} { allow read, write: if angemeldet(); }
+
+    // Rechnungen, API-Protokoll, Artikelstamm und Textbausteine: reine Bürodaten.
+    match /rechnungen/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
+    match /apilog/{id} {
+      // Enthält Aufrufe an FastBill – geht Monteure nichts an
+      allow read, write: if darfVerwalten();
+    }
+    match /katalog/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
+    match /bausteine/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
 
     // Mitarbeiterstamm: lesen darf jeder Angemeldete (Namen/Teams stehen in
     // Kalender und Berichten). SCHREIBEN nur das Büro – sonst könnte sich ein
@@ -86,13 +193,95 @@ service cloud.firestore {
       allow write: if darfVerwalten();
     }
 
+    // Globale Einstellungen. Die Verwaltung liest diese Sammlung als GANZE LISTE
+    // (useCollection('settings')). Firestore erlaubt eine Sammlungs-Abfrage nur,
+    // wenn die Regel ohne Kenntnis der einzelnen Dokumente erfüllbar ist – eine
+    // Bedingung auf die Dokument-ID lässt jede Listen-Abfrage scheitern.
+    // Deshalb: get und list getrennt regeln, und NICHTS Geheimes hier ablegen.
     match /settings/{id} {
-      // Nur reine Zeit-Dokumente öffentlich lesbar (falls die Webseite sie je braucht).
-      // 'integrationen' enthält den FastBill-API-Key -> ausschließlich Büro.
-      allow read: if id in ['pausen', 'oeffnungszeiten']
-                  || (angemeldet() && id != 'integrationen')
-                  || (id == 'integrationen' && darfVerwalten());
-      allow write: if id == 'integrationen' ? darfVerwalten() : angemeldet();
+      // Einzelabruf: die Zeit-Dokumente darf auch die öffentliche Webseite lesen
+      allow get: if id in ['pausen', 'oeffnungszeiten'] || angemeldet();
+      // Ganze Liste: nur mit Login – und ohne ID-Bedingung, sonst scheitert sie
+      allow list: if angemeldet();
+      allow write: if angemeldet();
+    }
+
+    // Zugangsdaten zu Fremdsystemen (Dokument 'fastbill': E-Mail, API-Key,
+    // Proxy-URL). Bewusst NICHT in settings: dort hätte der Schlüssel entweder
+    // die Listen-Abfrage blockiert oder für jeden Monteur offen gelegen.
+    // BEWUSST istBuero() statt darfVerwalten(): darfVerwalten() schliesst die
+    // Uebergangsregel keinRollenmodell() ein, die JEDEN angemeldeten Zugang ohne
+    // eigenes users-Dokument als Verwaltung durchgehen laesst. Fuer die
+    // uebrigen Sammlungen ist das vertretbar – hier liegt der FastBill-API-
+    // Schluessel, das Empfindlichste im ganzen Bestand. Ein versehentlich in der
+    // Firebase-Konsole angelegtes Konto ohne Profil darf ihn nicht lesen.
+    // Folge: Wer hier "Missing or insufficient permissions" sieht, hat kein
+    // users-Dokument mit rolle 'admin' unter seiner Auth-UID.
+    match /integrationen/{id} {
+      allow read, write: if istBuero();
+    }
+
+    // Leistungsmeldungen: das Tagesprotokoll der gemeldeten Mengen.
+    //
+    // Anlegen darf jeder Angemeldete, ABER nur unter eigenem Namen: die
+    // mitarbeiterId muss die eigene Auth-UID sein. Sonst könnte eine Meldung
+    // einem Kollegen untergeschoben werden – und diese Zeilen sind gegenüber
+    // dem Generalunternehmer Nachweis.
+    //
+    // Ändern darf ein Monteur NICHTS an einer bestehenden Zeile außer dem
+    // Stornieren der eigenen. Eine nachträglich veränderbare Mengenmeldung wäre
+    // als Beweismittel wertlos; Korrekturen laufen deshalb über eine NEUE Zeile
+    // mit der Differenz, nicht über das Überschreiben der alten.
+    //
+    // Gelöscht wird nie – auch nicht vom Büro. Storniert bleibt sichtbar.
+    // Raeume einer Baustelle. Der Monteur darf vor Ort fehlende Raeume ANLEGEN –
+    // das Buero kennt die Raumnamen einer fremden Baustelle oft nicht, er steht
+    // davor. Umbenennen und Deaktivieren bleibt beim Buero: sonst wandern
+    // Raumnamen nachtraeglich durch den Nachweis fuer den Generalunternehmer.
+    match /raeume/{id} {
+      allow read: if angemeldet();
+      allow create: if darfVerwalten() || istMonteur();
+      allow update: if darfVerwalten()
+        // 'status' traegt den Zustand JE FLAECHE (Decke, Nordwand, ...). Der
+        // Monteur meldet damit, was er fertig hat – auch nur eine Wand.
+        // 'aufgaben' MUSS dabei sein: Der Monteur hakt im Raumfenster die
+        // Arbeitsschritte ab, und das schreibt genau dieses Feld. Ohne den
+        // Schluessel scheitert jedes Abhaken mit PERMISSION_DENIED – der
+        // Kernablauf auf der Baustelle waere tot.
+        // Bewusst in Kauf genommen: der Monteur koennte ueber dieses Feld auch
+        // Aufgaben entfernen. Die Oberflaeche bietet es ihm nicht an, und die
+        // schutzbeduerftigen Daten (Berichte, Rechnungen, Preise) liegen
+        // woanders und bleiben gesperrt.
+        || (istMonteur() && nurFelder(['fertig', 'notiz', 'status', 'aufgaben']));
+      allow delete: if darfVerwalten();
+    }
+
+    // Sollmengen je Raum und LV-Position. Sie entstehen aus der Verteilung im
+    // Buero und sind abrechnungsrelevant – der Monteur liest sie nur.
+    match /raumsoll/{id} {
+      allow read: if angemeldet();
+      allow write: if darfVerwalten();
+    }
+
+    match /leistungen/{id} {
+      allow read: if angemeldet();
+      allow create: if darfVerwalten()
+        || (istMonteur() && request.resource.data.mitarbeiterId == request.auth.uid);
+      allow update: if darfVerwalten()
+        || (istMonteur()
+            && resource.data.mitarbeiterId == request.auth.uid
+            && nurFelder(['storniert', 'storniertAm', 'storniertVon']));
+      // Löschen NUR dem Büro erlaubt, und die Oberfläche bietet es nirgends an –
+      // korrigiert wird ausschließlich über Storno. Ganz verbieten geht aber
+      // nicht: das Zurücksetzen der Beispieldaten (store.resetDemo) und das
+      // Löschen eines Projekts samt Anhängen (Projekte.jsx, ANHAENGE) räumen
+      // alle Sammlungen der Reihe nach ab. Mit "if false" wäre der ganze
+      // Vorgang gescheitert – genau daran ist die Erstbefüllung schon einmal
+      // zerbrochen, als 'plaene' und 'feedback' keine Regel hatten.
+      // darfVerwalten() statt istBuero(), damit es sich wie lvpositionen und die
+      // übrigen Sammlungen verhält: sonst scheitert die Erstbefüllung einer
+      // frischen Datenbank, in der es noch kein users-Dokument gibt.
+      allow delete: if darfVerwalten();
     }
 
     match /{document=**} {

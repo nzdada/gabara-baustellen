@@ -1,21 +1,30 @@
 // ============================================================
-// Firebase-Konfiguration — Projekt "Gabara Baustellen"
-// Konto (später): nasiradada.98@gmail.com
+// Firebase-Konfiguration — Projekt "Gabara System" (gabara-system)
+// Firestore-Standort: europe-west3 (Frankfurt), angelegt 01.08.2026.
+//
 // enabled: true  -> Online-Modus (Firestore, Live-Sync über alle Geräte)
 // enabled: false -> lokaler Demo-Modus (Daten nur im Browser)
 //
-// V1 läuft bewusst lokal. Beim Firebase-Go-Live (V2): Projekt anlegen
-// (Spark, europe-west3), Werte unten eintragen, enabled auf true.
+// Der apiKey ist KEIN Geheimnis: er identifiziert das Projekt und steht in
+// jeder ausgelieferten Seite. Geschützt wird die Datenbank ausschließlich
+// durch firestore.rules.
+//
+// REIHENFOLGE beim Umschalten auf true:
+//   1. firestore.rules und firestore.indexes.json deployen
+//   2. Authentication -> E-Mail/Passwort aktivieren, Benutzer anlegen
+//   3. users-Dokumente mit der Auth-UID als Dokument-ID anlegen
+//   4. erst dann enabled auf true
+// Vorher meldet die App nur "Missing or insufficient permissions".
 // ============================================================
 
 export const FIREBASE_CONFIG = {
-  enabled: false,
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: '',
+  enabled: true,
+  apiKey: 'AIzaSyA5XwEf2L5amFhtJ_iPlwCPhpJJBzLOKQw',
+  authDomain: 'gabara-system.firebaseapp.com',
+  projectId: 'gabara-system',
+  storageBucket: 'gabara-system.firebasestorage.app',
+  messagingSenderId: '523217828008',
+  appId: '1:523217828008:web:84fcd333abcbec6477aa9d',
 }
 
 // Google-Kalender-Anbindung (optional, V2 – User-Wunsch "später"):

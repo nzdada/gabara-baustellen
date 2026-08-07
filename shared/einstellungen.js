@@ -23,4 +23,9 @@ export const EINSTELLUNGEN_DEFAULTS = {
   regieFacharbeiter: 35,              // €/Std netto
   regieHelfer: 31,                    // €/Std netto
   kmSatz: 0.5,                        // €/km für Fahrtkosten
+  // Fuhrpark: [{ id, kennzeichen, bezeichnung }]
+  // Im Regiebericht wird daraus eine Auswahlliste. Vorher tippte jeder das
+  // Kennzeichen anders – "AIC GB 12", "AIC-GB12", "aic-gb 12" – und eine
+  // Auswertung je Fahrzeug war damit unmöglich.
+  fahrzeuge: [],
 }

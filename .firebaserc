@@ -1,12 +1,12 @@
 {
   "projects": {
-    "default": "gabara-baustellen"
+    "default": "gabara-system"
   },
   "targets": {
-    "gabara-baustellen": {
+    "gabara-system": {
       "hosting": {
-        "website": ["gabara-baustellen"],
-        "admin": ["gabara-baustellen-admin"]
+        "website": ["gabara-system"],
+        "admin": ["gabara-system-admin"]
       }
     }
   }

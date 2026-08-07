@@ -9,6 +9,7 @@
 
 import { FIREBASE_CONFIG } from './firebase-config.js'
 import { erzeugeDemoDaten } from './demoData.js'
+import { alleEntwuerfeLoeschen } from './entwurf.js'
 import { normalisiereFenster } from './slots.js'
 
 // Öffnungszeiten-Dokument (settings/oeffnungszeiten) in kanonischer Form:
@@ -33,11 +34,27 @@ function oeffnungszeitenDoc(roh) {
 // spesen:       Hotel-/Fahrtkosten der Monteure
 // rechnungen:   Spiegel der FastBill-Rechnungen (fastbillInvoiceId, status, Positionen)
 // apilog:       Protokoll der FastBill-API-Aufrufe (simuliert/ok/fehler)
-// plaene/feedback: Altlasten der Vorlage (ungenutzt, bleiben für Kompatibilität)
-// settings:     globale Einstellungen (Dokumente 'global', 'pausen', 'oeffnungszeiten', 'nummernkreis', 'integrationen')
+// settings:     globale Einstellungen ('global', 'pausen', 'oeffnungszeiten', 'nummernkreis')
+//               -> wird als GANZE Liste gelesen, darf deshalb nichts Geheimes enthalten
+// integrationen: Zugangsdaten (Dokument 'fastbill') – eigene Sammlung mit eigener,
+//               strengerer Regel, damit settings als Liste lesbar bleibt
+// Jede Sammlung hier braucht eine passende Regel in firestore.rules – sonst
+// greift die Catch-all-Regel und JEDER Zugriff scheitert mit
+// "Missing or insufficient permissions". Das trifft auch resetDemo, das alle
+// Sammlungen der Reihe nach liest.
+// 'plaene' und 'feedback' standen hier als Reste der Ursprungs-Vorlage und
+// wurden nirgends verwendet – entfernt am 01.08.2026.
+// raumsoll:   Sollmenge je Raum UND LV-Position – die Bruecke zwischen beiden.
+//             Quadratmeter kommen aus dem Raum, der Preis aus dem LV.
+// raeume:     Raeume/Bereiche einer Baustelle (Grundriss). Ein Maler arbeitet
+//             raumweise; leistungen.raumId zeigt hierher.
+// leistungen: Tagesprotokoll der gemeldeten Mengen (eine Zeile je Meldung).
+//             lvpositionen.istMenge bleibt und wird daraus fortgeschrieben –
+//             siehe shared/leistungen.js.
 const COLLECTIONS = [
-  'patients', 'appointments', 'requests', 'photos', 'katalog', 'bausteine', 'plaene', 'feedback', 'settings',
+  'patients', 'appointments', 'requests', 'photos', 'katalog', 'bausteine', 'settings',
   'users', 'projekte', 'lvpositionen', 'berichte', 'spesen', 'rechnungen', 'apilog',
+  'integrationen', 'leistungen', 'raeume', 'raumsoll',
 ]
 
 function uuid() {
@@ -126,6 +143,12 @@ function lokalerStore() {
     async list(coll) {
       return [...db[coll]]
     },
+    // EIN Dokument gezielt lesen. Wichtig für Sammlungen, die als Ganzes nicht
+    // gelesen werden dürfen (z. B. Zugangsdaten): ein get auf ein bekanntes
+    // Dokument erlaubt Firestore auch dann, wenn die Liste gesperrt ist.
+    async get(coll, id) {
+      return db[coll].find((d) => d.id === id) || null
+    },
     // Einmaliger gefilterter Zugriff (kein Abo) – z. B. Fotos EINES Berichts
     // für den PDF-Druck, ohne die ganze Collection dauerhaft zu abonnieren.
     async listWhere(coll, feld, wert) {
@@ -161,6 +184,59 @@ function lokalerStore() {
     async update(coll, id, patch) {
       db[coll] = db[coll].map((d) => (d.id === id ? { ...d, ...patch } : d))
       speichern()
+    },
+    // Zahlenfelder um einen Betrag VERSCHIEBEN statt zu setzen. Gleiche Signatur
+    // wie im Firebase-Modus; dort ist es serverseitig atomar, hier reicht
+    // Lesen-Rechnen-Schreiben, weil im lokalen Modus nur ein Gerät schreibt.
+    async updateInkrement(coll, id, deltas, felder = {}) {
+      db[coll] = db[coll].map((d) => {
+        if (d.id !== id) return d
+        const neu = { ...d, ...felder }
+        for (const [feld, betrag] of Object.entries(deltas)) {
+          const summe = (Number(d[feld]) || 0) + (Number(betrag) || 0)
+          neu[feld] = Math.round(summe * 1000) / 1000
+        }
+        return neu
+      })
+      speichern()
+    },
+    async meldeLeistungen(zeilen, { istFelder = {}, altbestand = [] } = {}) {
+      const ids = []
+      for (const z of altbestand) {
+        db.leistungen = [...db.leistungen, { ...z, id: z.id || uuid() }]
+      }
+      for (const z of zeilen) {
+        const id = z.id || uuid()
+        ids.push(id)
+        db.leistungen = [...db.leistungen, { ...z, id }]
+        db.lvpositionen = db.lvpositionen.map((p) => {
+          if (p.id !== z.positionId) return p
+          const summe = (Number(p.istMenge) || 0) + (Number(z.menge) || 0)
+          return { ...p, ...istFelder, istMenge: Math.round(summe * 1000) / 1000 }
+        })
+      }
+      speichern()
+      return { ids, bestaetigt: true }
+    },
+    async storniereLeistung(zeile, { von = '' } = {}) {
+      db.leistungen = db.leistungen.map((l) => (l.id === zeile.id
+        ? { ...l, storniert: true, storniertAm: Date.now(), storniertVon: von } : l))
+      db.lvpositionen = db.lvpositionen.map((p) => {
+        if (p.id !== zeile.positionId) return p
+        const summe = (Number(p.istMenge) || 0) - (Number(zeile.menge) || 0)
+        return { ...p, istMenge: Math.round(summe * 1000) / 1000, istAktualisiertAm: Date.now() }
+      })
+      speichern()
+    },
+    // Gegenstueck im lokalen Betrieb. Ein Browser-Vorgang laeuft ohnehin ohne
+    // Unterbrechung durch; die gleiche Schnittstelle haelt beide Betriebsarten
+    // deckungsgleich, damit der Aufrufer nicht unterscheiden muss.
+    async speichereRechnung(rechnung, { lvDeltas = [], berichtIds = [], spesenIds = [] } = {}) {
+      await this.add('rechnungen', rechnung)
+      for (const d of lvDeltas) await this.updateInkrement('lvpositionen', d.id, { abgerechnetMenge: d.menge })
+      for (const bid of berichtIds) await this.update('berichte', bid, { status: 'abgerechnet' })
+      for (const sid of spesenIds) await this.update('spesen', sid, { status: 'erstattet' })
+      return rechnung.id
     },
     async remove(coll, id) {
       db[coll] = db[coll].filter((d) => d.id !== id)
@@ -222,9 +298,27 @@ function lokalerStore() {
     async ladeOeffnungszeiten() {
       return oeffnungszeitenDoc(db.settings.find((r) => r.id === 'oeffnungszeiten'))
     },
-    async resetDemo() {
-      db = { ...erzeugeDemoDaten(), seededAt: new Date().toISOString() }
+    // Gleiche Signatur wie in der Firebase-Variante, damit der Aufrufer
+    // nicht zwischen den Modi unterscheiden muss.
+    async resetDemo({ nurWennLeer = false, mitDemodaten = true } = {}) {
+      const belegt = COLLECTIONS.reduce((s, c) => s + (db[c]?.length || 0), 0)
+      if (nurWennLeer && belegt > 0) {
+        throw new Error(`Die Datenbank ist nicht leer (${belegt} Dokumente). Abgebrochen, es wurde nichts geändert.`)
+      }
+      // mitDemodaten=false: nur leeren. Fuer den Uebergang vom Ausprobieren in
+      // den echten Betrieb – sonst holt man sich die Beispielbaustellen mit
+      // jedem Zuruecksetzen wieder ins Haus.
+      const leer = Object.fromEntries(COLLECTIONS.map((c) => [c, []]))
+      // Wie in der Firebase-Variante: der FastBill-Zugang ueberlebt beides.
+      const zugang = db.integrationen || []
+      db = mitDemodaten
+        ? { ...erzeugeDemoDaten(), integrationen: zugang, seededAt: new Date().toISOString() }
+        : { ...leer, integrationen: zugang, seededAt: new Date().toISOString() }
+      // Formular-Entwürfe gehören zu den alten Daten – sonst bietet die App
+      // nach dem Zurücksetzen Entwürfe zu Projekten an, die es nicht mehr gibt
+      alleEntwuerfeLoeschen()
       speichern()
+      return { geloescht: belegt, geschrieben: COLLECTIONS.reduce((s, c) => s + (db[c]?.length || 0), 0) }
     },
   }
 }
@@ -242,7 +336,7 @@ async function firebaseStore() {
   const {
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
     collection, doc, onSnapshot, getDocs, getDoc,
-    addDoc, setDoc, updateDoc, deleteDoc, writeBatch, query, where, runTransaction,
+    addDoc, setDoc, updateDoc, deleteDoc, writeBatch, query, where, runTransaction, increment,
   } = await import('firebase/firestore')
 
   const app = initializeApp(FIREBASE_CONFIG)
@@ -267,6 +361,10 @@ async function firebaseStore() {
     },
     async list(coll) {
       return mapSnap(await getDocs(collection(dbf, coll)))
+    },
+    async get(coll, id) {
+      const snap = await getDoc(doc(dbf, coll, id))
+      return snap.exists() ? { id: snap.id, ...snap.data() } : null
     },
     // Einmalige where-Query (kein Abo) – spart bei großen Collections wie
     // 'photos' sehr viele Lesevorgänge gegenüber einem Vollabo.
@@ -298,6 +396,106 @@ async function firebaseStore() {
     },
     async update(coll, id, patch) {
       await updateDoc(doc(dbf, coll, id), patch)
+    },
+    // Zahlenfelder VERSCHIEBEN statt setzen – der entscheidende Unterschied bei
+    // gemeldeten Mengen: increment() wird auf dem SERVER angewandt, nicht auf
+    // einem gelesenen Zwischenstand. Melden zwei Monteure gleichzeitig 120 und
+    // 80, steht danach +200 in der Datenbank. Mit Lesen-Rechnen-Schreiben wäre
+    // eine der beiden Meldungen still verschwunden.
+    // Zudem funktioniert increment() OFFLINE: die Änderung wird als Delta in
+    // die Warteschlange gelegt und beim nächsten Netz sauber eingerechnet.
+    // runTransaction kann das nicht – Transaktionen brauchen Verbindung.
+    async updateInkrement(coll, id, deltas, felder = {}) {
+      const patch = { ...felder }
+      for (const [feld, betrag] of Object.entries(deltas)) {
+        patch[feld] = increment(Number(betrag) || 0)
+      }
+      await updateDoc(doc(dbf, coll, id), patch)
+    },
+    // Mehrere Leistungsmeldungen in EINEM atomaren Vorgang: je Meldung eine
+    // Zeile in 'leistungen' UND die passende Fortschreibung von istMenge.
+    //
+    // WARUM ATOMAR: In einer Schleife mit einzelnen Schreibvorgaengen bleibt bei
+    // einem Abbruch nach Position 1 von 3 ein halber Zustand stehen. Der Monteur
+    // sieht nur einen Fehler, drueckt erneut auf Melden - und Position 1 wird ein
+    // ZWEITES Mal gebucht. istMenge und Meldungssumme sind dann beide doppelt,
+    // also konsistent falsch: die Abweichungspruefung findet nichts, fakturiert
+    // wird die doppelte Menge.
+    //
+    // WARUM OHNE await AUF DEN SERVER: commit() loest erst auf, wenn der Server
+    // bestaetigt hat. Im Funkloch - auf der Baustelle der Normalfall - bliebe der
+    // Aufruf haengen, der Knopf drehte endlos, und der Monteur tippt alles neu.
+    // Firestore schreibt aber sofort in den lokalen Zwischenspeicher, die
+    // Oberflaeche aktualisiert sich also augenblicklich, und der Vorgang geht beim
+    // naechsten Netz raus. Deshalb: hoechstens fristMs auf die Bestaetigung
+    // warten, Fehler getrennt melden.
+    // `altbestand`: Zeilen, die NUR ins Protokoll gehoeren, ohne istMenge zu
+    // veraendern. Damit laesst sich eine Position, die bisher nur einen
+    // Gesamtwert hatte, beim ersten Melden nachtraeglich belegen - sonst meldete
+    // die Abweichungspruefung sofort eine Luecke in Hoehe des Altbestands.
+    async meldeLeistungen(zeilen, { istFelder = {}, altbestand = [], fristMs = 2500, onFehler } = {}) {
+      if (!zeilen.length && !altbestand.length) return { ids: [], bestaetigt: false }
+      const batch = writeBatch(dbf)
+      const ids = []
+      for (const z of altbestand) {
+        const { id, ...felder } = z
+        batch.set(id ? doc(dbf, 'leistungen', id) : doc(collection(dbf, 'leistungen')), felder)
+      }
+      for (const z of zeilen) {
+        const { id, ...felder } = z
+        const ref = id ? doc(dbf, 'leistungen', id) : doc(collection(dbf, 'leistungen'))
+        batch.set(ref, felder)
+        batch.update(doc(dbf, 'lvpositionen', z.positionId), {
+          istMenge: increment(Number(z.menge) || 0),
+          ...istFelder,
+        })
+        ids.push(ref.id)
+      }
+      const lauf = batch.commit()
+      lauf.catch((e) => onFehler?.(e))
+      const bestaetigt = await Promise.race([
+        lauf.then(() => true, () => false),
+        new Promise((auf) => setTimeout(() => auf(false), fristMs)),
+      ])
+      return { ids, bestaetigt }
+    },
+    // Gegenstueck: eine Meldung stornieren und den Betrag zurueckrechnen -
+    // ebenfalls in einem Vorgang, damit kein halber Storno stehen bleibt.
+    async storniereLeistung(zeile, { von = '', onFehler } = {}) {
+      const batch = writeBatch(dbf)
+      batch.update(doc(dbf, 'leistungen', zeile.id), {
+        storniert: true, storniertAm: Date.now(), storniertVon: von,
+      })
+      batch.update(doc(dbf, 'lvpositionen', zeile.positionId), {
+        istMenge: increment(-(Number(zeile.menge) || 0)),
+        istAktualisiertAm: Date.now(),
+      })
+      const lauf = batch.commit()
+      lauf.catch((e) => onFehler?.(e))
+      await Promise.race([lauf.catch(() => {}), new Promise((auf) => setTimeout(auf, 2500))])
+    },
+    // Eine Rechnung ANLEGEN und alle Quellen in EINEM Vorgang fortschreiben.
+    //
+    // WARUM ATOMAR - hier haengt Geld dran:
+    // Die alte Schleife schrieb erst die Rechnung, dann Position fuer Position
+    // abgerechnetMenge hoch, dann die Berichte. Brach sie in der Mitte ab, war die
+    // Rechnung da, ein Teil der Positionen hochgezaehlt, der Rest nicht. Ein
+    // zweiter Versuch zaehlte die ersten Positionen ein ZWEITES Mal hoch - sie
+    // galten dann als ueberabgerechnet, der Rest blieb unfakturierbar.
+    // Entweder alles oder nichts.
+    async speichereRechnung(rechnung, { lvDeltas = [], berichtIds = [], spesenIds = [] } = {}) {
+      const batch = writeBatch(dbf)
+      const { id, ...felder } = rechnung
+      batch.set(doc(dbf, 'rechnungen', id), felder)
+      for (const d of lvDeltas) {
+        batch.update(doc(dbf, 'lvpositionen', d.id), {
+          abgerechnetMenge: increment(Number(d.menge) || 0),
+        })
+      }
+      for (const bid of berichtIds) batch.update(doc(dbf, 'berichte', bid), { status: 'abgerechnet' })
+      for (const sid of spesenIds) batch.update(doc(dbf, 'spesen', sid), { status: 'erstattet' })
+      await batch.commit()
+      return id
     },
     async remove(coll, id) {
       await deleteDoc(doc(dbf, coll, id))
@@ -386,22 +584,104 @@ async function firebaseStore() {
     async loescheSlot(idOderZeit) {
       try { await deleteDoc(doc(dbf, 'slots', idOderZeit)) } catch (e) { /* schon weg / keine Rechte */ }
     },
-    async resetDemo() {
-      const demo = erzeugeDemoDaten()
-      const batch = writeBatch(dbf)
-      for (const coll of COLLECTIONS) {
-        const alt = await getDocs(collection(dbf, coll))
-        alt.docs.forEach((d) => batch.delete(d.ref))
+    // Datenbank leeren und die Beispieldaten einspielen.
+    //
+    // Ein writeBatch fasst höchstens 500 Vorgänge. Bei echtem Datenbestand
+    // (Fotos, LV-Positionen, Termine eines Jahres) ist das schnell gesprengt,
+    // und der ganze Vorgang scheitert mit "Transaction too big" – nachdem
+    // vielleicht schon gelöscht wurde. Deshalb in Blöcken von 400 committen.
+    //
+    // Der Aufrufer kann eine Rückmeldung mitgeben, um den Fortschritt anzuzeigen;
+    // `nurWennLeer` bricht ab, sobald irgendwo schon Daten liegen – die
+    // Erstbefüllung einer Produktionsdatenbank darf niemals etwas überschreiben.
+    async resetDemo({ melde = () => {}, nurWennLeer = false, behalteNutzer = null, mitDemodaten = true } = {}) {
+      // mitDemodaten=false: alles loeschen, aber NICHTS neu schreiben (ausser
+      // dem eigenen Konto). Damit laesst sich vom Ausprobieren in den echten
+      // Betrieb wechseln, ohne die Beispielbaustellen erneut einzuschleppen.
+      const demo = mitDemodaten ? erzeugeDemoDaten() : null
+      // 'integrationen' bleibt AUSSEN VOR: dort liegt der FastBill-Zugang.
+      // Ein Zuruecksetzen der Beispieldaten hat den frueher mit leeren Werten
+      // ueberschrieben - nach jedem Demo-Reset war die Anbindung still tot.
+      const ohneZugang = COLLECTIONS.filter((c) => c !== 'integrationen')
+      const sammlungen = [...ohneZugang, 'slots']
+
+      // 1. Bestand aufnehmen.
+      // Fehler NAMENTLICH melden: ein blankes "Missing or insufficient
+      // permissions" sagt nicht, welche Sammlung oder welcher Vorgang gescheitert
+      // ist – und ohne das sucht man in 15 Sammlungen und 40 Regelzeilen.
+      const vorhanden = []
+      for (const coll of sammlungen) {
+        try {
+          const snap = await getDocs(collection(dbf, coll))
+          snap.docs.forEach((d) => vorhanden.push(d.ref))
+        } catch (e) {
+          throw new Error(`Lesen von "${coll}" nicht erlaubt: ${e.message}`)
+        }
       }
-      const altSlots = await getDocs(collection(dbf, 'slots'))
-      altSlots.docs.forEach((d) => batch.delete(d.ref))
-      for (const coll of COLLECTIONS) {
-        demo[coll].forEach((eintrag) => batch.set(doc(dbf, coll, eintrag.id), eintrag))
+      if (nurWennLeer && vorhanden.length > 0) {
+        throw new Error(`Die Datenbank ist nicht leer (${vorhanden.length} Dokumente). Abgebrochen, es wurde nichts geändert.`)
       }
-      demo.appointments
-        .filter((t) => t.status !== 'abgesagt')
-        .forEach((t) => batch.set(doc(dbf, 'slots', t.id), { datum: t.datum, start: t.start, ende: t.ende, status: 'belegt' }))
-      await batch.commit()
+
+      // 2. Zu schreibende Dokumente sammeln.
+      // Das id-Feld wird NICHT mitgeschrieben: die Identität ist die Dokument-ID,
+      // beim Lesen setzt mapSnap sie ohnehin wieder ein. Wichtig ist das für
+      // /requests – dort erlaubt die Regel per hasOnly nur eine feste Feldliste,
+      // und ein zusätzliches id würde die ganze Erstbefüllung scheitern lassen.
+      const neu = []
+      if (demo) {
+        for (const coll of ohneZugang) {
+          for (const { id, ...felder } of demo[coll]) neu.push([doc(dbf, coll, id), felder])
+        }
+        for (const t of demo.appointments.filter((a) => a.status !== 'abgesagt')) {
+          neu.push([doc(dbf, 'slots', t.id), { datum: t.datum, start: t.start, ende: t.ende, status: 'belegt' }])
+        }
+      }
+
+      // Das eigene Konto MUSS den Reset überleben.
+      // Sonst gilt danach: users ist nicht leer (Demo-Mitarbeiter), aber zur
+      // eigenen Auth-UID gibt es kein Dokument -> die Rolle fällt auf
+      // 'mitarbeiter' zurück und wer gerade zurückgesetzt hat, sitzt in der
+      // Monteur-Ansicht fest, ohne Weg zurück in die Verwaltung.
+      if (behalteNutzer?.uid) {
+        neu.push([doc(dbf, 'users', behalteNutzer.uid), {
+          name: behalteNutzer.name || 'Büro',
+          email: behalteNutzer.email || '',
+          rolle: 'admin',
+          team: behalteNutzer.team || 'Büro',
+          farbe: behalteNutzer.farbe || '#8b1a1a',
+          qualifikation: 'facharbeiter',
+          stundensatzIntern: 0,
+          aktiv: true,
+        }])
+      }
+
+      // 3. In Blöcken abarbeiten
+      const BLOCK = 400
+      for (let i = 0; i < vorhanden.length; i += BLOCK) {
+        const teil = vorhanden.slice(i, i + BLOCK)
+        const b = writeBatch(dbf)
+        teil.forEach((ref) => b.delete(ref))
+        try {
+          await b.commit()
+        } catch (e) {
+          throw new Error(`Löschen fehlgeschlagen (${teil.map((r) => r.parent.id).filter((v, j, a) => a.indexOf(v) === j).join(', ')}): ${e.message}`)
+        }
+        melde({ schritt: 'loeschen', fertig: Math.min(i + BLOCK, vorhanden.length), gesamt: vorhanden.length })
+      }
+      // Beim Schreiben einzeln committen wäre zu langsam – aber wenn ein Block
+      // scheitert, sagen wir wenigstens, welche Sammlungen darin lagen.
+      for (let i = 0; i < neu.length; i += BLOCK) {
+        const teil = neu.slice(i, i + BLOCK)
+        const b = writeBatch(dbf)
+        teil.forEach(([ref, daten]) => b.set(ref, daten))
+        try {
+          await b.commit()
+        } catch (e) {
+          throw new Error(`Schreiben fehlgeschlagen (${teil.map(([r]) => r.parent.id).filter((v, j, a) => a.indexOf(v) === j).join(', ')}): ${e.message}`)
+        }
+        melde({ schritt: 'schreiben', fertig: Math.min(i + BLOCK, neu.length), gesamt: neu.length })
+      }
+      return { geloescht: vorhanden.length, geschrieben: neu.length }
     },
   }
 }

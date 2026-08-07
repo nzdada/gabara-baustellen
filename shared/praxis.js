@@ -35,6 +35,7 @@ export const LEISTUNGEN = [
     titel: t('Innenmalerei'),
     text: t('Professionelle Wand- und Deckenanstriche für Wohnungen und Häuser.'),
     details: t('Wände und Decken werden fachgerecht vorbereitet (reinigen, spachteln, grundieren) und in hochwertiger Qualität gestrichen – Dispersion, Latex oder nach Wunsch abgetönt. Sauberes Abkleben und Abdecken ist bei uns selbstverständlich.'),
+    bild: '/bilder/innenmalerei.jpg',
     bilder: [],
   },
   {
@@ -42,6 +43,7 @@ export const LEISTUNGEN = [
     titel: t('Außenarbeiten'),
     text: t('Fassadenanstriche und Schutzbeschichtungen.'),
     details: t('Fassaden reinigen, ausbessern und mit witterungsbeständigen Beschichtungen schützen – für ein gepflegtes Erscheinungsbild und langfristigen Werterhalt Ihrer Immobilie.'),
+    bild: '/bilder/aussenarbeiten.jpg',
     bilder: [],
   },
   {
@@ -49,6 +51,7 @@ export const LEISTUNGEN = [
     titel: t('Lackierarbeiten'),
     text: t('Hochwertige Lackierungen von Türen, Zargen, Fenstern und Holzoberflächen.'),
     details: t('Erst- und Renovierungslackierungen von Türzargen, Türen, Fenstern, Heizkörpern und Holzflächen – sauber geschliffen, grundiert und mit wasserbasierten Acryl-Lacken endlackiert.'),
+    bild: '/bilder/lackierarbeiten.jpg',
     bilder: [],
   },
   {
@@ -56,6 +59,7 @@ export const LEISTUNGEN = [
     titel: t('Privat & Gewerbe'),
     text: t('Flexible Lösungen für alle Projektgrößen – vom Wohnzimmer bis zum Bürokomplex.'),
     details: t('Als zuverlässiger Nachunternehmer übernehmen wir Malerarbeiten auf Baustellen jeder Größe – nach Leistungsverzeichnis, VOB-konform und termintreu. Privatkunden betreuen wir vom Angebot bis zur besenreinen Übergabe.'),
+    bild: '/bilder/privat-gewerbe.jpg',
     bilder: [],
   },
 ]

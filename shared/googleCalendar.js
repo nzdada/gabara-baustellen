@@ -1,9 +1,13 @@
 // Google-Kalender-Anbindung (Hauptsystem für Termine im Produktivbetrieb).
 //
-// Datenschutz-Prinzip: In den Google-Kalender schreiben wir NUR
-// Behandlungsart + Patienten-Kürzel (z. B. "PZR – A. B.") — die vollen
-// Patientendaten bleiben in der geschützten Datenbank. Die Verknüpfung
-// läuft über extendedProperties.private.patientId.
+// Datenschutz-Prinzip: In den Google-Kalender schreiben wir NUR die Art des
+// Einsatzes + ein Kunden-Kürzel (z. B. "Umsetzung – M. R.") — die vollen
+// Kundendaten bleiben in der geschützten Datenbank. Die Verknüpfung läuft
+// über extendedProperties.private.patientId.
+//
+// Die Feldnamen patientId/patientEmail bleiben bewusst stehen: sie hängen an
+// bereits angelegten Google-Events. Ein Umbenennen würde die Verknüpfung zu
+// allen bestehenden Terminen kappen.
 //
 // Ohne konfigurierte OAuth-Client-ID (shared/firebase-config.js) läuft der
 // Kalender im Demo-Modus: Termine liegen nur in der eigenen Datenbank.
@@ -66,20 +70,20 @@ async function api(pfad, options = {}) {
   return res.status === 204 ? null : res.json()
 }
 
-function patientenKuerzel(name) {
+function kundenKuerzel(name) {
   const teile = (name || '').trim().split(/\s+/)
-  if (teile.length < 2) return teile[0] || 'Patient'
+  if (teile.length < 2) return teile[0] || 'Kunde'
   return `${teile[0][0]}. ${teile[teile.length - 1][0]}.`
 }
 
-// Legt ein Kalender-Event an — bewusst OHNE volle Patientendaten im Titel.
-// patientEmail landet in den (unsichtbaren) shared-Properties, damit das
-// Erinnerungs-Skript (seed/erinnerung.gs) sie per getTag() lesen kann.
+// Legt ein Kalender-Event an — bewusst OHNE volle Kundendaten im Titel.
+// patientEmail landet in den (unsichtbaren) shared-Properties, damit ein
+// späteres Erinnerungs-Skript sie per getTag() lesen kann.
 export async function eventAnlegen(termin, patientEmail = '') {
   if (!kalenderVerbunden()) return null
   const event = {
-    summary: `${termin.behandlung} – ${patientenKuerzel(termin.patientName)}`,
-    description: 'Details in der Praxis-Verwaltung (geschützt).',
+    summary: `${termin.titel || termin.behandlung} – ${kundenKuerzel(termin.patientName)}`,
+    description: 'Details in der Gabara-Verwaltung (geschützt).',
     start: { dateTime: `${termin.datum}T${termin.start}:00`, timeZone: 'Europe/Berlin' },
     end: { dateTime: `${termin.datum}T${termin.ende}:00`, timeZone: 'Europe/Berlin' },
     extendedProperties: {

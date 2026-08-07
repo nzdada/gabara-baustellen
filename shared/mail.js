@@ -1,4 +1,7 @@
-// Patienten-Mails über den kostenlosen Apps-Script-Mail-Dienst (seed/erinnerung.gs).
+// Kunden-Mails über einen kostenlosen Apps-Script-Mail-Dienst.
+// ACHTUNG: Das Gegenstück-Skript liegt noch NICHT im Repo und MAIL_DIENST.url ist
+// leer -> es wird derzeit nichts versendet (mailKonfiguriert() = false).
+// Rechnungen verschickt ohnehin FastBill; dieser Weg ist nur für sonstige Mails.
 // Der Aufruf läuft mit mode:'no-cors' – die Antwort ist nicht lesbar, der Versand
 // funktioniert trotzdem; Fehler werfen nur bei Netzwerkproblemen.
 
@@ -10,7 +13,8 @@ export function mailKonfiguriert() {
 
 // typ: 'bestaetigung' | 'absage'
 // daten: { email, name, datum (dd.mm.yyyy), start, behandlung }
-export async function sendePatientenMail(typ, daten) {
+// Feldname 'behandlung' bleibt: er ist Teil des Datenformats (siehe Termin-Objekt).
+export async function sendeKundenMail(typ, daten) {
   if (!mailKonfiguriert() || !daten.email) return false
   try {
     await fetch(MAIL_DIENST.url, {

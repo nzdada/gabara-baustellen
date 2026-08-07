@@ -17,6 +17,11 @@
         {
           "source": "/assets/**",
           "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+        },
+        {
+          "//": "index.html NIE zwischenspeichern: der Dateiname bleibt gleich, nur der Inhalt zeigt auf die neuen Asset-Namen. Ohne das sehen Besucher nach einem Update bis zu einer Stunde die alte Fassung.",
+          "source": "/index.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
         }
       ]
     },
@@ -24,7 +29,21 @@
       "target": "admin",
       "public": "admin/dist",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-      "rewrites": [{ "source": "**", "destination": "/index.html" }]
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "headers": [
+        {
+          "source": "/assets/**",
+          "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+        },
+        {
+          "//": "Verwaltung: nie zwischenspeichern und nicht in Suchmaschinen. Der Zugriff ist ohnehin durch Anmeldung und Firestore-Regeln geschützt, aber sie gehört nicht in Google.",
+          "source": "**",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+            { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+          ]
+        }
+      ]
     }
   ]
 }

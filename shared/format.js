@@ -43,3 +43,26 @@ export function summe(leistungen) {
 export function euro(betrag) {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(betrag || 0)
 }
+
+// Deutsche Zahleneingabe lesen: "16,4", "1.150,50", "8.009", "12 €".
+//
+// WARUM DAS HIER STEHT UND NICHT ZWEIMAL
+// Diese Regel lag bisher nur in admin/src/csv.js. Die Fahrten in shared/ kamen
+// nicht daran und benutzten Number() – und Number("16,4") ist NaN, was still
+// zu 0 wurde: Der Monteur tippte 16,4 km, angezeigt wurden "0 km · Kilometer
+// fehlen". Zwei Parser laufen irgendwann auseinander, deshalb gibt es ab jetzt
+// genau einen; csv.js reicht ihn nur noch weiter.
+export function parseZahl(wert) {
+  if (typeof wert === 'number') return Number.isFinite(wert) ? wert : 0
+  let w = String(wert ?? '').trim().replace(/[€\s]/g, '')
+  if (!w) return 0
+  if (w.includes(',')) {
+    // Komma ist das Dezimaltrennzeichen, Punkte sind Tausender
+    w = w.replace(/\./g, '').replace(',', '.')
+  } else if (/\.\d{3}(\D|$)/.test(w)) {
+    // 8.009 ohne Komma = Tausenderpunkt, nicht 8,009
+    w = w.replace(/\./g, '')
+  }
+  const n = Number(w)
+  return Number.isFinite(n) ? n : 0
+}

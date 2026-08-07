@@ -10,11 +10,17 @@
 // Rate-Limit (Solo-Tarif): 50 Calls/Stunde -> Sync NUR auf Knopfdruck.
 
 import { getStore } from './store.js'
+import { euro } from './format.js'
 
+// Der FastBill-Zugang liegt BEWUSST in einer eigenen Sammlung, nicht in
+// settings. Grund: settings wird von der ganzen Verwaltung als komplette Liste
+// gelesen (useCollection). Firestore erlaubt so eine Sammlungs-Abfrage nur,
+// wenn JEDES Dokument darin lesbar ist – ein Dokument mit dem API-Key hätte
+// also entweder die ganze Liste blockiert oder den Key für jeden Monteur
+// geöffnet. Getrennte Sammlung = getrennte Regel.
 async function zugang() {
   const store = await getStore()
-  const settings = await store.list('settings')
-  const integ = settings.find((s) => s.id === 'integrationen') || {}
+  const integ = (await store.get('integrationen', 'fastbill')) || {}
   // .env.local-Fallback NUR im Dev-Modus: Vite kompiliert VITE_-Variablen als
   // Klartext ins Bundle – im Produktions-Build darf der API-Key deshalb NICHT
   // aus der Env kommen (dort: Einstellungen -> FastBill, liegt in Firestore).
@@ -28,17 +34,39 @@ async function zugang() {
   // einen eigenen Pfad). Alles andere (z. B. versehentlich eingetragene Hinweise
   // wie "admin/.env.local") wird ignoriert -> eingebauter Dev-Proxy greift.
   const roh = (integ.proxyUrl || '').trim()
-  const proxyUrl = /^(https?:\/\/|\/)/i.test(roh) ? roh : '/fastbill-api/api.php'
+  const eigenerProxy = /^(https?:\/\/|\/)/i.test(roh)
+  // Der Pfad /fastbill-api existiert NUR im Entwicklungsbetrieb (Vite-Proxy in
+  // admin/vite.config.js). In der ausgelieferten App gibt es ihn nicht – dort
+  // fängt die SPA-Umleitung den Aufruf ab und liefert die index.html zurück:
+  // HTTP 200, aber HTML statt JSON. Das sah bisher aus wie ein FastBill-Fehler.
+  const proxyUrl = eigenerProxy ? roh : '/fastbill-api/api.php'
   return {
     email: integ.fastbillEmail || envEmail,
     key: integ.fastbillApiKey || envKey,
     proxyUrl,
+    // true = wir laufen ausgeliefert, aber ohne eingetragene Proxy-Adresse
+    proxyFehlt: !import.meta.env.DEV && !eigenerProxy,
   }
 }
 
 export async function fastbillKonfiguriert() {
   const z = await zugang()
   return Boolean(z.email && z.key)
+}
+
+// Basic-Auth-Kodierung, die auch Umlaute vertraegt.
+function base64(text) {
+  const bytes = new TextEncoder().encode(text)
+  let roh = ''
+  for (const b of bytes) roh += String.fromCharCode(b)
+  return btoa(roh)
+}
+
+// Adresse fuer Anzeige und Protokoll entschaerfen: alles ab dem ersten '?'
+// faellt weg. Sonst stuende das Proxy-Secret im Klartext in der Fehlermeldung
+// UND dauerhaft in der Firestore-Sammlung 'apilog'.
+function ohneGeheimnis(adresse) {
+  return String(adresse || '').split('?')[0]
 }
 
 async function logEintrag(service, status, bezugId = '', fehlerText = '') {
@@ -53,7 +81,14 @@ async function logEintrag(service, status, bezugId = '', fehlerText = '') {
 // Basis-Aufruf. Wirft bei Fehlern; liefert das RESPONSE-Objekt von FastBill.
 // Ohne Zugang: { simuliert: true } (und apilog-Eintrag 'simuliert').
 export async function fastbillCall(service, { data, filter, limit, bezugId } = {}) {
-  const { email, key, proxyUrl } = await zugang()
+  const { email, key, proxyUrl, proxyFehlt } = await zugang()
+  if (proxyFehlt) {
+    const text = 'Keine Proxy-Adresse hinterlegt. Im Online-Betrieb kann der Browser FastBill '
+      + 'nicht direkt erreichen (CORS). Bitte den Weiterleitungs-Dienst einrichten '
+      + '(seed/gabara-fastbill-proxy.gs) und seine Adresse unter Einstellungen → FastBill eintragen.'
+    await logEintrag(service, 'fehler', bezugId, text)
+    throw new Error(text)
+  }
   if (!email || !key) {
     await logEintrag(service, 'simuliert', bezugId)
     return { simuliert: true }
@@ -62,33 +97,72 @@ export async function fastbillCall(service, { data, filter, limit, bezugId } = {
   if (filter) body.FILTER = filter
   if (limit) body.LIMIT = limit
   if (data) body.DATA = data
-  const auth = btoa(`${email}:${key}`)
-  // GAS-Web-Apps (V2-Proxy) reichen KEINE Authorization-Header durch ->
-  // bei externer Proxy-URL geht der Zugang als ?auth=-Parameter mit
-  // (seed/gabara-fastbill-proxy.gs setzt daraus den Basic-Header).
+  // btoa() kennt nur Latin-1 und wirft bei allem darueber (z. B. ein Umlaut in
+  // der Konto-Mail). Vorher nach UTF-8 wandeln – sonst bricht der Aufruf mit
+  // einem InvalidCharacterError ab, der nichts mit FastBill zu tun zu haben scheint.
+  const auth = base64(`${email}:${key}`)
+  // GAS-Web-Apps (V2-Proxy) reichen KEINE Authorization-Header durch. Zugang und
+  // Secret gehen deshalb im BODY mit – NICHT in der URL: URLs stehen im
+  // Browser-Verlauf, in Referrern und in den Server-Logs von Google, und der
+  // FastBill-API-Key hat dort nichts verloren. Das ?secret= aus der eingetragenen
+  // Proxy-URL wird herausgeschnitten und ebenfalls in den Body gelegt.
+  // Gegenstück: seed/gabara-fastbill-proxy.gs
   const istExternerProxy = /^https?:/i.test(proxyUrl)
-  const url = istExternerProxy
-    ? `${proxyUrl}${proxyUrl.includes('?') ? '&' : '?'}auth=${encodeURIComponent(auth)}`
-    : proxyUrl
+  let url = proxyUrl
+  let nutzlast = body
+  if (istExternerProxy) {
+    let secret = ''
+    try {
+      const u = new URL(proxyUrl)
+      // BEWUSST nicht searchParams.get(): das dekodiert nach x-www-form-urlencoded
+      // und macht aus einem '+' im Secret ein Leerzeichen. Ein Zufalls-Secret mit
+      // '+' (Base64 enthält das regelmäßig) käme so dauerhaft falsch beim Proxy an,
+      // mit der irreführenden Meldung "falsches Secret". Deshalb roh auslesen und
+      // nur die Prozent-Kodierung auflösen.
+      const roheSuche = u.search.replace(/^\?/, '')
+      for (const teil of roheSuche.split('&')) {
+        const [k, ...rest] = teil.split('=')
+        if (k === 'secret') {
+          try { secret = decodeURIComponent(rest.join('=')) } catch (e) { secret = rest.join('=') }
+        }
+      }
+      u.searchParams.delete('secret')
+      u.searchParams.delete('auth')
+      url = u.toString()
+    } catch (e) { /* unparsbare URL: unverändert lassen, Proxy meldet den Fehler */ }
+    nutzlast = { secret, auth, payload: body }
+  }
   let res
   try {
     res = await fetch(url, {
       method: 'POST',
+      // text/plain vermeidet den CORS-Preflight – GAS beantwortet kein OPTIONS
       headers: istExternerProxy
         ? { 'Content-Type': 'text/plain;charset=utf-8' }
         : { 'Content-Type': 'application/json', Authorization: `Basic ${auth}` },
-      body: JSON.stringify(body),
+      body: JSON.stringify(nutzlast),
     })
   } catch (e) {
     await logEintrag(service, 'fehler', bezugId, `Netzwerk: ${e.message}`)
     throw new Error('FastBill nicht erreichbar (Netzwerk/Proxy prüfen).')
   }
   let json = null
-  try { json = await res.json() } catch (e) { /* unten behandelt */ }
+  let keinJson = false
+  try {
+    json = await res.json()
+  } catch (e) {
+    // Antwort war kein JSON – fast immer die zurückgelieferte index.html,
+    // weil die Adresse gar nicht beim Proxy gelandet ist.
+    keinJson = true
+  }
   const antwort = json?.RESPONSE
   const fehler = antwort?.ERRORS
   if (!res.ok || !antwort || fehler) {
-    const text = fehler ? [].concat(fehler).join('; ') : `HTTP ${res.status}`
+    const text = fehler
+      ? [].concat(fehler).join('; ')
+      : keinJson
+        ? `Die Adresse ${ohneGeheimnis(url)} hat keine FastBill-Antwort geliefert (HTTP ${res.status}, kein JSON). Proxy-Adresse unter Einstellungen → FastBill prüfen.`
+        : `Unerwartete Antwort von FastBill (HTTP ${res.status}).`
     await logEintrag(service, 'fehler', bezugId, text)
     throw new Error(`FastBill ${service}: ${text}`)
   }
@@ -244,12 +318,35 @@ export async function ladeArtikelVonFastbill() {
 
 // Rechnung als ENTWURF in FastBill anlegen. rechnung = unser Spiegel-Doc
 // (positionen[{text, menge, einheit, ep}], leistungszeitraum, kunde).
+// Sicherheitseinbehalt als TEXT auf die Rechnung, nicht als Abzug.
+//
+// WARUM NICHT ALS MINUS-POSITION: Der Einbehalt nach § 17 VOB/B mindert nicht die
+// Leistung, sondern schiebt einen Teil der ZAHLUNG auf. Die Umsatzsteuer bleibt
+// auf den vollen Betrag geschuldet. Eine negative Position wuerde Netto und
+// Umsatzsteuer kuerzen - das waere ein Steuerfehler. Die Rechnung lautet also
+// weiter ueber den vollen Betrag, der Einbehalt steht als Zahlungsvereinbarung
+// darunter. Vorher fehlte er in FastBill vollstaendig: der Assistent zeigte
+// "Zahlbetrag 9.000 EUR", beim Kunden kam eine Rechnung ueber 10.000 EUR an.
+const NL = String.fromCharCode(10)
+
+export function einbehaltText(rechnung) {
+  const proz = Number(rechnung?.einbehaltProzent) || 0
+  const betrag = Number(rechnung?.einbehaltBetrag) || 0
+  if (proz <= 0 || betrag <= 0) return ''
+  return [
+    `Sicherheitseinbehalt ${proz.toLocaleString('de-DE')} %: ${euro(betrag)}`,
+    `Zahlbetrag nach Abzug des Einbehalts: ${euro(Number(rechnung.zahlbetrag) || 0)}`,
+    'Der Einbehalt wird nach mangelfreier Abnahme bzw. nach Ablauf der Gewaehrleistungsfrist zur Zahlung faellig.',
+  ].join(NL)
+}
+
 export async function erstelleFastbillRechnung(rechnung, kunde, introText) {
   const vatProzent = kunde.ustModus === '13b' ? 0 : 19
+  const einbehalt = einbehaltText(rechnung)
   const daten = {
     CUSTOMER_ID: kunde.fastbillCustomerId,
     INVOICE_TITLE: rechnung.titel || '',
-    INTROTEXT: introText || '',
+    INTROTEXT: [introText || '', einbehalt].filter(Boolean).join(NL + NL),
     SERVICE_PERIOD_START: rechnung.leistungszeitraum?.von || '',
     SERVICE_PERIOD_END: rechnung.leistungszeitraum?.bis || '',
     ITEMS: (rechnung.positionen || []).map((p) => ({
