@@ -5,7 +5,7 @@
 // behandlung/status/arzt/...) + neue Felder (projektId, kategorie, mitarbeiterIds, ...).
 
 import { EINSTELLUNGEN_DEFAULTS } from './einstellungen.js'
-import { neueAufgabenFuerRaum, buchungsId } from './aufgaben.js'
+import { neueAufgabenFuerRaum, buchungsId, istQuadratmeter } from './aufgaben.js'
 
 const TEST_EMAIL = 'info@gabara-demo.de'
 
@@ -588,6 +588,41 @@ export function erzeugeDemoDaten() {
     storniert: false,
   }]
 
+  // --- V2 (AP 7): Kennzahlen der Demo-Baustelle + Geräte-Lebenszeichen. Im
+  // echten Betrieb schreiben die Meldungs-Batches diese Zähler fort; die Demo
+  // rechnet sie EINMAL aus dem angelegten Stand aus, damit der Leitstand
+  // (Band BAUSTELLEN) sofort echte Zahlen zeigt statt Nullen.
+  const fertigeAufgaben = aufgaben.filter((a) => a.status === 'fertig')
+  const summeM2 = (liste) => Math.round(liste.reduce((s, a) => s + (istQuadratmeter(a.einheit) ? a.menge : 0), 0) * 1000) / 1000
+  const raumKomplett = (rid) => aufgaben.filter((a) => a.raumId === rid).every((a) => a.status === 'fertig')
+  const kennzahlen = [{
+    id: 'p-iga',
+    aufgabenGesamt: aufgaben.length,
+    aufgabenFertig: fertigeAufgaben.length,
+    aufgabenLaeuft: aufgaben.filter((a) => a.status === 'laeuft').length,
+    aufgabenWartet: aufgaben.filter((a) => a.status === 'wartet').length,
+    aufgabenZurueck: 0,
+    wertGesamtCent: aufgaben.reduce((s, a) => s + (a.wertCent || 0), 0),
+    wertFertigCent: fertigeAufgaben.reduce((s, a) => s + (a.wertCent || 0), 0),
+    m2Gesamt: summeM2(aufgaben),
+    m2Fertig: summeM2(fertigeAufgaben),
+    raeumeGesamt: raeume.length,
+    raeumeFertig: raeume.filter((r) => raumKomplett(r.id)).length,
+    raeumeOhneVorher: raeume.filter((r) => !(r.fotoStand?.auftragVorher > 0)).length,
+    raeumeOhneNachher: raeume.filter((r) => !(r.fotoStand?.auftragNachher > 0)).length,
+    abgerechnetCent: 0,
+    letzteMeldungAm: heuteUm(10, 12),
+  }]
+  // Ein Handy mit Rückstand: seit gut 2 Tagen kein Lebenszeichen, Fotos
+  // hängen in der Warteschlange – die Zeile im Band WAS HAKT lebt davon.
+  const geraete = [{
+    id: AHMAD,
+    letzterKontaktAm: jetzt - 2 * 86400000 - 3 * 3600000,
+    wartendeFotos: 3,
+    aeltestesFotoAm: jetzt - 2 * 86400000 - 5 * 3600000,
+    appVersion: 'demo',
+  }]
+
   return {
     users, patients, projekte, lvpositionen, appointments, berichte, photos, spesen, leistungen,
     katalog, bausteine, requests, settings,
@@ -613,7 +648,11 @@ export function erzeugeDemoDaten() {
     stunden: [],
     einbehalte: [],
     abwesenheiten: [],
-    geraete: [],
+    geraete,
+    // KEINE Top-Level-Sammlung: im Firebase-Modus liegt das als Unterdokument
+    // projekte/{id}/kennzahlen/live und wird von resetDemo NICHT geschrieben –
+    // der lokale Modus liest diesen Startstand direkt.
+    kennzahlen,
     pruefspur: [],
     tagesstand: [],
     rechnungslaeufe: [],

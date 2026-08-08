@@ -25,6 +25,8 @@ import { istOffen } from './projektstatus.js'
 import { fortschrittRaum } from './raumflaeche.js'
 import { fortschrittAufgaben } from './raumaufgaben.js'
 import { heuteISO } from './slots.js'
+import { mengenAbweichung, zahlText } from './aufmass.js'
+import { parseZahl } from './format.js'
 
 // Dringlichkeit: kleiner = weiter oben
 export const DRINGEND = 0     // kostet Geld oder blockiert andere
@@ -223,6 +225,154 @@ export function schritteBuero({
       detail: null,
       ziel: '/berichte',
       knopf: { de: 'Ansehen', ar: 'عرض' },
+    })
+  }
+
+  return raus.sort((a, b) => a.stufe - b.stufe)
+}
+
+// ---------------------------------------------------------------- Leitstand (AP 7)
+//
+// Das Band WAS HAKT der Leitstand-Übersicht (Plan 3.2): höchstens 7 Zeilen,
+// sonst ein grüner Balken. Diese Regeln lesen NUR, was der Leitstand ohnehin
+// geladen hat – Teams, die Einsätze des Tages, Regieanordnungen, LV-Positionen,
+// Geräte-Lebenszeichen und die Kennzahlen-Unterdokumente. KEIN Aufgaben-Vollabo.
+//
+// `kennzahlen` ist die Liste der projekte/{id}/kennzahlen/live-Dokumente
+// (id = projektId); `teams` kommt aus teamsAus() (shared/teams.js).
+
+// Stundenzettel nach § 15 Abs. 3 VOB/B: ab so vielen Tagen ohne Vorlage wird
+// die Zeile DRINGEND – jeder weitere Tag verschiebt die Anerkennungsuhr.
+export const STUNDENZETTEL_FRIST_TAGE = 3
+
+export function schritteLeitstand({
+  teams = [], einsaetzeHeute = [], regieanordnungen = [], lvpositionen = [],
+  projekte = [], geraete = [], kennzahlen = [], users = [], jetzt = Date.now(),
+} = {}) {
+  const raus = []
+  const projektVon = (id) => projekte.find((p) => p.id === id)
+  const tageSeitMs = (ms) => (ms ? Math.floor((jetzt - ms) / 86400000) : 0)
+
+  // 1. Kolonne ohne Einsatz heute – Leute stehen ohne Baustelle da.
+  const abgedeckt = (team) => einsaetzeHeute.some((e) => e.status !== 'abgesagt'
+    && (e.teamId === team.name || e.teamName === team.name
+      || (e.mitarbeiterIds || []).some((id) => team.mitglieder.some((m) => m.id === id))))
+  for (const team of teams) {
+    if (abgedeckt(team)) continue
+    raus.push({
+      id: `kolonne-frei-${team.name}`,
+      stufe: DRINGEND,
+      icon: 'team',
+      text: { de: `${team.name} hat heute keinen Einsatz`, ar: `${team.name} بدون مهمة اليوم` },
+      detail: { de: `${team.mitglieder.length} Mann ohne Baustelle.`, ar: `${team.mitglieder.length} عامل بدون ورشة.` },
+      ziel: '/uebersicht#wochentafel',
+      knopf: { de: 'Wochentafel', ar: 'جدول الأسبوع' },
+    })
+  }
+
+  // 2. Regie ausgeführt, Stundenzettel nicht vorgelegt – § 15 Abs. 3 VOB/B.
+  //    Ohne Vorlage läuft KEINE Anerkennungsfrist; jeder Tag kostet.
+  const offeneVorlagen = regieanordnungen
+    .filter((a) => a.status === 'ausgefuehrt' && !a.vorgelegtAm)
+    .map((a) => ({ a, tage: tageSeitMs(a.ausgefuehrtAm || a.angeordnetAm) }))
+    .sort((x, y) => y.tage - x.tage)
+  for (const { a, tage } of offeneVorlagen.slice(0, 2)) {
+    const p = projektVon(a.projektId)
+    raus.push({
+      id: `regie-vorlage-${a.id}`,
+      stufe: tage >= STUNDENZETTEL_FRIST_TAGE ? DRINGEND : OFFEN,
+      icon: 'regie',
+      text: {
+        de: `Regie „${a.titel || '?'}“${p ? ` (${p.name})` : ''}: Stundenzettel seit ${tage} Tag(en) nicht vorgelegt`,
+        ar: `عمل إضافي «${a.titel || '?'}»${p ? ` (${p.name})` : ''}: كشف الساعات لم يُقدَّم منذ ${tage} يوم`,
+      },
+      detail: { de: '§ 15 Abs. 3 VOB/B – erst die Vorlage startet die Anerkennungsfrist.',
+                ar: '§ 15 Abs. 3 VOB/B – لا تبدأ مهلة الاعتراف إلا بالتقديم.' },
+      ziel: '/berichte',
+      knopf: { de: 'Jetzt vorlegen', ar: 'قدّم الآن' },
+    })
+  }
+
+  // 3. Mengen-Abweichung über 10 % (§ 2 Abs. 3 VOB/B) – nur MEHRmengen:
+  //    weniger Ist als Soll ist mitten in der Arbeit der Normalfall.
+  const offeneIds = new Set(projekte.filter((p) => istOffen(p.status)).map((p) => p.id))
+  const abweichungen = lvpositionen
+    .filter((pos) => pos.typ === 'position' && offeneIds.has(pos.projektId) && parseZahl(pos.menge) > 0)
+    .map((pos) => ({ pos, ab: mengenAbweichung(parseZahl(pos.menge), parseZahl(pos.istMenge)) }))
+    .filter(({ ab }) => ab.ueberSchwelle && ab.richtung === 'mehr')
+    .sort((x, y) => y.ab.prozent - x.ab.prozent)
+  for (const { pos, ab } of abweichungen.slice(0, 2)) {
+    const p = projektVon(pos.projektId)
+    raus.push({
+      id: `abweichung-${pos.id}`,
+      stufe: DRINGEND,
+      icon: 'lv',
+      text: {
+        de: `${p?.name || '?'} Pos. ${pos.oz || '?'}: Ist ${zahlText(parseZahl(pos.istMenge))} zu Soll ${zahlText(parseZahl(pos.menge))} ${pos.einheit || ''} = +${zahlText(ab.prozent)} %`,
+        ar: `${p?.name || '?'} بند ${pos.oz || '?'}: المنفَّذ ${zahlText(parseZahl(pos.istMenge))} مقابل ${zahlText(parseZahl(pos.menge))} ${pos.einheit || ''} = ‎+${zahlText(ab.prozent)} %`,
+      },
+      detail: { de: '§ 2 Abs. 3 VOB/B: neuen Einheitspreis verlangen – Herleitung beilegen.',
+                ar: '§ 2 Abs. 3 VOB/B: يمكن المطالبة بسعر وحدة جديد – أرفق الحساب.' },
+      ziel: `/projekte/${pos.projektId}?bereich=lv`,
+      knopf: { de: 'Nachtrag', ar: 'ملحق' },
+    })
+  }
+
+  // 4. Aufgaben ohne LV-Position – zusätzliche Leistung: Nachtrag VOR der
+  //    Ausführung ankündigen (§ 2 Abs. 6 VOB/B), sonst ist das Geld weg.
+  for (const k of kennzahlen) {
+    const n = Math.round(parseZahl(k?.aufgabenOhnePosition))
+    if (n <= 0) continue
+    const p = projektVon(k.id)
+    raus.push({
+      id: `ohne-position-${k.id}`,
+      stufe: DRINGEND,
+      icon: 'alert',
+      text: { de: `${p?.name || k.id}: ${n} Aufgabe(n) ohne LV-Position`, ar: `${p?.name || k.id}: ${n} مهمة بدون بند في جدول الكميات` },
+      detail: { de: '§ 2 Abs. 6 VOB/B: Nachtrag VOR der Ausführung ankündigen.',
+                ar: '§ 2 Abs. 6 VOB/B: أعلن عن الملحق قبل التنفيذ.' },
+      ziel: `/projekte/${k.id}?bereich=lv`,
+      knopf: { de: 'Ankündigung', ar: 'إعلان' },
+    })
+  }
+
+  // 5. Räume ohne Vorher-Foto – ohne Vorher-Bild ist der Nachher-Beweis
+  //    bei der Abnahme nichts wert.
+  for (const k of kennzahlen) {
+    const n = Math.round(parseZahl(k?.raeumeOhneVorher))
+    if (n <= 0) continue
+    const p = projektVon(k.id)
+    raus.push({
+      id: `ohne-vorher-${k.id}`,
+      stufe: OFFEN,
+      icon: 'foto',
+      text: { de: `${p?.name || k.id}: ${n} Raum/Räume ohne Vorher-Foto`, ar: `${p?.name || k.id}: ${n} غرفة بدون صورة «قبل»` },
+      detail: { de: 'Ohne Vorher-Bild taugt das Nachher-Bild bei der Abnahme nicht als Beweis.',
+                ar: 'بدون صورة «قبل» لا تصلح صورة «بعد» دليلًا عند الاستلام.' },
+      ziel: `/fotoampel?projekt=${k.id}`,
+      knopf: { de: 'Fotoampel', ar: 'إشارة الصور' },
+    })
+  }
+
+  // 6. Geräte-Rückstand: Handy seit Tagen ohne Lebenszeichen, Fotos hängen
+  //    in der Warteschlange – die Beweise liegen nur auf dem Gerät.
+  for (const g of geraete) {
+    const wartend = Math.round(parseZahl(g?.wartendeFotos))
+    const tage = tageSeitMs(g?.letzterKontaktAm)
+    if (wartend <= 0 || tage < 2) continue
+    const wer = users.find((u) => u.id === g.id)
+    raus.push({
+      id: `geraet-${g.id}`,
+      stufe: OFFEN,
+      icon: 'tablet',
+      text: {
+        de: `${wer?.name || g.id}: Handy seit ${tage} Tagen ohne Lebenszeichen`,
+        ar: `${wer?.name || g.id}: الهاتف بلا إشارة حياة منذ ${tage} يوم`,
+      },
+      detail: { de: `${wartend} Foto(s) in der Warteschlange – sie liegen nur auf dem Gerät.`,
+                ar: `${wartend} صورة في قائمة الانتظار – محفوظة على الجهاز فقط.` },
+      ziel: '/einstellungen',
+      knopf: { de: 'Geräte', ar: 'الأجهزة' },
     })
   }
 

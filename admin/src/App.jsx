@@ -14,6 +14,8 @@ import Kalender from './pages/Kalender.jsx'
 import Termine from './pages/Termine.jsx'
 import Kunden from './pages/Kunden.jsx'
 import Berichte from './pages/Berichte.jsx'
+import Freigabe from './pages/Freigabe.jsx'
+import Fotoampel from './pages/Fotoampel.jsx'
 import Anfragen from './pages/Anfragen.jsx'
 import Import from './pages/Import.jsx'
 import Einstellungen from './pages/Einstellungen.jsx'
@@ -30,6 +32,8 @@ const NAV = [
   { to: '/projekte', schluessel: 'nav.projekte', icon: 'folder' },
   { to: '/termine', schluessel: 'nav.termine', icon: 'list' },
   { to: '/berichte', schluessel: 'nav.berichte', icon: 'bericht' },
+  { to: '/freigabe', schluessel: 'nav.freigabe', icon: 'check' },
+  { to: '/fotoampel', schluessel: 'nav.fotoampel', icon: 'foto' },
   { to: '/kunden', schluessel: 'nav.kunden', icon: 'firma' },
   { to: '/abrechnung', schluessel: 'nav.abrechnung', icon: 'euro' },
   { to: '/uebersicht', schluessel: 'nav.uebersicht', icon: 'home' },
@@ -322,6 +326,8 @@ export default function App() {
         <Route path="/termine" element={<Termine user={user} />} />
         <Route path="/kunden" element={<Kunden />} />
         <Route path="/berichte" element={<Berichte user={user} />} />
+        <Route path="/freigabe" element={<Freigabe user={user} />} />
+        <Route path="/fotoampel" element={<Fotoampel />} />
         <Route path="/anfragen" element={<Anfragen user={user} />} />
         <Route path="/abrechnung" element={<Abrechnung />} />
         <Route path="/dashboard" element={<Dashboard />} />

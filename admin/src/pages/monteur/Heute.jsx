@@ -57,9 +57,11 @@ function TagZeile({ zeile, gewaehlt, aufZeile, aufLang, aufStart }) {
     if (halter.current.lang) { halter.current.lang = false; return }
     aufZeile(zeile)
   }
-  const waehlbar = zeile.zeichen === 'offen' || zeile.zeichen === 'laeuft'
+  // 'zurueck' ist WÄHLBAR: nachbessern, erneut melden – die Zurückweisung hat
+  // die Buchung gelöscht, die feste Kennung steht also wieder frei (AP 7).
+  const waehlbar = zeile.zeichen === 'offen' || zeile.zeichen === 'laeuft' || zeile.zeichen === 'zurueck'
   return (
-    <div className="flex items-stretch border-b border-slate-100 last:border-b-0">
+    <div className={`flex items-stretch border-b border-slate-100 last:border-b-0 ${zeile.zeichen === 'zurueck' ? 'bg-red-50' : ''}`}>
       <button
         onClick={klick}
         onPointerDown={start}
@@ -69,7 +71,7 @@ function TagZeile({ zeile, gewaehlt, aufZeile, aufLang, aufStart }) {
         onContextMenu={(e) => e.preventDefault()}
         className={`flex-1 min-h-16 flex items-center gap-3 px-3 text-start select-none active:bg-slate-50 ${zeile.zeichen === 'fertig' ? 'opacity-70' : ''}`}
       >
-        <span className={`w-8 shrink-0 text-2xl leading-none text-center ${gewaehlt && waehlbar ? 'text-praxis-600' : 'text-slate-500'}`}>
+        <span className={`w-8 shrink-0 text-2xl leading-none text-center ${gewaehlt && waehlbar ? 'text-praxis-600' : zeile.zeichen === 'zurueck' ? 'text-red-600' : 'text-slate-500'}`}>
           {waehlbar && gewaehlt ? ZEICHEN.gewaehlt : ZEICHEN[zeile.zeichen]}
         </span>
         <span className="flex-1 min-w-0">
@@ -84,6 +86,7 @@ function TagZeile({ zeile, gewaehlt, aufZeile, aufLang, aufStart }) {
           {zeile.zeichen === 'fertig' && <span className="text-emerald-600">{a.fertigAm ? uhrzeit(a.fertigAm) : ''}</span>}
           {zeile.zeichen === 'laeuft' && <span className="text-sky-600">{ZEICHEN.laeuft} {t('mt.laeuft')}</span>}
           {zeile.zeichen === 'wartet' && <span className="text-amber-600">{t('mt.wartet')}</span>}
+          {zeile.zeichen === 'zurueck' && <span className="text-red-600">{t('mt.zurueck')}</span>}
           {zeile.zeichen === 'kamera' && <span className="text-praxis-600">{t('mt.letzter')}</span>}
           {zeile.zeichen === 'offen' && zeile.vorherFehlt && (
             <span className="text-amber-600">{ZEICHEN.vorherFehlt} {t('mt.vorher')}</span>
@@ -227,7 +230,7 @@ export default function Heute({ user, fallback = null }) {
     setAuswahl((alt) => {
       const neu = new Set(alt)
       for (const z of gruppe.zeilen) {
-        if (z.zeichen === 'offen' || z.zeichen === 'laeuft') neu.add(z.aufgabe.id)
+        if (z.zeichen === 'offen' || z.zeichen === 'laeuft' || z.zeichen === 'zurueck') neu.add(z.aufgabe.id)
       }
       return neu
     })
@@ -235,7 +238,7 @@ export default function Heute({ user, fallback = null }) {
 
   function fertigMelden(gruppe) {
     const ziel = gruppe.zeilen
-      .filter((z) => auswahl.has(z.aufgabe.id) && (z.zeichen === 'offen' || z.zeichen === 'laeuft'))
+      .filter((z) => auswahl.has(z.aufgabe.id) && (z.zeichen === 'offen' || z.zeichen === 'laeuft' || z.zeichen === 'zurueck'))
       .map((z) => z.aufgabe)
     if (!ziel.length) return
     if (kamera.geprueft && !kamera.frei) { setGateOffen(true); return }
@@ -402,7 +405,7 @@ export default function Heute({ user, fallback = null }) {
 
       {/* Gruppen je Arbeitsschritt */}
       {gruppen.map((g) => {
-        const gewaehltHier = g.zeilen.filter((z) => auswahl.has(z.aufgabe.id) && (z.zeichen === 'offen' || z.zeichen === 'laeuft')).length
+        const gewaehltHier = g.zeilen.filter((z) => auswahl.has(z.aufgabe.id) && (z.zeichen === 'offen' || z.zeichen === 'laeuft' || z.zeichen === 'zurueck')).length
         return (
           <section key={g.schrittId} className="mt-3 bg-white border-y border-slate-200">
             <header className="flex items-center justify-between px-4 pt-3 pb-1">
@@ -421,6 +424,11 @@ export default function Heute({ user, fallback = null }) {
                     aufLang={(a) => setSheet({ aufgabe: a })}
                     aufStart={(a) => angefangen(a)}
                   />
+                  {z.zeichen === 'zurueck' && (
+                    <p className="px-4 pb-3 -mt-1 text-sm text-red-700 bg-red-50">
+                      {ZEICHEN.zurueck} {z.aufgabe.zurueckGrund || t('mt.zurueck')} · {t('mt.nachbessern')}
+                    </p>
+                  )}
                   {info === z.aufgabe.id && z.zeichen === 'fertig' && (
                     <p className="px-4 pb-3 text-sm text-emerald-700">
                       {ZEICHEN.fertig} {z.aufgabe.fertigAm ? uhrzeit(z.aufgabe.fertigAm) : ''}{z.aufgabe.fertigVonName ? ` · ${z.aufgabe.fertigVonName}` : ''}
@@ -443,7 +451,7 @@ export default function Heute({ user, fallback = null }) {
                 </div>
               ))}
             </div>
-            {g.zeilen.some((z) => z.zeichen === 'offen' || z.zeichen === 'laeuft') && (
+            {g.zeilen.some((z) => z.zeichen === 'offen' || z.zeichen === 'laeuft' || z.zeichen === 'zurueck') && (
               <footer className="flex gap-2 p-3 border-t border-slate-100">
                 <button
                   onClick={() => alleWaehlen(g)}

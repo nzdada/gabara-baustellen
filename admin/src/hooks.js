@@ -63,6 +63,70 @@ export function useContains(name, feld, wert) {
   return rows
 }
 
+// Kennzahlen-Unterdokumente MEHRERER Projekte (projekte/{id}/kennzahlen/live)
+// als Liste [{ id: projektId, ... }] – der Leitstand liest je Baustelle EIN
+// kleines Dokument statt aller Aufgaben (Plan 3.2, Kaltstart < 100 Dokumente).
+export function useKennzahlenListe(projektIds) {
+  const [docs, setDocs] = useState([])
+  const schluessel = (projektIds || []).join('|')
+  useEffect(() => {
+    if (!schluessel) { setDocs([]); return () => {} }
+    const ids = schluessel.split('|')
+    const stand = new Map()
+    let aktiv = true
+    const unsubs = []
+    getStore().then((store) => {
+      if (!aktiv) return
+      for (const id of ids) {
+        unsubs.push(store.subscribeKennzahlen(id, (doc) => {
+          if (doc) stand.set(id, doc)
+          else stand.delete(id)
+          setDocs([...stand.values()])
+        }))
+      }
+    })
+    return () => {
+      aktiv = false
+      unsubs.forEach((u) => u())
+    }
+  }, [schluessel])
+  return docs
+}
+
+// Einsätze MEHRERER Tage (Wochentafel): je Tag eine array-contains-Abfrage,
+// zusammengeführt nach Kennung. Lädt im Firebase-Modus nur die Woche –
+// KEIN Vollabo auf die einsaetze-Sammlung.
+export function useEinsaetzeTage(tage) {
+  const [rows, setRows] = useState([])
+  const schluessel = (tage || []).join('|')
+  useEffect(() => {
+    if (!schluessel) { setRows([]); return () => {} }
+    const liste = schluessel.split('|')
+    const jeTag = new Map()
+    let aktiv = true
+    const unsubs = []
+    const zusammen = () => {
+      const map = new Map()
+      for (const rows2 of jeTag.values()) for (const r of rows2) map.set(r.id, r)
+      setRows([...map.values()])
+    }
+    getStore().then((store) => {
+      if (!aktiv) return
+      for (const tag of liste) {
+        unsubs.push(store.subscribeContains('einsaetze', 'tage', tag, (r) => {
+          jeTag.set(tag, r)
+          zusammen()
+        }))
+      }
+    })
+    return () => {
+      aktiv = false
+      unsubs.forEach((u) => u())
+    }
+  }, [schluessel])
+  return rows
+}
+
 export async function withStore(fn) {
   const store = await getStore()
   return fn(store)

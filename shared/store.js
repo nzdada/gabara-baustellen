@@ -328,6 +328,55 @@ function lokalerStore() {
       speichern()
       return { bestaetigt: true }
     },
+    // V2-Leitstand (AP 7): EIN allgemeiner Vorgang aus Anlagen (sets),
+    // Änderungen (patches), Löschungen (loesche) und EINEM aggregierten
+    // Kennzahlen-Increment. Gegenstück zum writeBatch im Firebase-Modus –
+    // beide Modi verhalten sich gleich: erst wird ALLES geprüft, dann
+    // geschrieben, ein Fehler lässt nichts Halbes stehen.
+    //   sets:    [{ coll, daten }]  – daten.id ist Pflicht (setDoc-Verhalten)
+    //   patches: [{ coll, id, patch }]
+    //   loesche: [{ coll, id }]
+    //   kennzahlen: { projektId, deltas, felder } wie bei meldeAufgaben
+    async schreibeVorgang({ sets = [], patches = [], loesche = [], kennzahlen = null } = {}) {
+      const anzahl = sets.length + patches.length + loesche.length + (kennzahlen ? 1 : 0)
+      if (anzahl === 0) return { bestaetigt: false }
+      if (anzahl > 450) {
+        // Firestore fasst 500 Schreibvorgänge je Batch – dieselbe Grenze auch
+        // lokal, damit ein riesiger Einfüge-Text nicht erst online scheitert.
+        throw new Error(`Zu viele Schreibvorgänge für EINEN Vorgang (${anzahl}) – bitte in kleineren Blöcken anlegen.`)
+      }
+      for (const s of sets) {
+        if (!s?.coll || !s?.daten?.id) throw new Error('schreibeVorgang: Anlage ohne Sammlung oder Kennung.')
+        if (!db[s.coll]) throw new Error(`schreibeVorgang: unbekannte Sammlung "${s.coll}".`)
+      }
+      for (const p of patches) {
+        if (!p?.coll || !p?.id) throw new Error('schreibeVorgang: Änderung ohne Sammlung oder Kennung.')
+      }
+      for (const s of sets) {
+        const vorhanden = db[s.coll].some((d) => d.id === s.daten.id)
+        db[s.coll] = vorhanden
+          ? db[s.coll].map((d) => (d.id === s.daten.id ? { ...s.daten } : d))
+          : [...db[s.coll], { ...s.daten }]
+      }
+      for (const p of patches) {
+        db[p.coll] = db[p.coll].map((d) => (d.id === p.id ? { ...d, ...p.patch } : d))
+      }
+      for (const l of loesche) {
+        db[l.coll] = db[l.coll].filter((d) => d.id !== l.id)
+      }
+      if (kennzahlen?.projektId) {
+        if (!db.kennzahlen) db.kennzahlen = []
+        const alt = db.kennzahlen.find((k) => k.id === kennzahlen.projektId) || { id: kennzahlen.projektId }
+        const neu = { ...alt, ...(kennzahlen.felder || {}) }
+        for (const [feld, betrag] of Object.entries(kennzahlen.deltas || {})) {
+          const summe = (Number(alt[feld]) || 0) + (Number(betrag) || 0)
+          neu[feld] = Math.round(summe * 1000) / 1000
+        }
+        db.kennzahlen = [...db.kennzahlen.filter((k) => k.id !== kennzahlen.projektId), neu]
+      }
+      speichern()
+      return { bestaetigt: true }
+    },
     // Kennzahlen eines Projekts lesen/abonnieren (Gegenstück zum
     // Unterdokument projekte/{id}/kennzahlen/live im Firebase-Modus).
     async ladeKennzahlen(projektId) {
@@ -629,6 +678,44 @@ async function firebaseStore() {
         }
         // set + merge statt update: das live-Dokument muss beim allerersten
         // Melden eines Projekts noch nicht existieren.
+        batch.set(doc(dbf, 'projekte', kennzahlen.projektId, 'kennzahlen', 'live'), patch, { merge: true })
+      }
+      const lauf = batch.commit()
+      lauf.catch((e) => onFehler?.(e))
+      const bestaetigt = await Promise.race([
+        lauf.then(() => true, () => false),
+        new Promise((auf) => setTimeout(() => auf(false), fristMs)),
+      ])
+      return { bestaetigt }
+    },
+    // V2-Leitstand (AP 7): EIN allgemeiner Vorgang als writeBatch – Anlagen,
+    // Änderungen, Löschungen und EIN aggregiertes Kennzahlen-Increment.
+    // Gleiche Schnittstelle und gleiche 450er-Grenze wie im lokalen Modus.
+    // Wie meldeAufgaben: nicht auf den Server warten (Funkloch), höchstens
+    // fristMs auf die Bestätigung – ein Server-NEIN kommt über onFehler an.
+    async schreibeVorgang({ sets = [], patches = [], loesche = [], kennzahlen = null } = {}, { fristMs = 2500, onFehler } = {}) {
+      const anzahl = sets.length + patches.length + loesche.length + (kennzahlen ? 1 : 0)
+      if (anzahl === 0) return { bestaetigt: false }
+      if (anzahl > 450) {
+        throw new Error(`Zu viele Schreibvorgänge für EINEN Vorgang (${anzahl}) – bitte in kleineren Blöcken anlegen.`)
+      }
+      const batch = writeBatch(dbf)
+      for (const s of sets) {
+        if (!s?.coll || !s?.daten?.id) throw new Error('schreibeVorgang: Anlage ohne Sammlung oder Kennung.')
+        const { id, ...felder } = s.daten
+        batch.set(doc(dbf, s.coll, id), felder)
+      }
+      for (const p of patches) {
+        batch.update(doc(dbf, p.coll, p.id), p.patch)
+      }
+      for (const l of loesche) {
+        batch.delete(doc(dbf, l.coll, l.id))
+      }
+      if (kennzahlen?.projektId) {
+        const patch = { ...(kennzahlen.felder || {}) }
+        for (const [feld, betrag] of Object.entries(kennzahlen.deltas || {})) {
+          patch[feld] = increment(Number(betrag) || 0)
+        }
         batch.set(doc(dbf, 'projekte', kennzahlen.projektId, 'kennzahlen', 'live'), patch, { merge: true })
       }
       const lauf = batch.commit()

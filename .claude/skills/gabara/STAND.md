@@ -238,3 +238,29 @@ sind committet. **AP 6 (Fotos offline-zuerst)** brachte:
 - Heute/RegieMelden lösen Fotos über die Ablage aus (nie mehr `photos`-
   dataUrl direkt); BerichtForm sichert Unterschriften im Entwurf mit.
 - Neue Prüfdatei `pruefung/fotoablage.test.mjs` (in `npm test` registriert).
+
+**AP 7 (Büro-Leitstand)** brachte:
+
+- `Uebersicht.jsx` neu als VIER Bänder (Plan 3.2): HEUTE (Kolonnen aus
+  teams.js × Einsätze des Tages), WAS HAKT (max. 7 Zeilen, sonst grüner
+  Balken), BAUSTELLEN (liest NUR `projekte/{id}/kennzahlen/live` je offener
+  Baustelle – kein Aufgaben-Vollabo), WOCHENTAFEL (Mo–Fr × Kolonnen,
+  Baustelle per Drag & Drop oder „+“ in eine Zelle → Zuweisen-Dialog).
+- `shared/leitstand.js` – reiner Rechenkern: wochenTage/einsatzTage,
+  parseRaumliste (Fehler je Zeile: Zeile/Feld/Originalwert, nie still 0),
+  schnellanlageBauen, zuweisungBauen (deterministische Einsatz-Kennung:
+  Doppelklick ersetzt), zurueckweisungBauen (zurueck + Aufmaß-STORNO +
+  Buchung LÖSCHEN + Kennzahlen-Gegenbuchung), freigabeBauen, fotoAmpel.
+- `store.schreibeVorgang({ sets, patches, loesche, kennzahlen })` in BEIDEN
+  Modi – der allgemeine Ein-Batch-Vorgang des Leitstands (450er-Grenze).
+- `naechsterSchritt.js`: neue `schritteLeitstand()` – Kolonne ohne Einsatz,
+  Stundenzettel-Vorlagefrist (§ 15 Abs. 3), Mengen-MEHRung > 10 % über
+  `mengenAbweichung` (§ 2 Abs. 3), Aufgaben ohne positionId (§ 2 Abs. 6,
+  aus Kennzahlen-Zähler `aufgabenOhnePosition`), Geräte-Rückstand.
+- Neue Seiten `/freigabe` (Freigeben / Zurückweisen mit Grund) und
+  `/fotoampel` (je Raum Auftrag/Regie aus `raum.fotoStand`). `zurueck`
+  landet ROT beim Monteur (Heute.jsx, ZEICHEN.zurueck ⟲) und ist nach
+  Nachbesserung erneut meldbar, weil die Buchung gelöscht wurde.
+- Demo: Kennzahlen-Startdokument für p-iga + ein Gerät mit Foto-Rückstand.
+  Wiki-Bereich `leitstand` (5 Artikel de+ar). Neue Prüfdatei
+  `pruefung/leitstand.test.mjs` (66 Fälle, in `npm test`).

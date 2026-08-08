@@ -940,6 +940,113 @@ export const WISSEN = [
       },
     ],
   },
+  // =====================================================================
+  {
+    id: 'leitstand',
+    icon: 'home',
+    titel: { de: 'Der Leitstand (Übersicht)', ar: 'مركز القيادة (نظرة عامة)' },
+    sub: {
+      de: 'Vier Bänder: Heute · Was hakt · Baustellen · Wochentafel – dazu Schnellanlage, Freigabe und Fotoampel',
+      ar: 'أربعة أشرطة: اليوم · ما المتعثر · الورش · جدول الأسبوع – مع الإنشاء السريع والاعتماد وإشارة الصور',
+    },
+    artikel: [
+      {
+        id: 'vier-baender',
+        zu: '/uebersicht',
+        frage: { de: 'Was zeigen die vier Bänder der Übersicht?', ar: 'ماذا تعرض الأشرطة الأربعة في النظرة العامة؟' },
+        antwort: [
+          { p: {
+            de: 'Der Leitstand zeigt ohne einen einzigen Klick alles, was das Büro morgens wissen muss. Band 1 HEUTE: jede Kolonne mit ihrem heutigen Einsatz – oder rot markiert ohne. Band 2 WAS HAKT: höchstens sieben Zeilen mit dem, was Geld kostet oder Fristen reißt; ist nichts offen, steht dort ein grüner Balken. Band 3 BAUSTELLEN: je laufender Baustelle drei benannte Zahlen. Band 4 WOCHENTAFEL: Montag bis Freitag mal Kolonnen, zum Planen der Woche.',
+            ar: 'يعرض مركز القيادة دون أي نقرة كل ما يحتاجه المكتب صباحًا. الشريط 1 اليوم: كل فريق مع مهمته اليوم – أو بعلامة حمراء بدونها. الشريط 2 ما المتعثر: سبعة أسطر كحد أقصى لما يكلف مالًا أو يخرق المهل؛ وإن لم يكن شيء معلقًا يظهر شريط أخضر. الشريط 3 الورش: ثلاثة أرقام مسماة لكل ورشة جارية. الشريط 4 جدول الأسبوع: من الإثنين إلى الجمعة لكل فريق، لتخطيط الأسبوع.',
+          } },
+          { p: {
+            de: 'Die drei Zahlen im Band Baustellen sind bewusst getrennt und nie vermischt: Leistung € (der Balken – Euro ist der einzige gemeinsame Nenner), Fläche m² (was der Bauleiter im Kopf hat) und Räume fertig/alle (was der Kunde fragt). 46 m² plus 10 Stück ist keine Zahl – deshalb tragen alle drei einen Namen.',
+            ar: 'الأرقام الثلاثة في شريط الورش منفصلة عمدًا ولا تُخلط أبدًا: الإنجاز € (الشريط – اليورو هو القاسم المشترك الوحيد)، المساحة م² (ما يحمله مدير الموقع في رأسه)، والغرف منجز/الكل (ما يسأله العميل). 46 م² زائد 10 قطع ليست رقمًا – لذلك يحمل كل رقم اسمه.',
+          } },
+          { merke: {
+            de: 'Die Zahlen kommen aus einem kleinen Kennzahlen-Dokument je Baustelle, das die Meldungen der Monteure fortschreiben. Der Leitstand lädt deshalb beim Öffnen nur rund 55 Dokumente – nicht Tausende Aufgaben.',
+            ar: 'تأتي الأرقام من مستند مؤشرات صغير لكل ورشة، تُحدّثه بلاغات الفنيين. لذلك لا يحمّل مركز القيادة عند الفتح سوى نحو 55 مستندًا – لا آلاف المهام.',
+          } },
+        ],
+      },
+      {
+        id: 'wochentafel',
+        zu: '/uebersicht',
+        frage: { de: 'Wie plane ich mit der Wochentafel Einsätze?', ar: 'كيف أخطط المهام عبر جدول الأسبوع؟' },
+        antwort: [
+          { schritte: [
+            { de: 'Eine Baustelle aus Band 3 mit der Maus auf eine Zelle (Kolonne × Tag) ziehen – oder in der Zelle auf „+" tippen.', ar: 'اسحب ورشة من الشريط 3 إلى خلية (فريق × يوم) – أو انقر «+» في الخلية.' },
+            { de: 'Im Dialog Dauer in Werktagen, Uhrzeiten, den Bereich (z. B. „1. OG") und die Arbeitsschritte wählen. Hinter jedem Schritt steht, wie viele offene Aufgaben er in diesem Bereich hat.', ar: 'في الحوار اختر المدة بأيام العمل والأوقات والقسم (مثل «الطابق الأول») وخطوات العمل. بجانب كل خطوة عدد مهامها المفتوحة في هذا القسم.' },
+            { de: 'Die Zeile darunter zeigt vor dem Speichern: so viele Aufgaben, so viele m², so viel €.', ar: 'يعرض السطر السفلي قبل الحفظ: عدد المهام، وكم م²، وكم €.' },
+            { de: '„Zuweisen" schreibt EINEN Einsatz und hängt alle gewählten Aufgaben in einem einzigen Vorgang daran – ganz oder gar nicht.', ar: '«إسناد» يكتب مهمة واحدة ويربط بها كل المهام المختارة في عملية واحدة – كلها أو لا شيء.' },
+          ] },
+          { p: {
+            de: 'Wochenenden überspringt die Dauer von selbst: ein Einsatz Donnerstag über drei Werktage liegt auf Donnerstag, Freitag und Montag. Überschneidungen sind erlaubt und Zeiten frei wählbar – das Programm blockiert nichts, das ist ausdrücklich so gewollt.',
+            ar: 'تتخطى المدة عطلة نهاية الأسبوع تلقائيًا: مهمة تبدأ الخميس لثلاثة أيام عمل تقع على الخميس والجمعة والإثنين. التداخل مسموح والأوقات حرة – البرنامج لا يمنع شيئًا، وهذا مقصود صراحة.',
+          } },
+          { merke: {
+            de: 'Derselbe Zug (gleiche Kolonne, gleicher erster Tag, gleiche Baustelle) trifft immer dieselbe Einsatz-Kennung – ein Doppelklick auf „Zuweisen" verdoppelt nichts, er ersetzt.',
+            ar: 'التحريك نفسه (نفس الفريق ونفس اليوم الأول ونفس الورشة) يصيب دائمًا نفس معرف المهمة – النقر المزدوج على «إسناد» لا يضاعف شيئًا بل يستبدل.',
+          } },
+        ],
+      },
+      {
+        id: 'schnellanlage',
+        zu: '/uebersicht',
+        frage: { de: 'Wie lege ich viele Räume auf einmal an (Schnellanlage)?', ar: 'كيف أنشئ غرفًا كثيرة دفعة واحدة (الإنشاء السريع)؟' },
+        antwort: [
+          { schritte: [
+            { de: 'Oben rechts in der Übersicht „Schnellanlage" öffnen (oder das Raum-Symbol in der Baustellen-Zeile).', ar: 'افتح «الإنشاء السريع» أعلى يمين النظرة العامة (أو رمز الغرفة في سطر الورشة).' },
+            { de: 'Die Raumliste als Text einfügen – eine Zeile je Raum: Nummer, Name, Menge. Beispiel: „1.01 Flur 24".', ar: 'ألصق قائمة الغرف نصًا – سطر لكل غرفة: الرقم، الاسم، الكمية. مثال: «1.01 Flur 24».' },
+            { de: 'Arbeitsschritte anhaken und je Schritt die passende LV-Position wählen – ohne Position entsteht die Aufgabe trotzdem, zählt aber als „ohne LV-Position" ins Band WAS HAKT (§ 2 Abs. 6).', ar: 'حدّد خطوات العمل واختر لكل خطوة بند جدول الكميات المناسب – بدون بند تُنشأ المهمة أيضًا لكنها تُحسب «بدون بند» في شريط ما المتعثر (§ 2 فقرة 6).' },
+            { de: '„Anlegen" schreibt Räume und Aufgaben in EINEM Vorgang.', ar: '«إنشاء» يكتب الغرف والمهام في عملية واحدة.' },
+          ] },
+          { achtung: {
+            de: 'Fehlerhafte Zeilen werden NIE still zu 0 gemacht. Jede unbrauchbare Zeile steht mit Zeilennummer, Feld und Originalwert in der roten Liste – und solange dort etwas steht, ist „Anlegen" gesperrt. Bei Geld und Fläche wird nicht geraten.',
+            ar: 'الأسطر الخاطئة لا تُحوَّل أبدًا إلى صفر بصمت. كل سطر غير صالح يظهر في القائمة الحمراء برقم السطر والحقل والقيمة الأصلية – وما دام فيها شيء يبقى «إنشاء» معطلًا. في المال والمساحة لا نخمّن.',
+          } },
+          { merke: {
+            de: 'Die Mengen aus der Schnellanlage gelten als GESCHÄTZT und sind für die Rechnung gesperrt, bis jemand nachmisst. So kommt keine geratene Zahl auf ein Aufmaßblatt.',
+            ar: 'كميات الإنشاء السريع تُعد تقديرية ومحجوبة عن الفوترة حتى يقيسها أحد. هكذا لا يصل رقم مخمَّن إلى كشف المساحة.',
+          } },
+        ],
+      },
+      {
+        id: 'freigabe-zurueckweisen',
+        zu: '/freigabe',
+        frage: { de: 'Wie prüfe ich Meldungen – und was passiert beim Zurückweisen?', ar: 'كيف أراجع البلاغات – وماذا يحدث عند الرفض؟' },
+        antwort: [
+          { p: {
+            de: 'Die Seite „Freigabe" listet alle fertig gemeldeten Aufgaben, die noch niemand geprüft hat – je Zeile Raum, Schritt, Menge, Wert, Melder und ob ein Foto dranhängt. Zwei Knöpfe: „Freigeben" bestätigt die Meldung, „Zurückweisen" verlangt einen Grund.',
+            ar: 'تعرض صفحة «الاعتماد» كل المهام المبلَّغ عن إنجازها ولم يراجعها أحد بعد – في كل سطر الغرفة والخطوة والكمية والقيمة والمبلِّغ وهل توجد صورة. زران: «اعتماد» يؤكد البلاغ، و«رفض» يتطلب سببًا.',
+          } },
+          { p: {
+            de: 'Die Zurückweisung ist EIN Vorgang: die Aufgabe geht auf „zurückgewiesen" und erscheint ROT mit dem Grund auf dem Handy des Monteurs, die Aufmaßzeile wird storniert (nie gelöscht – das Geld behält seine Historie), und die Meldebuchung wird entfernt, damit die Nachbesserung erneut gemeldet werden kann.',
+            ar: 'الرفض عملية واحدة: تتحول المهمة إلى «مرفوض» وتظهر بالأحمر مع السبب على هاتف الفني، ويُلغى سطر المساحة (لا يُحذف أبدًا – يحتفظ المال بتاريخه)، ويُزال قيد البلاغ ليتمكن الفني من الإبلاغ من جديد بعد الإصلاح.',
+          } },
+          { merke: {
+            de: 'Der Grund ist Pflicht. Eine Meldung ohne sichtbare Antwort bringt den Monteur dazu, das Melden einzustellen – der Rückweg ist der Grund, warum das Melden funktioniert.',
+            ar: 'السبب إلزامي. البلاغ الذي لا يلقى ردًا مرئيًا يدفع الفني إلى التوقف عن الإبلاغ – طريق الرجوع هو سبب نجاح الإبلاغ أصلًا.',
+          } },
+        ],
+      },
+      {
+        id: 'fotoampel',
+        zu: '/fotoampel',
+        frage: { de: 'Was zeigt die Fotoampel?', ar: 'ماذا تعرض إشارة الصور؟' },
+        antwort: [
+          { p: {
+            de: 'Je Raum eine Zeile, getrennt nach Auftrag und Regie: ✓ vollständig (Vorher UND Nachher da), ⚠ Nachher fehlt (Arbeit läuft ohne Abschlussbeweis), rotes ⚠ Vorher fehlt (das Nachher-Bild taugt bei der Abnahme nicht als Beweis) und ○ nicht begonnen. Die Regie-Spalte erscheint nur, wo eine Regieanordnung den Raum betrifft oder schon Regie-Fotos existieren.',
+            ar: 'سطر لكل غرفة، منفصل بين العقد والعمل الإضافي: ✓ مكتمل (توجد صورتا قبل وبعد)، ⚠ «بعد» ناقصة (العمل جارٍ بلا إثبات إنجاز)، ⚠ حمراء «قبل» ناقصة (صورة «بعد» لا تصلح دليلًا عند الاستلام)، و○ لم يبدأ. لا يظهر عمود العمل الإضافي إلا حيث يمس أمرُ عملٍ إضافي الغرفةَ أو وُجدت صور له.',
+          } },
+          { merke: {
+            de: 'Die Ampel liest nur die Foto-Zähler der Räume – sie lädt keine Bilder und funktioniert deshalb auch bei Tausenden Fotos sofort. Das ⚠ im Band Baustellen springt direkt hierher.',
+            ar: 'تقرأ الإشارة عدادات الصور في الغرف فقط – لا تحمّل صورًا، لذلك تعمل فورًا حتى مع آلاف الصور. علامة ⚠ في شريط الورش تقفز إلى هنا مباشرة.',
+          } },
+        ],
+      },
+    ],
+  },
 ]
 
 // =====================================================================

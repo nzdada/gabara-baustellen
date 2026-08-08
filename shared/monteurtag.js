@@ -34,6 +34,10 @@ export const ZEICHEN = {
   fertig: '✓',
   vorherFehlt: '⚠',
   wartet: '⏸',
+  // AP 7: vom Büro zurückgewiesen – landet ROT beim Monteur (Plan 3.2,
+  // verbesserungen.md:39). Nach der Nachbesserung normal erneut meldbar,
+  // weil die Zurückweisung die Buchung mit der festen Kennung löscht.
+  zurueck: '⟲',
 }
 
 // Grundliste fuer den Zustand `wartet` (Plan 4.2, raeume.wartetGrund).
@@ -110,6 +114,9 @@ export function istLetzterOffenerSchritt(aufgabe, alleAufgaben) {
 export function zeichenFuer(aufgabe, alleAufgaben) {
   if (istFertigStatus(aufgabe.status)) return 'fertig'
   if (aufgabe.status === 'wartet') return 'wartet'
+  // 'zurueck' schlägt die Kamera: die rote Zeile mit dem Grund muss auffallen,
+  // sonst stellt der Monteur das Melden ein (der Rückweg aus Plan 3.2).
+  if (aufgabe.status === 'zurueck') return 'zurueck'
   if (istLetzterOffenerSchritt(aufgabe, alleAufgaben)) return 'kamera'
   if (aufgabe.status === 'laeuft') return 'laeuft'
   return 'offen'
