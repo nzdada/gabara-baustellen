@@ -4,6 +4,7 @@ import { beobachteAnmeldung, abmelden, istMonteurRolle } from '@shared/auth.js'
 import * as S from './stil.js'
 import { useLang, t } from '@shared/i18n.js'
 import { storeModus } from '@shared/store.js'
+import { versionsKennung } from '@shared/version.js'
 import { ZahnLogo, Icon, SprachSchalter, ThemaSchalter } from '@shared/ui.jsx'
 import Login from './pages/Login.jsx'
 import Fehlerschutz from './components/Fehlerschutz.jsx'
@@ -190,6 +191,11 @@ function Layout({ user, children }) {
           <button onClick={abmelden} className="flex items-center gap-2 text-praxis-200/70 hover:text-white transition">
             <Icon name="logout" groesse="xs" className="w-4 h-4" /> {t('allg.abmelden')}
           </button>
+          {/* AP 3: Versionskennung (Bau-Datum + Git-Hash). Jede Fehlermeldung
+              "bei mir geht X nicht" ist damit einem exakten Stand zuordenbar. */}
+          <p className="text-[10px] text-praxis-200/50 truncate" dir="ltr" title={t('nav.version')}>
+            {versionsKennung()}
+          </p>
         </div>
       </aside>
 

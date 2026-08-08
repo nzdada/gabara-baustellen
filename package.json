@@ -13,7 +13,9 @@
     "dev:admin": "npm run dev -w admin",
     "build": "npm run build -w website && npm run build -w admin",
     "pruefe-importe": "node pruefe-importe.mjs",
-    "test": "node pruefung/aufmass.test.mjs && node pruefung/aufgaben.test.mjs && node pruefung/monteurtag.test.mjs && node pruefung/fotoablage.test.mjs && node pruefung/leitstand.test.mjs && node pruefung/abrechnung.test.mjs && node pruefung/fristen.test.mjs"
+    "test": "node pruefung/aufmass.test.mjs && node pruefung/aufgaben.test.mjs && node pruefung/monteurtag.test.mjs && node pruefung/fotoablage.test.mjs && node pruefung/leitstand.test.mjs && node pruefung/abrechnung.test.mjs && node pruefung/fristen.test.mjs",
+    "ausliefern": "node scripts/ausliefern.mjs",
+    "sicherung": "node scripts/sicherung.mjs"
   },
   "devDependencies": {
     "sharp": "^0.35.3"

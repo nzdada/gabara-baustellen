@@ -1422,6 +1422,10 @@ export const TEXTE = {
   'abn.sonstigeKeine': { de: 'Keine sonstigen Vorbehalte', ar: 'لا تحفظات أخرى' },
   'abn.ruegeZugang': { de: 'Mängelrüge zugegangen am (Zugangsdatum, nicht Erstellungsdatum)', ar: 'تاريخ وصول إخطار العيوب (تاريخ التسليم، لا تاريخ الإنشاء)' },
   'abn.anzeigeVermerken': { de: 'Zugang der Fertigstellungsanzeige heute vermerken? Ab dann zählt der Leitstand die 12 Werktage bis zur fiktiven Abnahme (§ 12 Abs. 5 VOB/B).', ar: 'هل تريد توثيق تسليم إشعار الإنجاز اليوم؟ من ذلك الحين يعدّ لوح القيادة 12 يوم عمل حتى الاستلام الحكمي (§ 12 فقرة 5 VOB/B).' },
+
+  // AP 3: Betrieb (Versionskennung, Fehlerprotokoll, DEV-Schutz)
+  'nav.version': { de: 'Programmstand (Bau-Datum + Git-Kennung)', ar: 'إصدار البرنامج (تاريخ البناء + رمز Git)' },
+  'einst.datenNurDev': { de: 'Die Knöpfe „Beispieldaten zurücksetzen" und „Alles löschen" gibt es nur in der Entwicklungsumgebung. Im Echtbetrieb sind sie aus dem Programmpaket entfernt – ein Versehen kann den Datenbestand hier nicht löschen.', ar: 'زرا «إعادة ضبط البيانات النموذجية» و«حذف كل شيء» موجودان فقط في بيئة التطوير. في التشغيل الفعلي هما محذوفان من حزمة البرنامج – فلا يمكن لخطأ عابر أن يمسح البيانات هنا.' },
 }
 
 registriereTexte(TEXTE)

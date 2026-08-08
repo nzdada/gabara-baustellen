@@ -203,7 +203,30 @@ service cloud.firestore {
     }
     match /apilog/{id} {
       // Enthält Aufrufe an FastBill – geht Monteure nichts an
-      allow read, write: if darfVerwalten();
+      allow read, update, delete: if darfVerwalten();
+      // Fehlerprotokoll (AP 3, shared/fehlerprotokoll.js): unbehandelte Fehler
+      // dürfen auch OHNE Anmeldung gemeldet werden – die öffentliche Webseite
+      // hat keinen Login, und gerade dort bliebe ein weißer Bildschirm sonst
+      // unbemerkt. Damit das keine offene Schreibfläche wird: NUR art 'fehler',
+      // NUR die bekannten Felder, harte Längengrenzen je Feld.
+      allow create: if darfVerwalten() || (
+        request.resource.data.get('art', '') == 'fehler'
+        && request.resource.data.keys().hasOnly(
+             ['art', 'dienst', 'app', 'service', 'status', 'fehlerText',
+              'stack', 'version', 'geraet', 'createdAt'])
+        && request.resource.data.get('app', '') is string
+        && request.resource.data.get('app', '').size() <= 20
+        && request.resource.data.get('fehlerText', '') is string
+        && request.resource.data.get('fehlerText', '').size() <= 2000
+        && request.resource.data.get('stack', '') is string
+        && request.resource.data.get('stack', '').size() <= 4000
+        && request.resource.data.get('service', '') is string
+        && request.resource.data.get('service', '').size() <= 300
+        && request.resource.data.get('geraet', '') is string
+        && request.resource.data.get('geraet', '').size() <= 400
+        && request.resource.data.get('version', '') is string
+        && request.resource.data.get('version', '').size() <= 60
+      );
     }
     match /katalog/{id} {
       allow read: if angemeldet();

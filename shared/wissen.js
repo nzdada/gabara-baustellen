@@ -938,6 +938,28 @@ export const WISSEN = [
             de: 'Es löscht ALLES, was in diesem Browser erfasst wurde, und spielt die Beispieldaten neu ein. Auch angefangene Formular-Entwürfe. Es gibt keinen Weg zurück – nur benutzen, wenn man wirklich bei null anfangen will.',
             ar: 'يحذف كل ما سُجِّل في هذا المتصفح ويعيد تحميل البيانات النموذجية. بما في ذلك مسودات النماذج غير المكتملة. ولا رجعة عن ذلك – استخدمه فقط إن أردت البدء من الصفر فعلًا.',
           } },
+          { merke: {
+            de: 'Seit V2 gibt es diesen Knopf (und „Alles löschen") nur noch in der Entwicklungsumgebung. Im Echtbetrieb sind beide aus dem Programmpaket entfernt – ein Versehen kann den Datenbestand nicht mehr treffen.',
+            ar: 'منذ الإصدار الثاني لا يوجد هذا الزر (وزر «حذف كل شيء») إلا في بيئة التطوير. في التشغيل الفعلي كلاهما محذوف من حزمة البرنامج – فلا يمكن لخطأ عابر أن يصيب البيانات.',
+          } },
+        ],
+      },
+      {
+        id: 'version-fehler',
+        frage: { de: 'Wozu die Zeichenfolge unten in der Fußzeile – und was passiert bei einem Programmfehler?', ar: 'ما فائدة السلسلة أسفل الصفحة – وماذا يحدث عند حدوث خطأ في البرنامج؟' },
+        antwort: [
+          { p: {
+            de: 'Die kleine Zeichenfolge (z. B. 2026-08-08-a1b2c3d) ist die Versionskennung: Bau-Datum plus Kennung des ausgelieferten Programmstands. Sie steht in der Verwaltung unten in der Seitenleiste und auf der Webseite in der Fußzeile.',
+            ar: 'السلسلة الصغيرة (مثل 2026-08-08-a1b2c3d) هي رمز الإصدار: تاريخ البناء مع رمز حالة البرنامج المنشورة. تظهر في الإدارة أسفل الشريط الجانبي وفي أسفل صفحة الموقع.',
+          } },
+          { p: {
+            de: 'Bleibt irgendwo ein Bildschirm hängen oder weiß, meldet das Programm den Fehler selbsttätig an das Büro (Protokoll unter Einstellungen → FastBill) – zusammen mit genau dieser Kennung. „Bei mir geht X nicht" ist damit einem exakten Programmstand zuordenbar, ohne dass jemand auf der Baustelle etwas ablesen muss.',
+            ar: 'إذا تعطّلت شاشة أو بقيت بيضاء، يبلّغ البرنامج عن الخطأ تلقائيًا إلى المكتب (السجل في الإعدادات ← FastBill) – مع هذا الرمز بالضبط. وهكذا يمكن ربط «عندي X لا يعمل» بحالة برنامج محددة دون أن يقرأ أحد شيئًا في ورشة البناء.',
+          } },
+          { merke: {
+            de: 'Bei einer Fehlermeldung am Telefon reicht die Frage: „Welche Kennung steht unten links?" – dann ist klar, ob das Gerät den aktuellen Stand lädt oder einen alten.',
+            ar: 'عند تلقي بلاغ خطأ عبر الهاتف يكفي السؤال: «ما الرمز الظاهر أسفل اليسار؟» – فيتضح فورًا هل يحمّل الجهاز الإصدار الحالي أم إصدارًا قديمًا.',
+          } },
         ],
       },
     ],

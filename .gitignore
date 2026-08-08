@@ -12,3 +12,7 @@ seed/gabara_test_assets/
 
 # Dienstkonto-Schluessel (Admin-Rechte!) - NIE einchecken
 scripts/dienstkonto.json
+
+# JSON-Exporte der Datenbank (scripts/sicherung.mjs) - echte Betriebsdaten,
+# gehoeren nicht ins Repo
+sicherungen/

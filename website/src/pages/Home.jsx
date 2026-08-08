@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { PRAXIS, LEISTUNGEN, FAQ, KARRIERE } from '@shared/praxis.js'
 import { Icon } from '@shared/ui.jsx'
 import { tr } from '@shared/i18n.js'
+import { versionsKennung } from '@shared/version.js'
 import { useState } from 'react'
 
 // Öffentliche Gabara-Webseite.
@@ -350,6 +351,9 @@ function Fusszeile() {
           {KARRIERE.titel ? tr(KARRIERE.titel) : ''} – Bewerbungen an{' '}
           <a href={`mailto:${PRAXIS.email}`} className="hover:text-white underline">{PRAXIS.email}</a>
         </p>
+        {/* AP 3: Versionskennung – bewusst ohne Wort davor (sprachneutral),
+            gleiche Kennung steht an jedem Fehlerprotokoll-Eintrag. */}
+        <p className="mt-2 text-[10px] text-white/30" dir="ltr">{versionsKennung()}</p>
       </div>
     </footer>
   )

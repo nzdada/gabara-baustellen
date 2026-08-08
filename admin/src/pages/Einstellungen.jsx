@@ -825,29 +825,41 @@ function Daten({ user }) {
         <p className="text-xs text-schrift-zart">{t('einst.datenHinweis')}</p>
       </div>
 
-      <div className={karte}>
-        <p className="text-sm font-bold text-schrift-stark mb-1">{t('einst.datenDemoTitel')}</p>
-        <p className="text-xs text-schrift-leise mb-3">{t('einst.datenDemoText')}</p>
-        <button
-          onClick={() => ausfuehren(true)}
-          disabled={Boolean(laeuft)}
-          className="px-4 py-2.5 rounded-feld bg-karte border border-rahmen text-schrift text-sm font-bold hover:bg-gedeckt disabled:opacity-50"
-        >
-          {t(online ? 'einst.demoResetOnline' : 'einst.demoReset')}
-        </button>
-      </div>
+      {/* AP 3: Beide Zerstör-Knöpfe existieren NUR im Entwicklungslauf
+          (import.meta.env.DEV). Im ausgelieferten Paket sind sie nicht bloß
+          versteckt, sondern gar nicht enthalten – ein Klick im Echtbetrieb
+          kann den kompletten Datenbestand nicht mehr treffen. */}
+      {import.meta.env.DEV ? (
+        <>
+          <div className={karte}>
+            <p className="text-sm font-bold text-schrift-stark mb-1">{t('einst.datenDemoTitel')}</p>
+            <p className="text-xs text-schrift-leise mb-3">{t('einst.datenDemoText')}</p>
+            <button
+              onClick={() => ausfuehren(true)}
+              disabled={Boolean(laeuft)}
+              className="px-4 py-2.5 rounded-feld bg-karte border border-rahmen text-schrift text-sm font-bold hover:bg-gedeckt disabled:opacity-50"
+            >
+              {t(online ? 'einst.demoResetOnline' : 'einst.demoReset')}
+            </button>
+          </div>
 
-      <div className={`${karte} border-red-200`}>
-        <p className="text-sm font-bold text-red-700 mb-1">{t('einst.datenLeerenTitel')}</p>
-        <p className="text-xs text-schrift-leise mb-3">{t('einst.datenLeerenText')}</p>
-        <button
-          onClick={() => ausfuehren(false)}
-          disabled={Boolean(laeuft)}
-          className="px-4 py-2.5 rounded-feld bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-50"
-        >
-          {t('einst.datenLeeren')}
-        </button>
-      </div>
+          <div className={`${karte} border-red-200`}>
+            <p className="text-sm font-bold text-red-700 mb-1">{t('einst.datenLeerenTitel')}</p>
+            <p className="text-xs text-schrift-leise mb-3">{t('einst.datenLeerenText')}</p>
+            <button
+              onClick={() => ausfuehren(false)}
+              disabled={Boolean(laeuft)}
+              className="px-4 py-2.5 rounded-feld bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-50"
+            >
+              {t('einst.datenLeeren')}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className={karte}>
+          <p className="text-xs text-schrift-zart">{t('einst.datenNurDev')}</p>
+        </div>
+      )}
 
       <p className="text-xs text-schrift-zart">{t('einst.datenBleibt')}</p>
       {laeuft && <p className="text-sm text-schrift">{laeuft}</p>}
