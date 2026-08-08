@@ -283,7 +283,10 @@ service cloud.firestore {
         // Aufgaben entfernen. Die Oberflaeche bietet es ihm nicht an, und die
         // schutzbeduerftigen Daten (Berichte, Rechnungen, Preise) liegen
         // woanders und bleiben gesperrt.
-        || (istMonteur() && nurFelder(['fertig', 'notiz', 'status', 'aufgaben']));
+        // 'fotoStand' (AP 6): die Zaehler der Fototafel (auftragVorher,
+        // auftragNachher, regieVorher, regieNachher) – der Monteur zaehlt
+        // beim Ausloesen hoch, sonst scheitert jede Aufnahme still.
+        || (istMonteur() && nurFelder(['fertig', 'notiz', 'status', 'aufgaben', 'fotoStand']));
       allow delete: if darfVerwalten();
     }
 

@@ -232,13 +232,23 @@ function lokalerStore() {
     // Zahlenfelder um einen Betrag VERSCHIEBEN statt zu setzen. Gleiche Signatur
     // wie im Firebase-Modus; dort ist es serverseitig atomar, hier reicht
     // Lesen-Rechnen-Schreiben, weil im lokalen Modus nur ein Gerät schreibt.
+    // PUNKTPFADE ('fotoStand.auftragVorher') zählen wie ein updateDoc-Feldpfad
+    // in ein verschachteltes Feld hinein – beide Modi müssen sich gleich
+    // verhalten (AP 6: die Fototafel zählt raum.fotoStand hoch).
     async updateInkrement(coll, id, deltas, felder = {}) {
       db[coll] = db[coll].map((d) => {
         if (d.id !== id) return d
         const neu = { ...d, ...felder }
         for (const [feld, betrag] of Object.entries(deltas)) {
-          const summe = (Number(d[feld]) || 0) + (Number(betrag) || 0)
-          neu[feld] = Math.round(summe * 1000) / 1000
+          const teile = feld.split('.')
+          let ziel = neu
+          for (let i = 0; i < teile.length - 1; i++) {
+            ziel[teile[i]] = { ...(ziel[teile[i]] || {}) }
+            ziel = ziel[teile[i]]
+          }
+          const letzte = teile[teile.length - 1]
+          const summe = (Number(ziel[letzte]) || 0) + (Number(betrag) || 0)
+          ziel[letzte] = Math.round(summe * 1000) / 1000
         }
         return neu
       })

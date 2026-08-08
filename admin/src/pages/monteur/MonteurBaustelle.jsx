@@ -6,6 +6,7 @@ import { useLang, t, datumLok } from '@shared/i18n.js'
 import { heuteISO } from '@shared/slots.js'
 import { useCollection, useWhere } from '../../hooks.js'
 import RaumFlaechen from './RaumFlaechen.jsx'
+import Fototafel from './Fototafel.jsx'
 import BerichtForm from '../../components/BerichtForm.jsx'
 import SpesenForm from '../../components/SpesenForm.jsx'
 
@@ -107,6 +108,9 @@ export default function MonteurBaustelle({ user }) {
           <Icon name="spesen" className="w-7 h-7" /> {t('monteur.spesen')}
         </button>
       </div>
+
+      {/* AP 6: Fototafel je Raum (Vorher/Nachher × Auftrag/Regie) mit Ampel */}
+      <Fototafel projektId={id} user={user} />
 
       <RaumFlaechen projektId={id} user={user} />
 

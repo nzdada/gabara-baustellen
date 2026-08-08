@@ -5,12 +5,13 @@ import { t, tr, useLang } from '@shared/i18n.js'
 import { heuteISO } from '@shared/slots.js'
 import { istMonteurRolle } from '@shared/auth.js'
 import { istOffen } from '@shared/projektstatus.js'
-import { fotoAus } from '@shared/bild.js'
+import { fotoAufnehmen } from '@shared/fotoablage.js'
 import { zahlText } from '@shared/aufmass.js'
 import {
   REGIE_BAUSTEINE, einsatzFuerTag, minutenVon, zeitText, stundenAus, stundenZeile,
 } from '@shared/monteurtag.js'
 import { useCollection, useContains, withStore } from '../../hooks.js'
+import { useKameraFrei, KameraGesperrt } from './FotoLeiste.jsx'
 
 // REGIE MELDEN (Plan Kapitel 3.1, Bildschirm 5) – der Weg, an dem ein Drittel
 // des Umsatzes hängt. Die Reihenfolge ist Absicht: WER HAT DAS ANGEORDNET
@@ -24,8 +25,8 @@ import { useCollection, useContains, withStore } from '../../hooks.js'
 // alles steht, und darüber steht immer, was noch fehlt.
 //
 // Fotos werden beim AUSLÖSEN gesichert (lokale UUID, niemals eine
-// Server-Kennung davor). Übergangsweg bis AP 6: V1-Sammlung 'photos' mit
-// V2-Feldern (phase/kontext/rolle) – AP 6 zieht auf 'fotos' + Storage um.
+// Server-Kennung davor) – seit AP 6 über shared/fotoablage.js: drei Größen
+// nach IndexedDB, fotos-Dokument 'lokal', Warteschlange lädt nach.
 
 function lokaleUuid() {
   return crypto.randomUUID ? crypto.randomUUID() : `f-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -52,14 +53,15 @@ function Stufe({ nummer, titel, fertig, children }) {
 }
 
 // Foto-Kachel: ein Tipp öffnet die Kamera, das Bild erscheint sofort.
-function FotoKachel({ beschriftung, bild, aufFoto }) {
+// `aufGesperrt`: das Standalone-Gate fängt den Tipp VOR der Kamera ab.
+function FotoKachel({ beschriftung, bild, aufFoto, aufGesperrt = null }) {
   const ref = useRef(null)
   return (
     <div>
       <input ref={ref} type="file" accept="image/*" capture="environment" className="hidden"
         onChange={(e) => { const d = e.target.files?.[0]; e.target.value = ''; if (d) aufFoto(d) }} />
       <button
-        onClick={() => ref.current?.click()}
+        onClick={() => (aufGesperrt ? aufGesperrt() : ref.current?.click())}
         className={`w-full min-h-28 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden ${bild ? 'border-emerald-300' : 'border-slate-300'}`}
       >
         {bild ? (
@@ -109,6 +111,8 @@ export default function RegieMelden({ user }) {
   const [gewaehlt, setGewaehlt] = useState(() => new Set([user?.userId].filter(Boolean)))
   const [fehler, setFehler] = useState('')
   const [laeuft, setLaeuft] = useState(false)
+  const kamera = useKameraFrei(user)           // Standalone-Gate (AP 6)
+  const [gateOffen, setGateOffen] = useState(false)
 
   // Der Einsatz kommt aus dem Live-Abo NACH dem ersten Aufbau – Von/Bis
   // dann nachziehen (Vorbelegung aus dem Einsatz, Plan Bildschirm 5).
@@ -126,31 +130,31 @@ export default function RegieMelden({ user }) {
 
   const stunden = stundenAus(von, bis, pauseMin)
 
+  // AP 6: über die Foto-Ablage – IndexedDB zuerst, Warteschlange lädt nach.
+  // Ein Vorher-Foto der Regie geht als 'vorher' sofort raus (Verfallsregel).
   async function fotoSichern(datei, phase) {
-    const ergebnis = await fotoAus(datei)
-    if (!ergebnis.ok) { setFehler(t('mt.fotoFehler')); return }
-    const id = lokaleUuid()
+    let ergebnis
     try {
-      await withStore((s) => s.add('photos', {
-        id,
+      ergebnis = await withStore((s) => fotoAufnehmen(datei, {
         projektId,
         raumId: '',
-        berichtId: '',
         anordnungId: anordnungId.current,
         phase,
         kontext: 'regie',
         rolle: 'meldebeleg',
-        dataUrl: ergebnis.dataUrl,
+        datum: heute,
         von: user?.name || '',
         vonId: user?.userId || '',
-        datum: heute,
-        erstelltAm: Date.now(),
-      }))
+      }, s))
     } catch (e) {
-      setFehler(t('mt.fotoFehler'))
+      ergebnis = { ok: false }
+    }
+    if (!ergebnis.ok) {
+      setFehler(t(ergebnis.grund === 'ablage' ? 'ft.ablageFehler' : 'mt.fotoFehler'))
       return
     }
-    const eintrag = { id, dataUrl: ergebnis.dataUrl }
+    if (ergebnis.speicherWarnung) setFehler(t('ft.speicherVoll'))
+    const eintrag = { id: ergebnis.id, dataUrl: ergebnis.vorschauUrl }
     if (phase === 'vorher') setVorherFoto(eintrag)
     else setNachherFoto(eintrag)
   }
@@ -304,7 +308,11 @@ export default function RegieMelden({ user }) {
 
       {/* Schritt 3: Vorher-Foto (Pflicht) */}
       <Stufe nummer={3} titel={t('mt.schritt3')} fertig={Boolean(vorherFoto)}>
-        <FotoKachel beschriftung={t('mt.fotoAufnehmen')} bild={vorherFoto?.dataUrl} aufFoto={(d) => fotoSichern(d, 'vorher')} />
+        <FotoKachel
+          beschriftung={t('mt.fotoAufnehmen')} bild={vorherFoto?.dataUrl}
+          aufFoto={(d) => fotoSichern(d, 'vorher')}
+          aufGesperrt={kamera.geprueft && !kamera.frei ? () => setGateOffen(true) : null}
+        />
       </Stufe>
 
       {/* Schritt 4: Stunden (vorbelegt aus dem Einsatz) */}
@@ -342,7 +350,11 @@ export default function RegieMelden({ user }) {
 
       {/* Schritt 5: Nachher-Foto (Pflicht) */}
       <Stufe nummer={5} titel={t('mt.schritt5')} fertig={Boolean(nachherFoto)}>
-        <FotoKachel beschriftung={t('mt.fotoAufnehmen')} bild={nachherFoto?.dataUrl} aufFoto={(d) => fotoSichern(d, 'nachher')} />
+        <FotoKachel
+          beschriftung={t('mt.fotoAufnehmen')} bild={nachherFoto?.dataUrl}
+          aufFoto={(d) => fotoSichern(d, 'nachher')}
+          aufGesperrt={kamera.geprueft && !kamera.frei ? () => setGateOffen(true) : null}
+        />
       </Stufe>
 
       {/* Das Gate: darüber steht immer, was noch fehlt */}
@@ -367,6 +379,8 @@ export default function RegieMelden({ user }) {
           </button>
         </div>
       )}
+
+      {gateOffen && <KameraGesperrt grund={kamera.grund} onClose={() => setGateOffen(false)} />}
     </div>
   )
 }

@@ -1,0 +1,15 @@
+{
+  "name": "Gabara Baustellen",
+  "short_name": "Gabara",
+  "description": "Baustellen-Abwicklung der Gabara Service GmbH – Melden, Fotos, Stunden",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#8b1a1a",
+  "lang": "de",
+  "icons": [
+    { "src": "/symbol.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/symbol-maskierbar.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

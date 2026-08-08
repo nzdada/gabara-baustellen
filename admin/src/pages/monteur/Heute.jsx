@@ -6,12 +6,13 @@ import { heuteISO, addTage } from '@shared/slots.js'
 import { meldungBauen } from '@shared/aufgaben.js'
 import { zahlText } from '@shared/aufmass.js'
 import { istMonteurRolle } from '@shared/auth.js'
-import { fotoAus } from '@shared/bild.js'
+import { fotoAufnehmen, fotoVerwerfen, fotoStandFeld } from '@shared/fotoablage.js'
 import {
   ZEICHEN, WARTET_GRUENDE, einsatzFuerTag, aufgabenZumEinsatz, tagesgruppen,
-  summeM2, laeuftBauen, wartetBauen, weiterBauen,
+  summeM2, laeuftBauen, wartetBauen, weiterBauen, istLetzterOffenerSchritt,
 } from '@shared/monteurtag.js'
 import { useCollection, useWhere, useContains, withStore } from '../../hooks.js'
+import { useKameraFrei, KameraGesperrt } from './FotoLeiste.jsx'
 
 // HEUTE (Plan Kapitel 3.1, Bildschirm 1 + 2): öffnet direkt, kein Zwischenmenü.
 // Gruppen je Arbeitsschritt, Mehrfachauswahl, [alle], FERTIG -> Kamera ->
@@ -28,18 +29,15 @@ import { useCollection, useWhere, useContains, withStore } from '../../hooks.js'
 // Hintergrund geht/die Seite verlassen wird). Das Foto ist da bereits
 // gesichert – vor dem Foto gibt es, wie überall in V2, keine Server-Kennung.
 //
-// FOTO-ÜBERGANGSWEG bis AP 6: Der Beleg landet als komprimierte Daten-URL in
-// der V1-Sammlung 'photos' (lokale UUID, mit phase/kontext/rolle nach dem
-// V2-Schema). AP 6 ersetzt das durch 'fotos' + Storage in drei Größen.
+// FOTO-WEG (AP 6): Der Beleg läuft über shared/fotoablage.js – drei Größen
+// nach IndexedDB, fotos-Dokument mit status 'lokal', Warteschlange lädt im
+// Hintergrund hoch. Ist der eine Schritt zugleich der LETZTE des Raums
+// (Zeichen 📷), zählt das Bild als Nachher-Foto Auftrag der Fototafel.
 
 const KURZDATUM = { weekday: 'short', day: '2-digit', month: '2-digit' }
 
 function uhrzeit(ms) {
   return new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
-}
-
-function lokaleUuid() {
-  return crypto.randomUUID ? crypto.randomUUID() : `f-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 // Zeile der HEUTE-Liste: Zeichen + Raum + Menge + Hinweis, rechts der
@@ -132,10 +130,12 @@ export default function Heute({ user, fallback = null }) {
   )
 
   const [auswahl, setAuswahl] = useState(() => new Set())
-  const [pending, setPending] = useState(null) // { schluessel, meldung, fotoId, anzahl, schritt, m2, uebrig }
+  const [pending, setPending] = useState(null) // { schluessel, meldung, fotoId, raumabschlussRaumId, anzahl, schritt, m2, uebrig }
   const [fehler, setFehler] = useState('')
   const [sheet, setSheet] = useState(null)     // { aufgabe, grund? } – langes Antippen
   const [info, setInfo] = useState(null)       // aufgabeId der aufgeklappten ✓/⏸-Zeile
+  const [gateOffen, setGateOffen] = useState(false)
+  const kamera = useKameraFrei(user)           // Standalone-Gate (AP 6)
   const kameraZiel = useRef(null)              // Aufgaben, die auf das Foto warten
   const kameraRef = useRef(null)
   const pendingRef = useRef(null)
@@ -155,6 +155,14 @@ export default function Heute({ user, fallback = null }) {
     erledigt.current.add(p.schluessel)
     try {
       await withStore((s) => s.meldeAufgaben(p.meldung, { onFehler: zeigeAblehnung }))
+      // Raumabschluss: das Belegfoto zählt jetzt als Nachher-Foto Auftrag in
+      // der Fototafel. Ohne await – offline ist der Vorgang in der Firestore-
+      // Warteschlange gut aufgehoben, der Bildschirm darf nicht hängen.
+      if (p.raumabschlussRaumId) {
+        withStore((s) => s.updateInkrement('raeume', p.raumabschlussRaumId, {
+          [`fotoStand.${fotoStandFeld('auftrag', 'nachher')}`]: 1,
+        })).catch(() => {})
+      }
     } catch (e) {
       zeigeAblehnung(e)
     }
@@ -203,6 +211,7 @@ export default function Heute({ user, fallback = null }) {
     const a = zeile.aufgabe
     if (zeile.zeichen === 'kamera') {
       // Raumabschluss aus der Liste: Antippen öffnet DIREKT die Kamera.
+      if (kamera.geprueft && !kamera.frei) { setGateOffen(true); return }
       kameraZiel.current = [a]
       kameraRef.current?.click()
       return
@@ -229,43 +238,47 @@ export default function Heute({ user, fallback = null }) {
       .filter((z) => auswahl.has(z.aufgabe.id) && (z.zeichen === 'offen' || z.zeichen === 'laeuft'))
       .map((z) => z.aufgabe)
     if (!ziel.length) return
+    if (kamera.geprueft && !kamera.frei) { setGateOffen(true); return }
     kameraZiel.current = ziel
     kameraRef.current?.click()
   }
 
-  // Kamera hat ausgelöst: Foto SOFORT sichern (lokale UUID), dann die
-  // Sammelmeldung bauen und als Quittung mit Rückgängig anbieten.
+  // Kamera hat ausgelöst: Foto SOFORT über die Ablage sichern (IndexedDB +
+  // fotos-Dokument, Plan 5.3), dann die Sammelmeldung bauen und als Quittung
+  // mit Rückgängig anbieten. Vor dem Foto gibt es KEINE Server-Kennung.
   async function fotoDa(e) {
     const datei = e.target.files?.[0]
     e.target.value = ''
     const ziel = kameraZiel.current || []
     kameraZiel.current = null
     if (!datei || !ziel.length) return
-    const ergebnis = await fotoAus(datei)
-    if (!ergebnis.ok) { setFehler(t('mt.fotoFehler')) ; return }
-    const fotoId = lokaleUuid()
+    // Raumabschluss (📷-Zeile): DIESES Bild ist das Nachher-Foto Auftrag des
+    // Raums – es zählt in die Fototafel (raum.fotoStand.auftragNachher).
+    const raumabschluss = ziel.length === 1 && istLetzterOffenerSchritt(ziel[0], alleAufgaben)
+    let ergebnis
     try {
-      await withStore((s) => s.add('photos', {
-        id: fotoId,
+      ergebnis = await withStore((s) => fotoAufnehmen(datei, {
         projektId: ziel[0].projektId,
         raumId: ziel.length === 1 ? ziel[0].raumId : '',
-        berichtId: '',
         phase: 'nachher',
         kontext: 'auftrag',
-        rolle: 'meldebeleg',
+        rolle: raumabschluss ? 'raumabschluss' : 'meldebeleg',
         aufgabeIds: ziel.map((a) => a.id),
-        dataUrl: ergebnis.dataUrl,
+        datum: heute,
         von: user?.name || '',
         vonId: user?.userId || '',
-        datum: heute,
-        erstelltAm: Date.now(),
-      }))
+      }, s))
     } catch (fehlerFoto) {
+      ergebnis = { ok: false }
+    }
+    if (!ergebnis.ok) {
       // Regel aus Plan 5.4: eine fehlgeschlagene Sicherung VERWEIGERT die
       // Meldung, statt still zu verlieren.
-      setFehler(t('mt.fotoFehler'))
+      setFehler(t(ergebnis.grund === 'ablage' ? 'ft.ablageFehler' : 'mt.fotoFehler'))
       return
     }
+    if (ergebnis.speicherWarnung) setFehler(t('ft.speicherVoll'))
+    const fotoId = ergebnis.id
     let meldung
     try {
       meldung = meldungBauen(ziel, { userId: user?.userId || '', name: user?.name || '' }, heute, {
@@ -282,6 +295,7 @@ export default function Heute({ user, fallback = null }) {
       schluessel: fotoId,
       meldung,
       fotoId,
+      raumabschlussRaumId: raumabschluss ? ziel[0].raumId : '',
       anzahl: ziel.length,
       schritt: gruppe ? tr({ de: gruppe.nameDe, ar: gruppe.nameAr }) : '',
       m2: summeM2(ziel),
@@ -295,8 +309,8 @@ export default function Heute({ user, fallback = null }) {
     erledigt.current.add(p.schluessel)   // nie mehr absenden
     setPending(null)
     try {
-      await withStore((s) => s.remove('photos', p.fotoId))
-    } catch (e) { /* Foto bleibt liegen – AP 6 räumt verwaiste Belege auf */ }
+      await withStore((s) => fotoVerwerfen(p.fotoId, s))
+    } catch (e) { /* Foto bleibt liegen – die Warteschlange zeigt es weiter an */ }
   }
 
   // [▸] angefangen: 1 Tipp, nur status 'laeuft', kein Foto, keine Buchung.
@@ -486,6 +500,9 @@ export default function Heute({ user, fallback = null }) {
           </button>
         </div>
       )}
+
+      {/* Standalone-Gate (AP 6): Kamera gesperrt -> bebilderter Hinweis */}
+      {gateOffen && <KameraGesperrt grund={kamera.grund} onClose={() => setGateOffen(false)} />}
 
       {/* Langes Antippen: Teilanteil in Zehnteln + Raum wartet (Grundliste) */}
       {sheet && (

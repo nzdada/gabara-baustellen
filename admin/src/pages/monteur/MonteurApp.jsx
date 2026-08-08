@@ -14,6 +14,7 @@ import MonteurBaustelle from './MonteurBaustelle.jsx'
 import Heute from './Heute.jsx'
 import StundenKachel from './StundenKachel.jsx'
 import RegieMelden from './RegieMelden.jsx'
+import FotoLeiste from './FotoLeiste.jsx'
 
 // Handy-Ansicht für Monteure (V2, Plan Kapitel 3.1): untere Leiste
 // HEUTE · RÄUME · STUNDEN – drei Knöpfe. HEUTE öffnet direkt den Einsatz des
@@ -334,6 +335,9 @@ export default function MonteurApp({ user, vorschau = false }) {
           <button onClick={abmelden} className="text-praxis-200"><Icon name="logout" className="w-5 h-5" /></button>
         </div>
       </header>
+
+      {/* AP 6: Offline-Banner, Warteschlangen-Balken (⬆ n warten), Gate-Streifen */}
+      <FotoLeiste user={user} />
 
       <main>
         {!user?.userId && istMonteurRolle(user?.rolle) && (

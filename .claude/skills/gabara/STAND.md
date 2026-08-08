@@ -212,3 +212,29 @@ bedeutet fast immer eine `t`-Schattierung (siehe Regel 2 oben).
 - **Soft-Delete** wurde geprüft und verworfen: `where('deleted','!=',true)`
   liefert in Firestore keine Dokumente ohne das Feld – die App wäre leer
   gewesen. Nicht erneut vorschlagen, ohne den Migrationsweg mitzuliefern.
+
+---
+
+## 7 Nachtrag V2-Umbau (Stand 08.08.2026)
+
+AP 0–AP 6 des V2-Plans (`~/.claude/plans/ich-will-einen-system-atomic-brook.md`)
+sind committet. **AP 6 (Fotos offline-zuerst)** brachte:
+
+- `shared/fotoablage.js` – IndexedDB-Warteschlange: EXIF-Zeit VOR dem
+  Verkleinern, drei Größen (1600/900/400, `shared/bild.js dreiGroessen`),
+  SHA-256, Status lokal→laedt→hochgeladen|fehler, persist()/estimate(),
+  Verfallsregel (Vorher sofort, Rest 4 h/10 Bilder), Geräte-Lebenszeichen.
+  **Der EINE Umschalter** auf Firebase Storage: Konstante `SPEICHER_ZIEL`
+  ('vorschau' = Rückfallweg 400er-dataUrl in `photos`, Original bleibt in
+  IndexedDB; 'storage' erst nach Blaze-Upgrade umstellen).
+- Fototafel je Raum (`admin/src/pages/monteur/Fototafel.jsx`): vier Plätze
+  Vorher/Nachher × Auftrag/Regie, Regie-Zeile nur bei Anordnung, Zähler
+  `raum.fotoStand` (Firestore-Regel raeume/nurFelder um 'fotoStand'
+  erweitert; lokaler `updateInkrement` kann jetzt Punktpfade).
+- `FotoLeiste.jsx`: Offline-Banner, Balken „⬆ n warten“ + „jetzt versuchen“,
+  Standalone-Gate (Kamera gesperrt außerhalb der installierten App;
+  Dev-Lauf frei, Test-Schalter localStorage `gabara-gate-erzwingen`='ja').
+  Dafür ist die Admin-App jetzt installierbar (`admin/public/manifest.webmanifest`).
+- Heute/RegieMelden lösen Fotos über die Ablage aus (nie mehr `photos`-
+  dataUrl direkt); BerichtForm sichert Unterschriften im Entwurf mit.
+- Neue Prüfdatei `pruefung/fotoablage.test.mjs` (in `npm test` registriert).

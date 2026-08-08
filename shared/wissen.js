@@ -617,8 +617,65 @@ export const WISSEN = [
         frage: { de: 'Was, wenn auf der Baustelle kein Netz ist?', ar: 'ماذا لو لم تتوفر شبكة في ورشة البناء؟' },
         antwort: [
           { p: {
-            de: 'Angefangene Formulare bleiben auf dem Gerät erhalten und lassen sich später weiterführen. Für das Übertragen der fertigen Daten braucht es allerdings Empfang – ein vollständiger Offline-Betrieb kommt mit dem Online-Go-Live.',
-            ar: 'تبقى النماذج التي بدأت محفوظة على الجهاز ويمكن متابعتها لاحقًا. لكن إرسال البيانات المكتملة يحتاج إلى تغطية – والعمل دون اتصال بشكل كامل سيأتي مع التشغيل عبر الإنترنت.',
+            de: 'Weiterarbeiten wie immer. Meldungen und Fotos werden zuerst auf dem Gerät gesichert und gehen beim nächsten Empfang von selbst raus. Oben erscheint ein dunkler Balken „Kein Netz“ und daneben „n Bilder warten“ – beides verschwindet, sobald alles übertragen ist.',
+            ar: 'تابع العمل كالمعتاد. تُحفظ البلاغات والصور أولًا على الجهاز وتُرسل تلقائيًا عند عودة التغطية. يظهر في الأعلى شريط داكن «لا توجد شبكة» وبجانبه «n صورة بانتظار الرفع» – ويختفي الاثنان بمجرد اكتمال الإرسال.',
+          } },
+          { merke: {
+            de: 'Nichts geht verloren, solange die App vom Startbildschirm-Symbol geöffnet wird (siehe „Warum ist die Kamera gesperrt?“).',
+            ar: 'لا يضيع شيء ما دام التطبيق يُفتح من رمز الشاشة الرئيسية (انظر «لماذا الكاميرا مقفلة؟»).',
+          } },
+        ],
+      },
+      {
+        id: 'fototafel',
+        frage: { de: 'Wie funktioniert die Fototafel mit den vier Plätzen?', ar: 'كيف تعمل لوحة الصور ذات الأماكن الأربعة؟' },
+        zu: '/monteur/raeume',
+        antwort: [
+          { p: {
+            de: 'Jeder Raum hat vier feste Foto-Plätze: Vorher und Nachher, jeweils für Auftrag und Regie. Ein Tipp auf eine leere Kachel (📷) öffnet die Kamera – WAS das Bild ist (vorher/nachher, Auftrag/Regie), steht durch die Kachel schon fest und wird nie nachträglich zugeordnet. Volle Kacheln zeigen ✓ mit der Anzahl.',
+            ar: 'لكل غرفة أربعة أماكن ثابتة للصور: قبل وبعد، لكل من العقد والعمل الإضافي. الضغط على مربع فارغ (📷) يفتح الكاميرا – وما تمثله الصورة (قبل/بعد، عقد/عمل إضافي) محدد مسبقًا بالمربع نفسه ولا يُسنَد لاحقًا أبدًا. المربعات الممتلئة تعرض ✓ مع العدد.',
+          } },
+          { schritte: [
+            { de: 'Beim ersten Betreten des Raums: Vorher-Foto (Auftrag) – das einzige Bild, das sich nie nachholen lässt.', ar: 'عند دخول الغرفة أول مرة: صورة قبل (العقد) – الصورة الوحيدة التي لا يمكن تعويضها لاحقًا.' },
+            { de: 'Beim Raumabschluss: Nachher-Foto – das verlangt die 📷-Zeile in HEUTE von selbst.', ar: 'عند إنهاء الغرفة: صورة بعد – وسطر 📷 في شاشة اليوم يطلبها تلقائيًا.' },
+            { de: 'Die Regie-Zeile erscheint nur, wenn für den Raum eine Anordnung existiert.', ar: 'يظهر سطر العمل الإضافي فقط إذا وُجد أمر لهذه الغرفة.' },
+          ] },
+          { merke: {
+            de: 'Unter jedem Raum steht die Fehlliste (⚠), oben die Ampel der Baustelle. Aus genau diesen Bildpaaren baut sich später das Abnahmeprotokoll von selbst.',
+            ar: 'تحت كل غرفة قائمة النواقص (⚠) وفي الأعلى إشارة الورشة. من أزواج الصور هذه بالذات يتكوّن محضر الاستلام لاحقًا تلقائيًا.',
+          } },
+        ],
+      },
+      {
+        id: 'foto-warteschlange',
+        frage: { de: 'Wohin gehen meine Fotos – und was heißt „n Bilder warten“?', ar: 'إلى أين تذهب صوري – وماذا يعني «n صورة بانتظار الرفع»؟' },
+        antwort: [
+          { p: {
+            de: 'Jedes Foto wird SOFORT auf dem Gerät gesichert (in drei Größen, mit Aufnahmezeit und Prüfsumme) – erst danach passiert alles andere. Der Balken „⬆ n Bilder warten“ zeigt, wie viele Bilder noch nicht auf dem Server sind; „jetzt versuchen“ stößt das Hochladen sofort an. Vorher-Bilder gehen immer zuerst raus, auch über Mobilfunk – sie sind die einzigen Aufnahmen, die sich nicht wiederholen lassen.',
+            ar: 'تُحفظ كل صورة فورًا على الجهاز (بثلاثة أحجام مع وقت الالتقاط وبصمة تحقق) – وبعد ذلك فقط يحدث الباقي. شريط «⬆ n صورة بانتظار الرفع» يبيّن عدد الصور التي لم تصل بعد إلى الخادم؛ وزر «حاول الآن» يبدأ الرفع فورًا. صور «قبل» تُرسل دائمًا أولًا حتى عبر شبكة الجوال – فهي الوحيدة التي لا يمكن إعادة التقاطها.',
+          } },
+          { achtung: {
+            de: 'Scheitert schon das Sichern auf dem Gerät (Speicher voll), wird die Aufnahme LAUT abgebrochen statt still verloren – dann zuerst Speicherplatz freimachen.',
+            ar: 'إذا فشل الحفظ على الجهاز نفسه (الذاكرة ممتلئة) يُلغى الالتقاط بتنبيه صريح بدل الضياع الصامت – حينها أخلِ مساحة تخزين أولًا.',
+          } },
+        ],
+      },
+      {
+        id: 'kamera-installieren',
+        frage: { de: 'Warum ist die Kamera gesperrt – und wie installiere ich die App?', ar: 'لماذا الكاميرا مقفلة – وكيف أثبّت التطبيق؟' },
+        antwort: [
+          { p: {
+            de: 'Wer den Link aus WhatsApp antippt, arbeitet in einem flüchtigen Fenster: Beim Schließen kann der Browser alle dort gespeicherten Fotos wegwerfen – grün gemeldet und trotzdem weg. Deshalb sperrt die App die Kamera, solange sie nicht installiert ist oder der Browser keinen dauerhaften Speicher gewährt.',
+            ar: 'من يفتح الرابط من داخل واتساب يعمل في نافذة مؤقتة: عند الإغلاق قد يتخلص المتصفح من كل الصور المحفوظة هناك – تظهر أنها أُرسلت ثم تضيع. لذلك يقفل التطبيق الكاميرا ما لم يكن مثبّتًا أو ما لم يمنح المتصفح تخزينًا دائمًا.',
+          } },
+          { schritte: [
+            { de: 'Link im richtigen Browser öffnen (Chrome auf Android, Safari auf dem iPhone) – nicht in WhatsApp bleiben.', ar: 'افتح الرابط في المتصفح الصحيح (كروم على أندرويد، سفاري على آيفون) – ولا تبقَ داخل واتساب.' },
+            { de: 'Browser-Menü → „Zum Startbildschirm hinzufügen“ / „App installieren“.', ar: 'قائمة المتصفح ← «إضافة إلى الشاشة الرئيسية» / «تثبيت التطبيق».' },
+            { de: 'Ab jetzt immer über das Gabara-Symbol öffnen – die Sperre verschwindet von selbst.', ar: 'من الآن افتح دائمًا عبر رمز Gabara – ويزول القفل تلقائيًا.' },
+          ] },
+          { merke: {
+            de: 'Die Sperre ist kein Fehler, sondern der Schutz der Beweisfotos. Melden, Stunden und Ansehen funktionieren auch gesperrt weiter.',
+            ar: 'القفل ليس عطلًا بل حماية لصور الإثبات. الإبلاغ والساعات والعرض تعمل كلها حتى أثناء القفل.',
           } },
         ],
       },

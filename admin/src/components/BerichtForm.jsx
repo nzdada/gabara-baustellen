@@ -151,6 +151,11 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
     unterschriftName: bericht?.unterschriftName || '',
     unterschriftFunktion: bericht?.unterschriftFunktion || '',
     unterschriftFirma: bericht?.unterschriftFirma || '',
+    // Die BILDER der Unterschriften wandern MIT in die Entwurfssicherung
+    // (AP 6, Plan 5.4): vorher lebten sie nur im Canvas-Zustand und waren
+    // nach jedem Neuladen weg – ausgerechnet das Mühsamste am Formular.
+    unterschriftKundeBild: bericht?.unterschriftKunde || '',
+    unterschriftMonteurBild: bericht?.unterschriftMonteur || '',
     // Arbeitszeit wie mam_solar: je Person mit Datum + Von/Bis
     stunden: bericht?.stunden?.length
       ? bericht.stunden.map((z) => ({
@@ -174,6 +179,18 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
   const [monteurCanvas, setMonteurCanvas] = useState(null)
   const [alteKunde, setAlteKunde] = useState(bericht?.unterschriftKunde || '')
   const [alteMonteur, setAlteMonteur] = useState(bericht?.unterschriftMonteur || '')
+
+  // Unterschrift gezeichnet -> Canvas merken UND als Bild in den
+  // Formularzustand legen, damit die Entwurfssicherung sie mitnimmt
+  // (AP 6: kundeCanvas/monteurCanvas gehören in den Entwurf).
+  function kundeGezeichnet(canvas) {
+    setKundeCanvas(canvas)
+    setDaten((d) => ({ ...d, unterschriftKundeBild: canvas ? unterschriftAlsDataUrl(canvas) : '' }))
+  }
+  function monteurGezeichnet(canvas) {
+    setMonteurCanvas(canvas)
+    setDaten((d) => ({ ...d, unterschriftMonteurBild: canvas ? unterschriftAlsDataUrl(canvas) : '' }))
+  }
   const [fehler, setFehler] = useState('')
   const [ladeFoto, setLadeFoto] = useState('')
   const kameraRefs = { vorher: useRef(null), nachher: useRef(null) }
@@ -202,8 +219,8 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
 
   const fotosVorher = fotos.filter((f) => f.phase === 'vorher')
   const fotosNachher = fotos.filter((f) => f.phase === 'nachher')
-  const kundeDa = Boolean(kundeCanvas || alteKunde)
-  const monteurDa = Boolean(monteurCanvas || alteMonteur)
+  const kundeDa = Boolean(kundeCanvas || alteKunde || daten.unterschriftKundeBild)
+  const monteurDa = Boolean(monteurCanvas || alteMonteur || daten.unterschriftMonteurBild)
   const stundenOk = typ !== 'regie' || (daten.stunden.length > 0 && daten.stunden.every((z) => z.name.trim() && (Number(z.anzahl) || 0) > 0))
   const anordnungOk = typ !== 'regie' || Boolean(daten.angeordnetDurch.trim())
   const abnahmeUnterschriftenOk = typ !== 'abnahme'
@@ -278,8 +295,10 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
     if (!daten.projektId) { setFehler(t('bf.fehlerProjekt')); return }
     if (status === 'eingereicht' && !einreichenOk) { setFehler(t('bf.fehltNoch', { text: gateHinweis() })); return }
     if (!nummerRef.current) nummerRef.current = await neueBerichtsnummer(typ)
-    const unterschriftKunde = kundeCanvas ? unterschriftAlsDataUrl(kundeCanvas) : alteKunde
-    const unterschriftMonteur = monteurCanvas ? unterschriftAlsDataUrl(monteurCanvas) : alteMonteur
+    // Reihenfolge: frisch gezeichnet > bestehende Unterschrift am Bericht >
+    // aus dem Entwurf wiederhergestelltes Bild (überlebt das Neuladen).
+    const unterschriftKunde = kundeCanvas ? unterschriftAlsDataUrl(kundeCanvas) : (alteKunde || daten.unterschriftKundeBild)
+    const unterschriftMonteur = monteurCanvas ? unterschriftAlsDataUrl(monteurCanvas) : (alteMonteur || daten.unterschriftMonteurBild)
     const doc = {
       id: draftId.current, typ, nummer: nummerRef.current,
       projektId: daten.projektId, terminId: bericht?.terminId || '',
@@ -414,7 +433,15 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
       <div className="space-y-3">
         <EntwurfHinweis
           eintrag={entwurf.gefunden}
-          onWiederherstellen={() => { const alt = entwurf.wiederherstellen(); if (alt) setDaten((d) => ({ ...d, ...alt })) }}
+          onWiederherstellen={() => {
+            const alt = entwurf.wiederherstellen()
+            if (!alt) return
+            setDaten((d) => ({ ...d, ...alt }))
+            // Gesicherte Unterschrift-Bilder sofort wieder ANZEIGEN – sonst
+            // wäre die Sicherung zwar da, aber unsichtbar (AP 6).
+            if (alt.unterschriftKundeBild) setAlteKunde(alt.unterschriftKundeBild)
+            if (alt.unterschriftMonteurBild) setAlteMonteur(alt.unterschriftMonteurBild)
+          }}
           onVerwerfen={entwurf.verwerfen}
         />
         {gesperrt && (
@@ -950,10 +977,10 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
               {alteKunde && !kundeCanvas ? (
                 <div>
                   <img src={alteKunde} alt="Unterschrift Kunde" className="h-20 border border-rahmen rounded-feld bg-karte" />
-                  {!gesperrt && <button onClick={() => setAlteKunde('')} className="mt-1 text-xs text-schrift-leise hover:text-praxis-600">{t('bf.neuUnterschreiben')}</button>}
+                  {!gesperrt && <button onClick={() => { setAlteKunde(''); setDaten((d) => ({ ...d, unterschriftKundeBild: '' })) }} className="mt-1 text-xs text-schrift-leise hover:text-praxis-600">{t('bf.neuUnterschreiben')}</button>}
                 </div>
               ) : gesperrt ? <p className="text-xs text-schrift-zart">{t('bf.keineUnterschrift')}</p> : (
-                <UnterschriftFeld onAenderung={setKundeCanvas} />
+                <UnterschriftFeld onAenderung={kundeGezeichnet} />
               )}
               <div className="grid grid-cols-2 gap-2 mt-2">
                 <input type="text" className={feld} placeholder={`${t('bf.vorNachname')} *`} value={daten.unterschriftName} onChange={set('unterschriftName')} disabled={gesperrt} />
@@ -968,10 +995,10 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
               {alteMonteur && !monteurCanvas ? (
                 <div>
                   <img src={alteMonteur} alt="Unterschrift Monteur" className="h-20 border border-rahmen rounded-feld bg-karte" />
-                  {!gesperrt && <button onClick={() => setAlteMonteur('')} className="mt-1 text-xs text-schrift-leise hover:text-praxis-600">{t('bf.neuUnterschreiben')}</button>}
+                  {!gesperrt && <button onClick={() => { setAlteMonteur(''); setDaten((d) => ({ ...d, unterschriftMonteurBild: '' })) }} className="mt-1 text-xs text-schrift-leise hover:text-praxis-600">{t('bf.neuUnterschreiben')}</button>}
                 </div>
               ) : gesperrt ? <p className="text-xs text-schrift-zart">{t('bf.keineUnterschrift')}</p> : (
-                <UnterschriftFeld onAenderung={setMonteurCanvas} hinweis={t('bf.unterschriftMonteur')} />
+                <UnterschriftFeld onAenderung={monteurGezeichnet} hinweis={t('bf.unterschriftMonteur')} />
               )}
               <p className="mt-2 text-xs text-schrift-zart">{mitarbeiter?.name || user?.name || ''}</p>
             </div>

@@ -1180,6 +1180,31 @@ export const TEXTE = {
   'mt.fotoAufnehmen': { de: 'Foto aufnehmen', ar: 'التقاط صورة' },
   'mt.fehltNoch': { de: 'Es fehlt noch:', ar: 'ما زال ينقص:' },
   'mt.einreichen': { de: 'EINREICHEN', ar: 'تقديم' },
+
+  // ---------------- V2 Foto-Pipeline (AP 6): Fototafel · Warteschlange · Gate ----------------
+  'ft.fototafel': { de: 'Fototafel', ar: 'لوحة الصور' },
+  'ft.vorher': { de: 'VORHER', ar: 'قبل' },
+  'ft.nachher': { de: 'NACHHER', ar: 'بعد' },
+  'ft.auftrag': { de: 'Auftrag', ar: 'العقد' },
+  'ft.regie': { de: 'Regie', ar: 'عمل إضافي' },
+  'ft.fehltAuftragVorher': { de: 'Vorher-Foto Auftrag fehlt', ar: 'صورة قبل (العقد) ناقصة' },
+  'ft.fehltAuftragNachher': { de: 'Nachher-Foto Auftrag fehlt', ar: 'صورة بعد (العقد) ناقصة' },
+  'ft.fehltRegieVorher': { de: 'Vorher-Foto Regie fehlt', ar: 'صورة قبل (العمل الإضافي) ناقصة' },
+  'ft.fehltRegieNachher': { de: 'Nachher-Foto Regie fehlt', ar: 'صورة بعد (العمل الإضافي) ناقصة' },
+  'ft.warten': { de: '{n} Bilder warten', ar: '{n} صورة بانتظار الرفع' },
+  'ft.jetztVersuchen': { de: 'jetzt versuchen', ar: 'حاول الآن' },
+  'ft.offline': { de: 'Kein Netz – alles wird gespeichert und später übertragen.', ar: 'لا توجد شبكة – سيُحفظ كل شيء ويُرسل لاحقًا.' },
+  'ft.fehlerUpload': { de: '{n} nicht übertragen', ar: '{n} لم تُرسل' },
+  'ft.ablageFehler': { de: 'Das Foto konnte NICHT gesichert werden (Gerätespeicher). Aufnahme abgebrochen – bitte Speicherplatz freimachen.', ar: 'تعذّر حفظ الصورة (ذاكرة الجهاز). أُلغي الالتقاط – يرجى إخلاء مساحة تخزين.' },
+  'ft.speicherVoll': { de: 'Der Gerätespeicher ist fast voll – bitte im WLAN öffnen, damit die Bilder hochgeladen werden.', ar: 'ذاكرة الجهاز شبه ممتلئة – يرجى الفتح عبر الواي فاي حتى تُرفع الصور.' },
+  'ft.gateTitel': { de: 'Kamera gesperrt', ar: 'الكاميرا مقفلة' },
+  'ft.gateStreifen': { de: 'Kamera gesperrt – bitte App vom Startbildschirm öffnen. Antippen für die Anleitung.', ar: 'الكاميرا مقفلة – يرجى فتح التطبيق من الشاشة الرئيسية. اضغط لعرض الشرح.' },
+  'ft.gateText': { de: 'Die App läuft gerade im Browser- oder WhatsApp-Fenster. Dort ist der Speicher flüchtig – beim Schließen wären alle Beweisfotos weg. Bitte über das Gabara-Symbol auf dem Startbildschirm öffnen.', ar: 'التطبيق يعمل الآن داخل نافذة المتصفح أو واتساب. الذاكرة هناك مؤقتة – عند الإغلاق تضيع كل صور الإثبات. يرجى الفتح عبر رمز Gabara على الشاشة الرئيسية.' },
+  'ft.gatePersistenz': { de: 'Der Browser gewährt keinen dauerhaften Speicher – Fotos könnten unbemerkt gelöscht werden. Bitte die App vom Startbildschirm öffnen und erneut versuchen.', ar: 'المتصفح لا يمنح تخزينًا دائمًا – قد تُحذف الصور دون إنذار. يرجى فتح التطبيق من الشاشة الرئيسية والمحاولة مجددًا.' },
+  'ft.gateSchritt1': { de: 'Diese Seite im Browser (Chrome/Safari) öffnen – nicht in WhatsApp.', ar: 'افتح هذه الصفحة في المتصفح (كروم/سفاري) – وليس داخل واتساب.' },
+  'ft.gateSchritt2': { de: 'Im Browser-Menü „Zum Startbildschirm hinzufügen“ bzw. „App installieren“ wählen.', ar: 'من قائمة المتصفح اختر «إضافة إلى الشاشة الرئيسية» أو «تثبيت التطبيق».' },
+  'ft.gateSchritt3': { de: 'Die App ab jetzt IMMER über das Gabara-Symbol öffnen.', ar: 'افتح التطبيق من الآن فصاعدًا دائمًا عبر رمز Gabara.' },
+  'ft.gateWarum': { de: 'Warum? Nur die installierte App bekommt dauerhaften Speicher – Ihre Fotos überleben dann Funklöcher, Neustarts und leere Akkus.', ar: 'لماذا؟ التطبيق المثبّت وحده يحصل على تخزين دائم – فتنجو صورك من انقطاع الشبكة وإعادة التشغيل وفراغ البطارية.' },
 }
 
 registriereTexte(TEXTE)
