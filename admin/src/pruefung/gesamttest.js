@@ -12,13 +12,12 @@
 const F = (n) => Math.round(n * 1000) / 1000
 
 export async function laufe() {
-  const [RF, RA, RS, LE, NS, PI, FB, PS] = await Promise.all([
+  const [RF, RA, RS, LE, NS, FB, PS] = await Promise.all([
     import('@shared/raumflaeche.js'),
     import('@shared/raumaufgaben.js'),
     import('@shared/raumsoll.js'),
     import('@shared/leistungen.js'),
     import('@shared/naechsterSchritt.js'),
-    import('@shared/planImport.js'),
     import('@shared/fastbill.js'),
     import('@shared/projektstatus.js'),
   ])
@@ -118,20 +117,6 @@ export async function laufe() {
     NS.schritteBuero({ projekte: [{ id: 'p', name: 'X', status: 'abgeschlossen' }], lvpositionen: [] }).length, 0)
   p('Führung', 'Monteur ohne Termin bekommt nichts', NS.schritteMonteur({ appointments: [], berichte: [], projekte: [], user: { id: 'u' } }).length, 0)
 
-  // ---------------------------------------------------------- Plan-Import
-  const w = [
-    { text: '1.06a', x: 100, y: 100 },
-    { text: 'Multifunktionsraum', x: 100, y: 112 },
-    { text: 'A=19,53qm', x: 100, y: 124 },
-    { text: 'A=', x: 300, y: 200 }, { text: '16,14', x: 320, y: 200 }, { text: 'qm', x: 350, y: 200 },
-  ]
-  const fl = PI.flaechenAus(w)
-  p('Plan', 'Fläche am Stück erkannt', fl[0].flaeche, 19.53)
-  p('Plan', 'Fläche getrennt erkannt', fl.length, 2)
-  p('Plan', 'Stempel über der Fläche', PI.stempelZu(fl[0], w).nummer, '1.06a')
-  p('Plan', 'Name aus derselben Spalte', PI.stempelZu(fl[0], w).name, 'Multifunktionsraum')
-  p('Plan', 'Nachbarspalte wird NICHT eingesammelt', PI.stempelZu(fl[1], w).nummer, '')
-
   // ------------------------------------------------------- Sicherheitseinbehalt
   const eb = FB.einbehaltText({ einbehaltProzent: 5, einbehaltBetrag: 595, zahlbetrag: 11305 })
   p('Einbehalt', 'Betrag steht auf der Rechnung', eb.includes('595,00'), true)
@@ -148,13 +133,6 @@ export async function laufe() {
   const rz = { x: 10, y: 20, breite: 5, laenge: 4 }
   p('Türen', 'Nordwand mittig', TU.tuerZuWand({ mx: 12.5, my: 20, breite: 0.9 }, rz).wand, 'wandN')
   p('Türen', 'zu weit weg wird verworfen', TU.tuerZuWand({ mx: 40, my: 20, breite: 0.9 }, rz), null)
-
-  // ------------------------------------------------------- Entzerrung
-  const GEO = await import('@shared/planGeometrie.js')
-  const ent = GEO.entzerren([{ x: 0, y: 0, breite: 5, laenge: 4 }, { x: 4, y: 0, breite: 5, laenge: 4 }])
-  p('Grundriss', 'Räume liegen nicht mehr ineinander',
-    Math.min(ent[0].x + 5, ent[1].x + 5) - Math.max(ent[0].x, ent[1].x) <= 0.05, true)
-  p('Grundriss', 'Maße bleiben unangetastet', [ent[0].breite, ent[0].laenge], [5, 4])
 
   // ------------------------------------------- Fortschritt über alle Räume
   p('Aufgaben', 'ein geplanter Raum von zwei ist NICHT vollständig',

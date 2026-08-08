@@ -7,7 +7,6 @@ import { PROJEKT_STATUS, statusInfo } from '@shared/projektstatus.js'
 import { useLang, t, datumLok } from '@shared/i18n.js'
 import LvEditor from '../components/LvEditor.jsx'
 import RaumPlaner from '../components/RaumPlaner.jsx'
-import Raum3D from '../components/Raum3D.jsx'
 import RaumVerteilung from '../components/RaumVerteilung.jsx'
 import LvImport from '../components/LvImport.jsx'
 import RechnungWizard from '../components/RechnungWizard.jsx'
@@ -380,10 +379,10 @@ export default function ProjektDetail({ user }) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="font-bold text-schrift-stark">{t('pd.raeume')}</h2>
                 {/* Zwei Sichten auf dieselben Daten: die Draufsicht zum ANLEGEN,
-                    die Raumansicht zum SEHEN, wie weit es ist. Eine gestrichene
-                    Nordwand ist von oben unsichtbar. */}
+                    die Mengenverteilung zum ABRECHNEN. Die 3D-Ansicht ist mit
+                    V2 ersatzlos gestrichen (Plan 9.1: ausdrücklich abgewählt). */}
                 <div className="flex rounded-feld border border-rahmen overflow-hidden">
-                  {[['2d', t('raum.ansicht2d')], ['3d', t('raum.ansicht3d')], ['mengen', t('pd.verteilung')]].map(([id2, label]) => (
+                  {[['2d', t('raum.ansicht2d')], ['mengen', t('pd.verteilung')]].map(([id2, label]) => (
                     <button
                       key={id2}
                       onClick={() => setRaumSicht(id2)}
@@ -422,24 +421,7 @@ export default function ProjektDetail({ user }) {
               )}
               {raumSicht === 'mengen'
                 ? <RaumVerteilung projektId={id} user={user} />
-                : raumSicht === '2d'
-                ? <RaumPlaner projektId={id} user={user} />
-                : (
-                  <Raum3D
-                    raeume={raeume}
-                    aufFlaeche={async (raumId, flaecheId) => {
-                      // Klick auf eine Fläche schaltet ihren Zustand weiter:
-                      // offen -> in Arbeit -> fertig -> offen
-                      const r = raeume.find((x) => x.id === raumId)
-                      if (!r) return
-                      const jetzt = (r.status || {})[flaecheId] || 'offen'
-                      const naechster = jetzt === 'offen' ? 'arbeit' : jetzt === 'arbeit' ? 'fertig' : 'offen'
-                      await withStore((s2) => s2.update('raeume', raumId, {
-                        status: { ...(r.status || {}), [flaecheId]: naechster },
-                      }))
-                    }}
-                  />
-                )}
+                : <RaumPlaner projektId={id} user={user} />}
             </>
           )}
 

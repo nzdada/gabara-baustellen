@@ -6,7 +6,6 @@ import { summeJeRaum } from '@shared/leistungen.js'
 import { useWhere, withStore } from '../hooks.js'
 import { parseZahlPruef } from '../csv.js'
 import RaumDialog from './RaumDialog.jsx'
-import PlanImport from './PlanImport.jsx'
 import { tuerenVon } from '@shared/tueren.js'
 import { fortschrittAufgaben } from '@shared/raumaufgaben.js'
 
@@ -78,7 +77,6 @@ export default function RaumPlaner({ projektId, user }) {
   const [gewaehlt, setGewaehlt] = useState(null)
   const [zieht, setZieht] = useState(null)      // { id, art, startX, startY, raum }
   const [dialog, setDialog] = useState(null)   // Raum-Fenster
-  const [planImport, setPlanImport] = useState(false)
   const flaecheRef = useRef(null)
 
   const sichtbar = useMemo(
@@ -167,12 +165,6 @@ export default function RaumPlaner({ projektId, user }) {
           className="px-4 min-h-11 flex items-center gap-2 rounded-feld bg-praxis-600 text-white text-sm font-bold hover:bg-praxis-700"
         >
           <Icon name="plus" className="w-4 h-4" /> {t('raum.neu')}
-        </button>
-        <button
-          onClick={() => setPlanImport(true)}
-          className="px-4 min-h-11 flex items-center gap-2 rounded-feld border border-rahmen text-sm font-bold hover:bg-gedeckt"
-        >
-          <Icon name="upload" className="w-4 h-4" /> {t('plan.knopf')}
         </button>
         <div className="flex items-center gap-1">
           <button onClick={() => setZoom((z) => Math.max(0.4, runde(z - 0.2, 1)))}
@@ -275,10 +267,6 @@ export default function RaumPlaner({ projektId, user }) {
       </div>
 
       <p className="text-[12px] text-schrift-zart -mt-2">{t('raum.planHilfe')}</p>
-
-      {planImport && (
-        <PlanImport projektId={projektId} vorhandene={raeume} onClose={() => setPlanImport(false)} />
-      )}
 
       {dialog && (
         <RaumDialog

@@ -202,6 +202,16 @@ export const TEXTE = {
   'anhang.raumsoll': { de: 'Raum-Sollmengen', ar: 'كميات الغرف' },
   'anhang.raeume': { de: 'Räume', ar: 'الغرف' },
   'anhang.leistungen': { de: 'Mengenmeldungen', ar: 'بلاغات الكميات' },
+  // V2-Sammlungen (AP 11): erscheinen in der Lösch-Rückfrage eines Projekts
+  'anhang.aufgaben': { de: 'Aufgaben', ar: 'مهام العمل' },
+  'anhang.einsaetze': { de: 'Einsätze', ar: 'إسنادات الفرق' },
+  'anhang.buchungen': { de: 'Meldebuchungen', ar: 'قيود البلاغات' },
+  'anhang.aufmasszeilen': { de: 'Aufmaßzeilen', ar: 'أسطر المساحة' },
+  'anhang.regieanordnungen': { de: 'Regieanordnungen', ar: 'أوامر العمل الإضافي' },
+  'anhang.fotos': { de: 'Foto-Verweise', ar: 'مراجع الصور' },
+  'anhang.stunden': { de: 'Stundenzeilen', ar: 'أسطر الساعات' },
+  'anhang.einbehalte': { de: 'Einbehalte', ar: 'الضمانات المحتجزة' },
+  'anhang.rechnungslaeufe': { de: 'Rechnungsläufe', ar: 'دورات الفوترة' },
 
   // ---------------- Seite: Berichte ----------------
   'berichte.sub': { de: 'Regieberichte, Reklamationen, Abnahmen und Spesen von den Baustellen', ar: 'تقارير العمل بالساعات والشكاوى والاستلامات والمصاريف من ورش البناء' },

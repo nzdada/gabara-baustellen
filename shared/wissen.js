@@ -667,8 +667,12 @@ export const WISSEN = [
         zu: '/monteur',
         antwort: [
           { p: {
-            de: 'Seine Einsätze für heute und die nächsten Tage, die Anschrift der Baustelle, die angehängten Aufgaben aus dem Leistungsverzeichnis und die Hinweise des Büros. Keine Preise, keine Rechnungen, keine Stammdaten.',
-            ar: 'مهامه لليوم وللأيام القادمة، وعنوان ورشة البناء، والمهام المرفقة من جدول الكميات، وملاحظات المكتب. بدون أسعار وبدون فواتير وبدون بيانات أساسية.',
+            de: 'Unten drei Knöpfe, mehr nicht: HEUTE (der Einsatz des Tages mit den Räumen je Arbeitsschritt), RÄUME (die Fototafel je Raum) und STUNDEN (die Kolonnenzeile). Wiki und Einstellungen sitzen hinter dem Namenskreis oben. Keine Preise, keine Rechnungen, keine Stammdaten.',
+            ar: 'ثلاثة أزرار في الأسفل لا غير: اليوم (مهمة اليوم مع الغرف حسب خطوة العمل)، الغرف (لوحة الصور لكل غرفة)، والساعات (سطر الفرقة). المعرفة والإعدادات خلف دائرة الاسم في الأعلى. بدون أسعار وبدون فواتير وبدون بيانات أساسية.',
+          } },
+          { merke: {
+            de: 'Feste Bedienregeln: große Zeilen für Handschuhe, keine tippbare Zahl im Tagesablauf, kein Speichern-Knopf – alles wird still gesichert, und statt Bestätigungsdialogen gibt es die Quittung mit 10 Sekunden Rückgängig.',
+            ar: 'قواعد ثابتة: أسطر كبيرة تناسب القفازات، لا رقم يُكتب في سير اليوم، لا زر حفظ – كل شيء يُحفظ بصمت، وبدل نوافذ التأكيد يظهر إيصال مع 10 ثوانٍ للتراجع.',
           } },
         ],
       },
@@ -969,99 +973,31 @@ export const WISSEN = [
   {
     id: 'raeume',
     icon: 'raum',
-    titel: { de: 'Räume und Bauplan', ar: 'الغرف والمخطط' },
+    titel: { de: 'Räume und Grundriss', ar: 'الغرف والمخطط الأرضي' },
     sub: {
-      de: 'Räume aus dem PDF-Bauplan übernehmen, Fortschritt je Raum sehen, Mengen daraus abrechnen',
-      ar: 'استيراد الغرف من مخطط PDF، ومتابعة التقدّم لكل غرفة، والفوترة من كمياتها',
+      de: 'Räume anlegen, Fortschritt je Raum sehen, Mengen daraus abrechnen',
+      ar: 'إنشاء الغرف، ومتابعة التقدّم لكل غرفة، والفوترة من كمياتها',
     },
     artikel: [
-      {
-        id: 'plan-import',
-        zu: '/projekte',
-        frage: { de: 'Wie kommen die Räume aus dem Bauplan in das Programm?', ar: 'كيف تنتقل الغرف من المخطط إلى البرنامج؟' },
-        antwort: [
-          { p: {
-            de: 'Der Import liest den Bauplan zweimal: einmal den Text und einmal die Zeichnung. Aus dem Text kommen Raumnummer, Name und Fläche, aus der Zeichnung kommen Lage, Breite, Länge und die Türen. Deshalb steht am Ende ein Grundriss, der dem Plan gleicht – und nicht eine Reihe gleich großer Kästchen.',
-            ar: 'يقرأ الاستيراد المخطط مرتين: النص مرة والرسم مرة. من النص يأتي رقم الغرفة واسمها ومساحتها، ومن الرسم يأتي الموقع والعرض والطول والأبواب. لذلك ينتج في النهاية مخطط يشبه الأصل – لا صفٌّ من مربعات متساوية.',
-          } },
-          { schritte: [
-            { de: 'Baustelle öffnen → Bereich „Räume" → „Aus Bauplan".', ar: 'افتح الورشة ← قسم „الغرف" ← „من المخطط".' },
-            { de: 'PDF auswählen. Das Auswerten dauert bei großen Plänen einige Sekunden.', ar: 'اختر ملف PDF. قد يستغرق التحليل ثوانٍ في المخططات الكبيرة.' },
-            { de: 'Die Kontrolltabelle prüfen: Nummer, Name, Fläche. Was unvollständig gelesen wurde, steht rot – dort steht der Name im Plan zu weit weg oder ist umbrochen.', ar: 'راجع جدول المراجعة: الرقم والاسم والمساحة. ما لم يُقرأ كاملًا يظهر بالأحمر – فهناك يكون الاسم بعيدًا في المخطط أو مقسومًا على سطرين.' },
-            { de: 'Haken setzen bei allem, was übernommen werden soll, und „Übernehmen".', ar: 'ضع علامة على ما تريد استيراده ثم „اعتماد".' },
-          ] },
-          { merke: {
-            de: 'Der Import ist ein Vorschlag, kein Automatismus. Geprüft wird im Büro – ein falsch gelesener Raumname landet sonst später auf dem Abschlussbericht.',
-            ar: 'الاستيراد اقتراح لا عملية آلية. المراجعة تتم في المكتب – وإلا فإن اسم غرفة خاطئ سينتهي لاحقًا في التقرير النهائي.',
-          } },
-          { achtung: {
-            de: 'Der Plan gibt die BODENFLÄCHE her, nicht den Umfang. Wandflächen werden deshalb überschlagen (Umfang ≈ 4 × √Fläche) und als „geschätzt" gekennzeichnet. Vor einer Rechnung über Wandflächen den Umfang je Raum einmal eintragen.',
-            ar: 'يوفّر المخطط مساحة الأرضية لا المحيط. لذلك تُقدَّر مساحات الجدران (المحيط ≈ 4 × جذر المساحة) وتُوسم بأنها „تقديرية". قبل إصدار فاتورة على مساحات الجدران، أدخل المحيط لكل غرفة مرة واحدة.',
-          } },
-        ],
-      },
-      {
-        id: 'plan-massstab',
-        frage: { de: 'Woher weiß das Programm, wie groß ein Raum in Wirklichkeit ist?', ar: 'كيف يعرف البرنامج الحجم الحقيقي للغرفة؟' },
-        antwort: [
-          { p: {
-            de: 'Der Maßstab steht in keinem Bauplan maschinenlesbar. Das Programm probiert deshalb die genormten Maßstäbe durch (1:10 bis 1:200) und nimmt den, bei dem die meisten Räume ihre GEDRUCKTE Fläche treffen. Das ist eine Probe mit bekanntem Ergebnis – die Flächen stehen ja im Plan.',
-            ar: 'لا يحتوي أي مخطط على المقياس بصيغة يقرأها الحاسوب. لذلك يجرّب البرنامج المقاييس المعيارية (1:10 حتى 1:200) ويختار المقياس الذي تتطابق معه مساحات معظم الغرف المطبوعة. إنه اختبار بنتيجة معروفة مسبقًا – فالمساحات مذكورة في المخطط.',
-          } },
-          { p: {
-            de: 'Dazu kommt eine harte Gegenprobe: Der Grundriss muss mindestens so groß sein wie die Summe aller Raumflächen. Ohne diese Prüfung gewann beim Testplan ein Maßstab, bei dem 442 m² Räume in einen Grundriss von 248 m² gepasst hätten.',
-            ar: 'يضاف إلى ذلك اختبار صارم: يجب أن يكون المخطط الأرضي بحجم مجموع مساحات الغرف على الأقل. وبدون هذا الاختبار كان مقياس خاطئ سيفوز في المخطط التجريبي، بحيث تتسع 248 م² لغرف مساحتها 442 م².',
-          } },
-          { merke: {
-            de: 'Nach dem Import steht über der Tabelle, welcher Maßstab erkannt wurde und wie viele Räume ihn bestätigen. Bestätigen ihn nur wenige, ist die Zeichnung nicht auswertbar – die Räume werden dann nebeneinander abgelegt und im Grundriss von Hand zurechtgeschoben.',
-            ar: 'بعد الاستيراد يظهر فوق الجدول أي مقياس تم التعرف عليه وكم غرفة تؤكده. إذا أكّده عدد قليل فقط، فالرسم غير قابل للتحليل – وتُوضع الغرف حينها جنبًا إلى جنب وتُرتَّب يدويًا.',
-          } },
-        ],
-      },
-      {
-        id: 'raum-3d',
-        frage: { de: 'Was zeigt die 3D-Ansicht und wie bewegt man sich darin?', ar: 'ماذا تعرض العرض ثلاثي الأبعاد وكيف نتحرك فيه؟' },
-        antwort: [
-          { p: {
-            de: 'Von oben sieht man, WO gearbeitet wird. Aufgestellt sieht man, WIE WEIT: eine gestrichene Nordwand ist in der Draufsicht unsichtbar, in der Raumansicht sofort erkennbar. Über jedem Raum steht ein Schild mit Nummer, Name, Fläche und Fortschrittsbalken.',
-            ar: 'من الأعلى ترى أين يجري العمل. وبالعرض المجسّم ترى إلى أي مدى: الجدار الشمالي المطلي غير مرئي من الأعلى، لكنه واضح فورًا في العرض المجسّم. وفوق كل غرفة لوحة بالرقم والاسم والمساحة وشريط التقدّم.',
-          } },
-          { schritte: [
-            { de: 'Drehen: mit der linken Maustaste ziehen (am Tablet: ein Finger).', ar: 'التدوير: اسحب بالزر الأيسر (على اللوح: إصبع واحد).' },
-            { de: 'Verschieben: mit der rechten Maustaste ziehen oder die Pfeiltasten (am Tablet: zwei Finger).', ar: 'التحريك: اسحب بالزر الأيمن أو استخدم أسهم لوحة المفاتيح (على اللوح: إصبعان).' },
-            { de: 'Zoomen: Mausrad oder die Knöpfe + und −.', ar: 'التكبير: عجلة الفأرة أو الزرّان + و −.' },
-            { de: 'Verlaufen? „Alles zeigen" setzt die Ansicht zurück. „Von oben" und „Flach" sind feste Blickwinkel.', ar: 'تُهت؟ „إظهار الكل" يعيد ضبط العرض. و„من الأعلى" و„منظور منخفض" زاويتان ثابتتان.' },
-          ] },
-          { merke: {
-            de: 'Zwei Betriebsarten: Voreingestellt ist SCHAUEN – drehen, zoomen, schieben, ohne dass sich etwas an den Daten ändert. Erst der Knopf „Bearbeiten“ macht aus einem Klick eine Änderung: auf eine Wand schaltet ihren Zustand weiter (offen → in Arbeit → fertig), auf den Boden öffnet den Raum mit seinen Aufgaben.',
-            ar: 'وضعان: الوضع الافتراضي هو المشاهدة – تدوير وتكبير وتحريك دون تغيير أي بيانات. وزر «تحرير» وحده يحوّل النقرة إلى تعديل: النقر على جدار ينقل حالته، والنقر على الأرضية يفتح الغرفة مع مهامها.',
-          } },
-          { achtung: {
-            de: 'Grün heißt: alle Arbeitsschritte des Raums sind abgehakt. Solange „Bearbeiten“ aus ist, kann beim Herumdrehen nichts versehentlich fertig gemeldet werden – genau dafür ist die Trennung da.',
-            ar: 'الأخضر يعني اكتمال جميع خطوات العمل في الغرفة. وما دام «تحرير» مطفأً، لا يمكن الإبلاغ عن إنجاز بالخطأ أثناء التدوير – ولهذا وُجد هذا الفصل.',
-          } },
-        ],
-      },
       {
         id: 'tueren',
         frage: { de: 'Woher kommen die Türen und wie ändert man sie?', ar: 'من أين تأتي الأبواب وكيف تُعدّل؟' },
         antwort: [
           { p: {
-            de: 'Türen erscheinen an zwei Stellen: im Grundriss als Wandöffnung mit Türblatt und Aufschlagbogen – so wie ein Architekt sie zeichnet – und im 3D-Modell als echte Öffnung mit Sturz darüber und Schwelle darunter.',
-            ar: 'تظهر الأبواب في موضعين: في المخطط كفتحة في الجدار مع الدرفة وقوس الفتح، وفي النموذج ثلاثي الأبعاد كفتحة حقيقية.',
+            de: 'Türen werden im Grundriss als Wandöffnung mit Türblatt und Aufschlagbogen gezeichnet – so wie ein Architekt sie zeichnet. Sie werden von Hand am Raum eingetragen.',
+            ar: 'تُرسم الأبواب في المخطط الأرضي كفتحة في الجدار مع الدرفة وقوس الفتح – كما يرسمها المهندس المعماري. وتُدخَل يدويًا على الغرفة.',
           } },
           { schritte: [
-            { de: 'Aus dem Bauplan kommen sie automatisch mit: Der Import erkennt die Türsymbole und ordnet jede Tür der richtigen Wand zu. Solche Türen sind mit „aus dem Plan“ gekennzeichnet.', ar: 'تأتي تلقائيًا من المخطط: يتعرّف الاستيراد على رموز الأبواب ويسند كل باب إلى جداره الصحيح.' },
-            { de: 'Fehlt eine Tür oder stammt der Raum aus der Zeit vor dem Plan-Import: Raum im Grundriss doppelt anklicken → Abschnitt „Türen“ → Wand wählen.', ar: 'إذا نقص باب أو كانت الغرفة أقدم من الاستيراد: انقر الغرفة مرتين ← قسم «الأبواب» ← اختر الجدار.' },
-            { de: 'Mit dem Schieberegler die Stelle auf der Wand einstellen. Die Änderung ist sofort im Grundriss und im Modell zu sehen.', ar: 'اضبط الموضع على الجدار بشريط التمرير. ويظهر التغيير فورًا.' },
+            { de: 'Raum im Grundriss doppelt anklicken → Abschnitt „Türen“ → Wand wählen.', ar: 'انقر الغرفة مرتين في المخطط ← قسم «الأبواب» ← اختر الجدار.' },
+            { de: 'Mit dem Schieberegler die Stelle auf der Wand einstellen. Die Änderung ist sofort im Grundriss zu sehen.', ar: 'اضبط الموضع على الجدار بشريط التمرير. ويظهر التغيير فورًا في المخطط.' },
           ] },
           { merke: {
             de: 'Türen mindern die Wandfläche: Jede Tür wird von IHRER Wand abgezogen, nicht pauschal verteilt. Das wirkt sich direkt auf die Sollmenge einer Wandposition aus.',
-            ar: 'تقلّل الأبواب مساحة الجدار: يُخصم كل باب من جداره تحديدًا لا بالتوزيع العام.',
+            ar: 'تقلّل الأبواب مساحة الجدار: يُخصم كل باب من جداره تحديدًا لا بالتوزيع العام. وهذا يؤثر مباشرة على الكمية المستهدفة لبند الجدران.',
           } },
           { achtung: {
-            de: 'Nicht jede Tür wird im Plan gefunden – manche sind anders gezeichnet. Was fehlt, wird bewusst NICHT erfunden: eine ausgedachte Tür an der falschen Wand verfälscht die Wandfläche und damit die Rechnung. Lieber von Hand nachtragen.',
-            ar: 'لا يُعثر على كل باب في المخطط. وما ينقص لا يُختلق عمدًا: باب متخيّل على جدار خاطئ يشوّه مساحة الجدار وبالتالي الفاتورة.',
+            de: 'Für die ABRECHNUNG zählt seit V2 das Aufmaß des Raums: Dort werden Öffnungen (Tür/Fenster/Nische) mit Maßen und Leibungstiefe erfasst – nach DIN 18363 wird bis 2,50 m² übermessen, Leibungen zählen gesondert. Die Grundriss-Türen sind die Zeichnung, das Aufmaß ist das Geld.',
+            ar: 'منذ الإصدار الثاني تُعتمد للمحاسبة قياساتُ الغرفة: هناك تُسجَّل الفتحات (باب/نافذة/كوة) بالأبعاد وعمق العضادة – ووفق DIN 18363 تُحتسب الفتحة حتى 2٫50 م²، والعضادات تُحسب منفصلة. أبواب المخطط هي الرسم، أما القياس فهو المال.',
           } },
         ],
       },
