@@ -128,6 +128,11 @@ p('Dokument', 'Prüfsumme + Zeitquelle wandern mit',
 const hochDoc = fotosDokument(eintrag, 'hochgeladen')
 p('Dokument', 'hochgeladen verweist auf pv-Dokument', hochDoc.vorschauPhotoId, 'pv-f-1')
 p('Dokument', 'hochgeladenAm wird gestempelt', typeof hochDoc.hochgeladenAm, 'number')
+// Plan 4.2: hochgeladenAm ist SERVERZEIT – die Warteschlange reicht
+// store.serverzeit() herein (im Firebase-Modus der serverTimestamp-Platzhalter,
+// lokal die Gerätezeit als dokumentierte Entsprechung).
+p('Dokument', 'hochladenZeit des Stores wird übernommen (Serverzeit, nie Gerätezeit)',
+  fotosDokument(eintrag, 'hochgeladen', { hochladenZeit: 999 }).hochgeladenAm, 999)
 p('Dokument', 'deterministische Vorschau-Kennung', vorschauPhotoId('abc'), 'pv-abc')
 
 // ---------------------------------------------------------------- Ausgabe

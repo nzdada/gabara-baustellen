@@ -628,6 +628,10 @@ export const WISSEN = [
             de: 'Steuer-Schnappschuss: § 13b-Modus, Steuersatz, Betrag und Rechtstext werden in die Rechnung KOPIERT. Wird der Kunde später auf 19 % umgestellt, bleiben alte Rechnungen unverändert (§ 146 Abs. 4 AO). Storno bucht alles zurück – gelöscht wird nie.',
             ar: 'لقطة الضريبة: نمط § 13b والنسبة والمبلغ والنص القانوني تُنسخ داخل الفاتورة. لو تغيّر العميل لاحقًا إلى 19٪ تبقى الفواتير القديمة كما هي (§ 146 فقرة 4 AO). الإلغاء يعيد كل شيء – ولا يُحذف شيء أبدًا.',
           } },
+          { p: {
+            de: 'Zwei Sperren schützen das Geld: (1) Ohne Kunden oder ohne USt-Modus (13b/19 %) am Kunden verweigert der Lauf – bei Steuer wird nicht geraten; Kunden am Projekt pflegen, dann abrechnen. (2) Der Storno stellt ZUERST die Rechnung auf „storniert“ und gibt erst danach die Zeilen frei. Bricht er zwischendrin ab, erscheint an der Rechnung „Storno fortsetzen“ – nichts wird doppelt fakturiert, nichts doppelt zurückgebucht.',
+            ar: 'قفلان يحميان المال: (1) بدون عميل أو بدون نمط ضريبة (13b/19٪) للعميل ترفض الدورة – في الضرائب لا نخمّن؛ اضبط العميل في المشروع ثم فوتر. (2) الإلغاء يضع الفاتورة أولًا على «ملغاة» ثم يحرر الأسطر. وإذا توقف في المنتصف يظهر على الفاتورة «استئناف الإلغاء» – لا شيء يُفوتر مرتين ولا شيء يُعاد قيده مرتين.',
+          } },
         ],
       },
       {
@@ -758,6 +762,10 @@ export const WISSEN = [
           { merke: {
             de: 'EINREICHEN bleibt gesperrt, bis alle fünf Punkte stehen – darüber steht immer, was noch fehlt.',
             ar: 'يبقى زر التقديم مقفلًا حتى تكتمل النقاط الخمس – وفوقه يظهر دائمًا ما الذي ينقص.',
+          } },
+          { p: {
+            de: 'Nichts geht verloren: Der Bildschirm sichert alle Eingaben laufend als Entwurf auf dem Gerät. Geht der Akku leer oder räumt das Handy die App weg, bietet der nächste Aufruf „Entwurf wiederherstellen“ an – samt beiden Fotos. Stunden für KOLLEGEN kann nur der Vorarbeiter (oder das Büro) mit absenden; jeder andere meldet seine eigene Zeile.',
+            ar: 'لا يضيع شيء: تحفظ الشاشة كل الإدخالات باستمرار كمسودة على الجهاز. إذا فرغت البطارية أو أغلق الهاتف التطبيق، يعرض الفتح التالي «استعادة المسودة» – مع الصورتين. أما ساعات الزملاء فلا يرسلها إلا رئيس الفرقة (أو المكتب)؛ وكل شخص آخر يبلّغ عن سطره فقط.',
           } },
         ],
       },

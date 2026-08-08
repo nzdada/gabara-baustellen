@@ -3,14 +3,16 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Icon } from '@shared/ui.jsx'
 import { t, tr, useLang } from '@shared/i18n.js'
 import { heuteISO } from '@shared/slots.js'
-import { istMonteurRolle } from '@shared/auth.js'
+import { istMonteurRolle, istVorarbeiterRolle } from '@shared/auth.js'
 import { istOffen } from '@shared/projektstatus.js'
-import { fotoAufnehmen } from '@shared/fotoablage.js'
+import { fotoAufnehmen, vorschauAusAblage } from '@shared/fotoablage.js'
 import { zahlText } from '@shared/aufmass.js'
+import { useEntwurf } from '@shared/entwurf.js'
 import {
   REGIE_BAUSTEINE, einsatzFuerTag, minutenVon, zeitText, stundenAus, stundenZeile,
 } from '@shared/monteurtag.js'
 import { useCollection, useContains, withStore } from '../../hooks.js'
+import EntwurfHinweis from '../../components/EntwurfHinweis.jsx'
 import { useKameraFrei, KameraGesperrt } from './FotoLeiste.jsx'
 
 // REGIE MELDEN (Plan Kapitel 3.1, Bildschirm 5) – der Weg, an dem ein Drittel
@@ -114,6 +116,54 @@ export default function RegieMelden({ user }) {
   const kamera = useKameraFrei(user)           // Standalone-Gate (AP 6)
   const [gateOffen, setGateOffen] = useState(false)
 
+  // Kolonnen-Gate wie StundenKachel (Plan Bildschirm 4: „Wer darf absenden:
+  // nur der Vorarbeiter"): ein einfacher Monteur meldet NUR die eigene Zeile –
+  // die Firestore-Regel /stunden würde fremde Zeilen ohnehin ablehnen, und
+  // ein serverseitig halb geschriebener Vorgang wäre schlimmer als das Gate.
+  const darfKolonne = !istMonteurRolle(user?.rolle) || istVorarbeiterRolle(user?.rolle)
+
+  // Entwurfs-Sicherung (Kernwunsch „Zwischendinge sollen nicht weg sein"):
+  // ALLE fünf Pflichtschritte + die LOKALE Anordnungs-Kennung wandern in den
+  // localStorage. Ohne die Kennung würden die bereits gesicherten Fotos beim
+  // Neuöffnen zu Waisen (anordnungId würde neu gewürfelt).
+  const entwurfDaten = {
+    projektId,
+    anordnungId: anordnungId.current,
+    angeordnetDurch,
+    angeordnetAm,
+    anzeigeArt,
+    bausteinId: baustein?.id || '',
+    freitext,
+    von,
+    bis,
+    pauseMin,
+    gewaehlt: [...gewaehlt],
+    vorherFotoId: vorherFoto?.id || '',
+    nachherFotoId: nachherFoto?.id || '',
+  }
+  const entwurf = useEntwurf('regie-meldung', entwurfDaten, true)
+
+  function entwurfZurueckholen() {
+    const alt = entwurf.wiederherstellen()
+    if (!alt) return
+    if (alt.anordnungId) anordnungId.current = alt.anordnungId
+    if (!projektAusLink && alt.projektId) setProjektWahl(alt.projektId)
+    setAngeordnetDurch(alt.angeordnetDurch || '')
+    if (alt.angeordnetAm) setAngeordnetAm(alt.angeordnetAm)
+    setAnzeigeArt(alt.anzeigeArt || '')
+    setBaustein(REGIE_BAUSTEINE.find((b) => b.id === alt.bausteinId) || null)
+    setFreitext(alt.freitext || '')
+    if (alt.von) setVon(alt.von)
+    if (alt.bis) setBis(alt.bis)
+    if (alt.pauseMin !== undefined) setPauseMin(alt.pauseMin)
+    if (Array.isArray(alt.gewaehlt) && alt.gewaehlt.length) setGewaehlt(new Set(alt.gewaehlt))
+    // Fotos liegen sicher in IndexedDB – die Vorschau wird daraus neu gebaut.
+    for (const [fotoId, setzer] of [[alt.vorherFotoId, setVorherFoto], [alt.nachherFotoId, setNachherFoto]]) {
+      if (!fotoId) continue
+      vorschauAusAblage(fotoId).then((url) => setzer({ id: fotoId, dataUrl: url }))
+    }
+  }
+
   // Der Einsatz kommt aus dem Live-Abo NACH dem ersten Aufbau – Von/Bis
   // dann nachziehen (Vorbelegung aus dem Einsatz, Plan Bildschirm 5).
   useEffect(() => {
@@ -171,44 +221,57 @@ export default function RegieMelden({ user }) {
     if (fehlt.length || laeuft) return
     setLaeuft(true)
     try {
-      // 1. Die Anordnung – das Dokument, an dem der Vergütungsanspruch hängt.
-      await withStore((s) => s.add('regieanordnungen', {
-        id: anordnungId.current,
-        projektId,
-        raumIds: [],
-        titel: titel || freitext.trim().slice(0, 80),
-        beschreibung: freitext.trim(),
-        angeordnetDurch: angeordnetDurch.trim(),
-        angeordnetAm,
-        anzeigeArt,
-        belegFotoId: '',
-        vorherFotoId: vorherFoto.id,
-        nachherFotoId: nachherFoto.id,
-        vorgelegtAm: '',
-        zugangsnachweis: 'unbekannt',
-        status: 'ausgefuehrt',
-        erstelltAm: Date.now(),
-        vonId: user?.userId || '',
-        vonName: user?.name || '',
-      }))
-      // 2. Die Regiestunden – deterministische Kennungen, Wiederholen ersetzt.
+      // EIN Vorgang (writeBatch) statt await-Schleife: Anordnung + alle
+      // Regiestunden-Zeilen zusammen. Offline quittiert schreibeVorgang nach
+      // spätestens 2500 ms (Muster meldeAufgaben) – nichts hängt, und es
+      // bleibt nie ein Teilzustand (Anordnung ohne Stunden) stehen.
       const beschreibung = [titel, freitext.trim()].filter(Boolean).join(' – ')
-      for (const mitglied of mannschaft.filter((m) => gewaehlt.has(m.id))) {
-        await withStore((s) => s.add('stunden', stundenZeile({
-          mitglied,
-          datum: heute,
-          projektId,
-          einsatzId: einsatz?.id || '',
-          teamId: einsatz?.teamId || '',
-          von,
-          bis,
-          pauseMin,
-          art: 'regie',
-          taetigkeit: beschreibung,
-          anordnungId: anordnungId.current,
-          geaendertVon: user?.name || '',
-        })))
-      }
+      const ziel = mannschaft.filter((m) => gewaehlt.has(m.id) && (darfKolonne || m.id === user?.userId))
+      const sets = [
+        // 1. Die Anordnung – das Dokument, an dem der Vergütungsanspruch hängt.
+        {
+          coll: 'regieanordnungen',
+          daten: {
+            id: anordnungId.current,
+            projektId,
+            raumIds: [],
+            titel: titel || freitext.trim().slice(0, 80),
+            beschreibung: freitext.trim(),
+            angeordnetDurch: angeordnetDurch.trim(),
+            angeordnetAm,
+            anzeigeArt,
+            belegFotoId: '',
+            vorherFotoId: vorherFoto.id,
+            nachherFotoId: nachherFoto.id,
+            vorgelegtAm: '',
+            zugangsnachweis: 'unbekannt',
+            status: 'ausgefuehrt',
+            erstelltAm: Date.now(),
+            vonId: user?.userId || '',
+            vonName: user?.name || '',
+          },
+        },
+        // 2. Die Regiestunden – deterministische Kennungen, Wiederholen ersetzt.
+        ...ziel.map((mitglied) => ({
+          coll: 'stunden',
+          daten: stundenZeile({
+            mitglied,
+            datum: heute,
+            projektId,
+            einsatzId: einsatz?.id || '',
+            teamId: einsatz?.teamId || '',
+            von,
+            bis,
+            pauseMin,
+            art: 'regie',
+            taetigkeit: beschreibung,
+            anordnungId: anordnungId.current,
+            geaendertVon: user?.name || '',
+          }),
+        })),
+      ]
+      await withStore((s) => s.schreibeVorgang({ sets }, { onFehler: () => setFehler(t('mt.meldungFehler')) }))
+      entwurf.loeschen()
       navigate('/monteur')
     } catch (e) {
       setFehler(t('mt.meldungFehler'))
@@ -217,11 +280,14 @@ export default function RegieMelden({ user }) {
     }
   }
 
-  // Ohne Baustelle zuerst wählen (kommt man ohne HEUTE-Einsatz hierher)
+  // Ohne Baustelle zuerst wählen (kommt man ohne HEUTE-Einsatz hierher).
+  // Der Entwurfs-Hinweis steht auch HIER: die Wiederherstellung setzt die
+  // gesicherte Baustelle gleich mit.
   if (!projektId) {
     const offene = projekte.filter((p) => istOffen(p.status))
     return (
       <div className="p-4 space-y-3 pb-24">
+        <EntwurfHinweis eintrag={entwurf.gefunden} onWiederherstellen={entwurfZurueckholen} onVerwerfen={entwurf.verwerfen} />
         <p className="text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl px-4 py-3">{t('mt.baustelleWaehlen')}</p>
         {offene.map((p) => (
           <button key={p.id} onClick={() => setProjektWahl(p.id)}
@@ -245,6 +311,7 @@ export default function RegieMelden({ user }) {
 
   return (
     <div className="p-4 space-y-3 pb-28">
+      <EntwurfHinweis eintrag={entwurf.gefunden} onWiederherstellen={entwurfZurueckholen} onVerwerfen={entwurf.verwerfen} />
       <div className="flex items-center gap-2">
         <button onClick={() => navigate(-1)} className="min-h-11 px-2 text-slate-400">
           <Icon name="arrowLeft" className="w-5 h-5" />
@@ -329,16 +396,23 @@ export default function RegieMelden({ user }) {
         </div>
         {mannschaft.map((m) => {
           const an = gewaehlt.has(m.id)
+          // Kolonnen-Gate: fremde Zeilen setzt nur Vorarbeiter/Büro ab –
+          // die Firestore-Regel /stunden lehnt sie sonst serverseitig ab.
+          const sperrig = !darfKolonne && m.id !== user?.userId
           return (
             <button
               key={m.id}
-              onClick={() => setGewaehlt((alt) => {
-                const neu = new Set(alt)
-                if (neu.has(m.id)) neu.delete(m.id)
-                else neu.add(m.id)
-                return neu
-              })}
-              className="w-full min-h-12 flex items-center gap-3 border-b border-slate-100 last:border-b-0 px-1 text-start"
+              disabled={sperrig}
+              onClick={() => {
+                if (sperrig) return
+                setGewaehlt((alt) => {
+                  const neu = new Set(alt)
+                  if (neu.has(m.id)) neu.delete(m.id)
+                  else neu.add(m.id)
+                  return neu
+                })
+              }}
+              className={`w-full min-h-12 flex items-center gap-3 border-b border-slate-100 last:border-b-0 px-1 text-start ${sperrig ? 'opacity-40' : ''}`}
             >
               <span className={`text-2xl leading-none ${an ? 'text-praxis-600' : 'text-slate-300'}`}>{an ? '☑' : '☐'}</span>
               <span className="flex-1 font-semibold text-slate-800">{m.name}</span>
@@ -346,6 +420,9 @@ export default function RegieMelden({ user }) {
             </button>
           )
         })}
+        {!darfKolonne && mannschaft.length > 1 && (
+          <p className="mt-2 text-[12px] text-slate-400">{t('mt.nurEigeneZeile')}</p>
+        )}
       </Stufe>
 
       {/* Schritt 5: Nachher-Foto (Pflicht) */}

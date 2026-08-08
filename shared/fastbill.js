@@ -341,7 +341,16 @@ export function einbehaltText(rechnung) {
 }
 
 export async function erstelleFastbillRechnung(rechnung, kunde, introText) {
-  const vatProzent = kunde.ustModus === '13b' ? 0 : 19
+  // Steuer-SCHNAPPSCHUSS (Plan 8.8, § 146 Abs. 4 AO): Trägt die Rechnung
+  // einen eingefrorenen USt-Modus (V2-Aufmaßrechnungen), gilt AUSSCHLIESSLICH
+  // dieser – NIE der Live-Stand des Kunden. Sonst weist die FastBill-Rechnung
+  // nach einer späteren Kundenumstellung (13b -> ust19) andere Steuer aus als
+  // der App-Datensatz. V1-Rechnungen ohne Schnappschuss rechnen wie bisher
+  // live aus dem Kunden.
+  const ausSchnappschuss = rechnung.ustModus === '13b' || rechnung.ustModus === 'ust19'
+  const vatProzent = ausSchnappschuss
+    ? (rechnung.ustModus === '13b' ? 0 : (Number(rechnung.ustSatz) || 19))
+    : (kunde.ustModus === '13b' ? 0 : 19)
   const einbehalt = einbehaltText(rechnung)
   const daten = {
     CUSTOMER_ID: kunde.fastbillCustomerId,

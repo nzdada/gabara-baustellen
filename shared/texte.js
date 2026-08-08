@@ -32,7 +32,7 @@ export const TEXTE = {
   'allg.datum': { de: 'Datum', ar: 'التاريخ' },
   'allg.von': { de: 'Von', ar: 'من' },
   'allg.bis': { de: 'Bis', ar: 'إلى' },
-  'allg.uhr': { de: 'Uhr', ar: '' },
+  'allg.uhr': { de: 'Uhr', ar: 'الساعة' },
   'allg.stunden': { de: 'Std.', ar: 'ساعة' },
   'allg.betrag': { de: 'Betrag', ar: 'المبلغ' },
   'allg.menge': { de: 'Menge', ar: 'الكمية' },
@@ -1381,6 +1381,8 @@ export const TEXTE = {
   'rl.stornoFrage': { de: 'Rechnung stornieren? Alle Aufmaßzeilen werden wieder abrechenbar, der Einbehalt entfällt. Die Rechnung bleibt als „storniert“ stehen (nichts wird gelöscht).', ar: 'إلغاء الفاتورة؟ تعود كل أسطر المساحة قابلة للفوترة ويسقط الضمان. تبقى الفاتورة بحالة «ملغاة» (لا يُحذف شيء).' },
   'rl.stornoOk': { de: 'Storniert – alle Zeilen sind wieder abrechenbar.', ar: 'أُلغيت – عادت كل الأسطر قابلة للفوترة.' },
   'rl.stornieren': { de: 'Stornieren', ar: 'إلغاء' },
+  'rl.stornoFortsetzen': { de: 'Storno fortsetzen', ar: 'استئناف الإلغاء' },
+  'rl.kundeFehlt': { de: 'Kein Kunde oder kein USt-Modus (13b/19 %) am Kunden hinterlegt – bei Geld wird nicht geraten. Bitte den Kunden am Projekt pflegen, dann abrechnen.', ar: 'لا يوجد عميل أو لم يُحدد وضع ضريبة القيمة المضافة (13b/19٪) للعميل – في أمور المال لا نخمّن. يرجى ضبط بيانات العميل في المشروع ثم الفوترة.' },
 
   // Projekt: Abrechnungsregel + Bodenaufbau (pd.*)
   'pd.regelwerk': { de: 'Abrechnungsregel (Pflicht)', ar: 'قاعدة المحاسبة (إلزامي)' },

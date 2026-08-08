@@ -61,11 +61,26 @@ const QUALI_SCHLUESSEL = { facharbeiter: 'einst.facharbeiter', helfer: 'einst.he
 // hochgezählt (Firebase: runTransaction) – zwei gleichzeitig einreichende
 // Monteure bekommen so garantiert verschiedene Nummern. Das ist beim
 // Stundennachweis nach § 15 Abs. 3 VOB/B beweisrelevant.
+// ACHTUNG: runTransaction braucht zwingend VERBINDUNG – deshalb wird die
+// Nummer NIE vor einem Foto gezogen (Eiserne Regel „vor einem Foto niemals
+// eine Server-Kennung") und beim Speichern nur mit Frist versucht.
 async function neueBerichtsnummer(typ) {
   return withStore(async (s) => {
     const { jahr, laufend } = await s.naechsteNummer('bericht')
     return `${NUMMER_PREFIX[typ] || 'B'}-${jahr}-${String(laufend).padStart(3, '0')}`
   })
+}
+
+// Höchstens `ms` auf den Server warten (Muster store.meldeLeistungen):
+// Firestore legt den Schreibvorgang sofort in die lokale Warteschlange –
+// im Flugmodus darf hier NICHTS endlos hängen. Ein schneller ECHTER Fehler
+// (z. B. Regel-Ablehnung) schlägt weiterhin durch.
+function mitFrist(versprechen, ms = 2500) {
+  versprechen.catch(() => {})
+  return Promise.race([
+    versprechen,
+    new Promise((auf) => setTimeout(() => auf(undefined), ms)),
+  ])
 }
 
 // Abschnitts-Karte im mam_solar-Stil: Nummer + Titel, darunter der Inhalt
@@ -253,15 +268,27 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
 
   async function stelleDocSicher() {
     if (docAngelegt.current) return
-    docAngelegt.current = true
-    if (!nummerRef.current) nummerRef.current = await neueBerichtsnummer(typ)
-    await withStore((s) => s.add('berichte', {
-      id: draftId.current, typ, nummer: nummerRef.current,
-      projektId: daten.projektId, terminId: bericht?.terminId || '',
-      mitarbeiterId: daten.mitarbeiterId, mitarbeiterName: mitarbeiter?.name || user?.name || '',
-      datum: daten.datum, status: 'entwurf', beschreibung: daten.beschreibung,
-      createdAt: Date.now(), eingereichtAm: 0,
-    }))
+    // OHNE Berichtsnummer anlegen: Die Nummer käme aus runTransaction und
+    // bräuchte zwingend Verbindung – vor einem Foto gibt es aber NIEMALS
+    // eine Server-Kennung (Plan 5.3; die lokale draftId trägt alles).
+    // Die Nummer wird erst beim Speichern/Einreichen gezogen.
+    // mitFrist: offline geht der Entwurf in die Firestore-Warteschlange,
+    // der Foto-Auslöser darf nicht daran hängen.
+    try {
+      await mitFrist(withStore((s) => s.add('berichte', {
+        id: draftId.current, typ, nummer: nummerRef.current || '',
+        projektId: daten.projektId, terminId: bericht?.terminId || '',
+        mitarbeiterId: daten.mitarbeiterId, mitarbeiterName: mitarbeiter?.name || user?.name || '',
+        datum: daten.datum, status: 'entwurf', beschreibung: daten.beschreibung,
+        createdAt: Date.now(), eingereichtAm: 0,
+      })))
+      docAngelegt.current = true
+    } catch (e) {
+      // Erst NACH Erfolg merken – sonst hingen Folgefotos an einem nie
+      // angelegten Bericht und der nächste Versuch würde übersprungen.
+      docAngelegt.current = false
+      throw e
+    }
   }
 
   async function fotoHinzu(phase, e) {
@@ -277,12 +304,15 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
         const dataUrl = await komprimiere(datei)
         if (dataUrl.length > 950000) { setFehler(t('bf.fehlerZuGross')); continue }
         await stelleDocSicher()
-        await withStore((s) => s.add('photos', {
+        // mitFrist: offline landet das Foto in der Firestore-Warteschlange
+        // und erscheint sofort aus dem lokalen Zwischenspeicher – ein
+        // endloses await würde den Auslöser hängen lassen (Flugmodus).
+        await mitFrist(withStore((s) => s.add('photos', {
           projektId: daten.projektId, berichtId: draftId.current, terminId: bericht?.terminId || '',
           phase, dataUrl, name: datei.name,
           // von = Anzeigename, vonId = Konto-ID (die Firestore-Regel prüft die ID)
           von: user?.name || '', vonId: user?.userId || '', createdAt: Date.now(),
-        }))
+        })))
       }
     } catch (err) {
       setFehler(err.message || t('bf.fehlerBild'))
@@ -301,7 +331,17 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
     if (gesperrt) { setFehler(t('bf.fehlerGesperrt')); return }
     if (!daten.projektId) { setFehler(t('bf.fehlerProjekt')); return }
     if (status === 'eingereicht' && !einreichenOk) { setFehler(t('bf.fehltNoch', { text: gateHinweis() })); return }
-    if (!nummerRef.current) nummerRef.current = await neueBerichtsnummer(typ)
+    // Berichtsnummer nur MIT Frist ziehen: runTransaction braucht Verbindung.
+    // Im Flugmodus (Heimweg-Fall) wird ohne Nummer gespeichert – der Bericht
+    // trägt sie beim nächsten Speichern mit Netz nach; blockieren wäre
+    // schlimmer als eine nachgezogene Nummer.
+    if (!nummerRef.current) {
+      try {
+        nummerRef.current = (await mitFrist(neueBerichtsnummer(typ))) || ''
+      } catch (e) {
+        nummerRef.current = ''
+      }
+    }
     // Reihenfolge: frisch gezeichnet > bestehende Unterschrift am Bericht >
     // aus dem Entwurf wiederhergestelltes Bild (überlebt das Neuladen).
     const unterschriftKunde = kundeCanvas ? unterschriftAlsDataUrl(kundeCanvas) : (alteKunde || daten.unterschriftKundeBild)
@@ -369,7 +409,9 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
     }
     try {
       docAngelegt.current = true
-      await withStore((s) => s.add('berichte', doc))
+      // mitFrist: offline geht der Bericht in die Warteschlange – der
+      // Speichern-Knopf darf nicht bis zur Server-Bestätigung hängen.
+      await mitFrist(withStore((s) => s.add('berichte', doc)))
       // AP 9 (Plan 6.2): Der Regiebericht schreibt seine Stundenzeilen beim
       // EINREICHEN zusätzlich in die Sammlung `stunden` – dieselbe Quelle,
       // aus der Stundenzettel und CSV gebaut werden. Deterministische
@@ -414,8 +456,14 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
             })
           }
         }
-        for (const zeile of jeTag.values()) {
-          await withStore((s) => s.add('stunden', zeile))
+        // EIN Vorgang statt await-Schleife: offline hinge sonst der erste
+        // add für immer und die restlichen Zeilen würden NIE geschrieben
+        // (schreibeVorgang quittiert nach spätestens 2500 ms, alles-oder-nichts).
+        const zeilen = [...jeTag.values()]
+        if (zeilen.length) {
+          await withStore((s) => s.schreibeVorgang({
+            sets: zeilen.map((zeile) => ({ coll: 'stunden', daten: zeile })),
+          }))
         }
       }
       entwurf.loeschen()   // erst NACH der Bestätigung des Stores

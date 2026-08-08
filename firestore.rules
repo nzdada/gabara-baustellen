@@ -384,9 +384,12 @@ service cloud.firestore {
     // Schritts zu einem update – und update ist VERBOTEN. Weil die Meldung
     // als ein Batch läuft, scheitert damit der ganze zweite Batch samt
     // increment: keine Doppelbuchung, auch nicht aus dem Funkloch.
+    // Anlegen NUR unter eigenem Namen (wie /leistungen): die Buchung ist
+    // Nachweis gegenüber dem GU – niemand schiebt sie einem Kollegen unter.
     match /buchungen/{id} {
       allow read: if angemeldet();
-      allow create: if angemeldet();
+      allow create: if darfVerwalten()
+        || (angemeldet() && request.resource.data.get('mitarbeiterId', '') == request.auth.uid);
       allow update: if false;
       allow delete: if darfVerwalten();
     }
@@ -400,18 +403,34 @@ service cloud.firestore {
     // Das Geldatom. Entsteht beim Fertigmelden (auch durch den Monteur),
     // aber ändern und stornieren kann nur das Büro. abgerechnetIn wird
     // ausschließlich vom Rechnungslauf gesetzt.
+    // FELDBINDUNG beim Anlegen durch Nicht-Büro: die Zeile darf NICHT schon
+    // bestätigt oder abgerechnet zur Welt kommen ("bestätigt NUR das Büro",
+    // Plan 8.3 – sonst liefe eine selbstbestätigte Monteur-Zeile ungeprüft in
+    // den nächsten Rechnungslauf) und muss den eigenen Namen tragen.
     match /aufmasszeilen/{id} {
       allow read: if angemeldet();
-      allow create: if angemeldet();
+      allow create: if darfVerwalten()
+        || (angemeldet()
+            && request.resource.data.get('bestaetigtAm', 0) == 0
+            && request.resource.data.get('bestaetigtVon', '') == ''
+            && request.resource.data.get('abgerechnetIn', '') == ''
+            && request.resource.data.get('erfasstVon', '') == request.auth.uid);
       allow update, delete: if darfVerwalten();
     }
 
     // Regieanordnung + Anerkennungsuhr (§ 15 Abs. 3 VOB/B). Anlegen darf
     // auch der Monteur (Anordnung kommt mündlich auf der Baustelle an),
     // die Fristenfelder pflegt das Büro.
+    // FELDBINDUNG beim Anlegen durch Nicht-Büro: weder 'anerkannt' noch
+    // vorgelegt/anerkanntAb dürfen mitkommen – die Anerkennungsuhr wäre
+    // sonst vom Client fälschbar.
     match /regieanordnungen/{id} {
       allow read: if angemeldet();
-      allow create: if angemeldet();
+      allow create: if darfVerwalten()
+        || (angemeldet()
+            && request.resource.data.get('status', '') != 'anerkannt'
+            && request.resource.data.get('anerkanntAb', '') == ''
+            && request.resource.data.get('vorgelegtAm', '') == '');
       allow update, delete: if darfVerwalten();
     }
 
@@ -432,16 +451,23 @@ service cloud.firestore {
     // Der VORARBEITER sendet zusätzlich die KOLONNENZEILE (Plan 3.1,
     // Bildschirm 4): Zeilen für andere, aber nur solange status 'erfasst'
     // ist – eingereichte/freigegebene Zeilen bleiben auch ihm verschlossen.
+    // FELDBINDUNG: Auch die EIGENE Zeile entsteht nur mit status 'erfasst'
+    // (kein Selbst-Freigeben beim Anlegen), und der Monteur-Update-Zweig
+    // prüft ZUSÄTZLICH den NEUEN Status – sonst könnte ein Monteur die
+    // eigene Zeile auf 'freigegeben' heben und den Lohnlauf fälschen.
     match /stunden/{id} {
       allow read: if angemeldet();
       allow create: if darfVerwalten()
-        || (istMonteur() && request.resource.data.userId == request.auth.uid)
-        || (istVorarbeiter() && request.resource.data.get('status', '') == 'erfasst');
+        || (istVorarbeiter() && request.resource.data.get('status', '') == 'erfasst')
+        || (istMonteur()
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.get('status', '') == 'erfasst');
       allow update: if darfVerwalten()
+        || (istVorarbeiter()
+            && resource.data.status == 'erfasst'
+            && request.resource.data.get('status', '') == 'erfasst')
         || (istMonteur()
             && resource.data.userId == request.auth.uid
-            && resource.data.status == 'erfasst')
-        || (istVorarbeiter()
             && resource.data.status == 'erfasst'
             && request.resource.data.get('status', '') == 'erfasst');
       allow delete: if darfVerwalten();

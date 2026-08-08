@@ -281,7 +281,12 @@ export function sollteJetztLaden(eintrag, { online, jetzt = Date.now(), wartend 
 // Das fotos-Dokument (V2): NUR Verweise und Prüfdaten, NIE Bilddaten.
 // Exportiert, damit der Test beweisen kann, dass kein dataUrl-Schlüssel
 // hineinrutscht (die Firestore-Regel lehnt ihn ab – der ganze Batch stürbe).
-export function fotosDokument(eintrag, status) {
+// `hochladenZeit` (nur bei status 'hochgeladen'): der Zeitstempel des
+// Uploads. Der Aufrufer reicht im Firebase-Modus store.serverzeit() herein
+// (SERVERZEIT, Plan 4.2 – die Gerätezeit eines stundenlang offline gewesenen
+// Handys taugt nicht als Beweis-Zeitstempel); lokal bleibt die Gerätezeit
+// als dokumentierte Entsprechung.
+export function fotosDokument(eintrag, status, { hochladenZeit } = {}) {
   return {
     id: eintrag.id,
     projektId: eintrag.projektId,
@@ -304,7 +309,7 @@ export function fotosDokument(eintrag, status) {
     vonId: eintrag.vonId || '',
     datum: eintrag.datum || '',
     erstelltAm: eintrag.erstelltAm,
-    ...(status === 'hochgeladen' ? { hochgeladenAm: Date.now() } : {}),
+    ...(status === 'hochgeladen' ? { hochgeladenAm: hochladenZeit ?? Date.now() } : {}),
   }
 }
 
@@ -418,8 +423,16 @@ export async function fotoAufnehmen(datei, meta, store, { jetzt = Date.now() } =
   }
 }
 
+// Verworfene Kennungen dieser Sitzung. WARUM: fotoAufnehmen stößt die
+// Warteschlange sofort an – tippt der Monteur RÜCKGÄNGIG, während
+// eintragHochladen gerade läuft, hält verarbeite() den Eintrag noch im
+// Speicher und würde ihn nach dem Löschen per ablageSchreiben (+ Dokumente)
+// WIEDERBELEBEN. Die Markierung wird vor jedem Rückschreiben geprüft.
+const _verworfen = new Set()
+
 // Rückgängig (Quittung) oder Fehlaufnahme: Blobs + Dokumente entfernen.
 export async function fotoVerwerfen(id, store) {
+  _verworfen.add(id)
   try { await ablageLoeschen(id) } catch (e) { /* schon weg */ }
   try { await mitFrist(store.remove('fotos', id), FRIST_MS) } catch (e) { /* egal */ }
   try { await mitFrist(store.remove('photos', vorschauPhotoId(id)), FRIST_MS) } catch (e) { /* egal */ }
@@ -520,7 +533,9 @@ async function eintragHochladen(eintrag, store) {
   }), FRIST_MS)
   if (ergebnis === 'fehler') throw new Error('Vorschau abgelehnt.')
   if (ergebnis === 'frist') return false      // Funkloch: später erneut
-  await mitFrist(store.add('fotos', fotosDokument(ohneBlobs, 'hochgeladen')), FRIST_MS)
+  await mitFrist(store.add('fotos', fotosDokument(ohneBlobs, 'hochgeladen', {
+    hochladenZeit: typeof store.serverzeit === 'function' ? store.serverzeit() : Date.now(),
+  })), FRIST_MS)
   return true
 }
 
@@ -539,15 +554,29 @@ async function verarbeite() {
         || (a.erstelltAm || 0) - (b.erstelltAm || 0))
     const sparsam = SPEICHER_ZIEL === 'storage'
     for (const eintrag of offen) {
+      // VERWORFEN schlägt alles: der Eintrag darf weder hochgeladen noch
+      // zurückgeschrieben werden – sonst taucht ein zurückgenommenes Foto
+      // als Beweisbild einer nie geschriebenen Meldung wieder auf.
+      if (_verworfen.has(eintrag.id)) {
+        await fotoVerwerfen(eintrag.id, store).catch(() => {})
+        continue
+      }
       if (!sollteJetztLaden(eintrag, { online, wartend: offen.length, sparsam })) continue
       try {
         eintrag.status = 'laedt'
         await ablageSchreiben(eintrag)
         const fertig = await eintragHochladen(eintrag, store)
+        // Während des Hochladens verworfen? Dann aufräumen statt sichern –
+        // eintragHochladen kann die Dokumente bereits geschrieben haben.
+        if (_verworfen.has(eintrag.id)) {
+          await fotoVerwerfen(eintrag.id, store).catch(() => {})
+          continue
+        }
         eintrag.status = fertig ? 'hochgeladen' : 'lokal'
         if (fertig) { eintrag.hochgeladenAm = Date.now(); eintrag.fehlerText = '' }
         await ablageSchreiben(eintrag)
       } catch (e) {
+        if (_verworfen.has(eintrag.id)) continue
         eintrag.status = 'fehler'
         eintrag.versuche = (eintrag.versuche || 0) + 1
         eintrag.fehlerText = e?.message || String(e)

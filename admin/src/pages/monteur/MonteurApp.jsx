@@ -113,26 +113,28 @@ function TerminListe({ user }) {
   const [ansicht, setAnsicht] = useState('liste')  // liste | kalender
   const [tag, setTag] = useState(heute)
 
-  // Alle mir zugewiesenen Einsätze auf offenen Baustellen (Basis für beide Ansichten)
+  // Alle mir zugewiesenen Einsätze auf offenen Baustellen (Basis für beide
+  // Ansichten). Schleifenvariable NIE `t` nennen – das verdeckt die
+  // Übersetzungsfunktion und crasht erst zur Laufzeit (Eiserne Regel).
   const alleMeine = useMemo(() => appointments
-    .filter((t) => istMeiner(t, user) && t.status !== 'abgesagt' && t.kategorie !== 'privat')
-    .filter((t) => {
-      const p = projekte.find((x) => x.id === t.projektId)
+    .filter((term) => istMeiner(term, user) && term.status !== 'abgesagt' && term.kategorie !== 'privat')
+    .filter((term) => {
+      const p = projekte.find((x) => x.id === term.projektId)
       return !p || istOffen(p.status) // abgeschlossene Baustellen verschwinden vom Handy
     })
     .sort((a, b) => `${a.datum}${a.start || ''}`.localeCompare(`${b.datum}${b.start || ''}`)),
     [appointments, projekte, user])
 
   // Listenansicht blendet erledigte Alt-Termine aus, die Kalenderansicht zeigt alles
-  const meine = useMemo(() => alleMeine.filter((t) => t.datum >= heute || !t.erledigt), [alleMeine, heute])
+  const meine = useMemo(() => alleMeine.filter((term) => term.datum >= heute || !term.erledigt), [alleMeine, heute])
 
   const marker = useMemo(() => {
     const m = {}
-    for (const t of alleMeine) m[t.datum] = (m[t.datum] || 0) + 1
+    for (const term of alleMeine) m[term.datum] = (m[term.datum] || 0) + 1
     return m
   }, [alleMeine])
 
-  const desTages = useMemo(() => alleMeine.filter((t) => t.datum === tag), [alleMeine, tag])
+  const desTages = useMemo(() => alleMeine.filter((term) => term.datum === tag), [alleMeine, tag])
 
   const gruppen = [
     [t('monteur.heute'), meine.filter((x) => x.datum === heute)],
@@ -140,17 +142,17 @@ function TerminListe({ user }) {
     [t('monteur.frueher'), meine.filter((x) => x.datum < heute && !x.erledigt)],
   ]
 
-  async function erledigt(t) {
-    await withStore((s) => s.update('appointments', t.id, { erledigt: !t.erledigt, erledigtAm: !t.erledigt ? heute : '' }))
+  async function erledigt(term) {
+    await withStore((s) => s.update('appointments', term.id, { erledigt: !term.erledigt, erledigtAm: !term.erledigt ? heute : '' }))
   }
 
-  const karte = (t) => (
+  const karte = (term) => (
     <EinsatzKarte
-      termin={t}
-      projekt={projekte.find((p) => p.id === t.projektId)}
-      team={teamFuerTermin(t, users)}
-      onErledigt={() => erledigt(t)}
-      onOeffnen={() => navigate(`/monteur/baustelle/${t.projektId}`)}
+      termin={term}
+      projekt={projekte.find((p) => p.id === term.projektId)}
+      team={teamFuerTermin(term, users)}
+      onErledigt={() => erledigt(term)}
+      onOeffnen={() => navigate(`/monteur/baustelle/${term.projektId}`)}
     />
   )
 
@@ -184,7 +186,7 @@ function TerminListe({ user }) {
             </div>
           ) : (
             <div className="space-y-3">
-              {desTages.map((t) => <div key={t.id}>{karte(t)}</div>)}
+              {desTages.map((term) => <div key={term.id}>{karte(term)}</div>)}
             </div>
           )}
         </>
@@ -200,10 +202,10 @@ function TerminListe({ user }) {
             <div key={titel}>
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">{titel}</p>
               <div className="space-y-3">
-                {liste.map((t) => (
-                  <div key={t.id}>
-                    <p className="text-xs text-slate-400 mb-1">{datumLok(t.datum, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-                    {karte(t)}
+                {liste.map((term) => (
+                  <div key={term.id}>
+                    <p className="text-xs text-slate-400 mb-1">{datumLok(term.datum, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                    {karte(term)}
                   </div>
                 ))}
               </div>
@@ -222,7 +224,7 @@ function Baustellen({ user }) {
   const navigate = useNavigate()
 
   const meineProjekte = useMemo(() => {
-    const ids = new Set(appointments.filter((t) => istMeiner(t, user)).map((t) => t.projektId).filter(Boolean))
+    const ids = new Set(appointments.filter((term) => istMeiner(term, user)).map((term) => term.projektId).filter(Boolean))
     return projekte.filter((p) => ids.has(p.id) && istOffen(p.status))
   }, [appointments, projekte, user])
 

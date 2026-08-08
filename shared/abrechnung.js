@@ -20,9 +20,9 @@
 // - einbehaltBauen (Plan 8.9): Sicherheitseinbehalt mit Fälligkeitsdatum
 //   (Abnahme + 48 Monate VOB / 60 Monate BGB) – nie wieder ein Einbehalt,
 //   der in der Schublade verjährt.
-// - stornoBauen: Storno statt Löschen. Bucht abgerechnetIn zurück, setzt die
-//   Rechnung auf storniert, lässt den Einbehalt entfallen und zieht die
-//   Kennzahl zurück – in Etappen, wiederholbar, idempotent.
+// - stornoBauen: Storno statt Löschen. ERST wird die Rechnung storniert
+//   (sperrt die Wieder-Fakturierung), DANN abgerechnetIn in Etappen geleert,
+//   zuletzt Einbehalt/Kennzahl – wiederholbar, idempotent, fortsetzbar.
 //
 // GRUNDREGELN: reine Funktionen, kein React, kein Store. Geld in Cent als
 // Ganzzahl, Mengen über parseZahl (nie Number("16,4")), `jetzt` injizierbar.
@@ -227,7 +227,15 @@ export function naechsteEtappe(lauf, zeilenIst = [], { grenze = ETAPPEN_GROESSE,
 // ------------------------------------------------------------- Steuer (8.8)
 
 export function steuerSchnappschuss({ kunde = null, netto = 0, text13b = '', ustSatzProzent = 19 } = {}) {
-  const ist13b = (kunde?.ustModus || '13b') === '13b'
+  // Bei Geld wird nicht geraten: Ohne Kunden oder ohne gepflegten ustModus
+  // entstünde still eine 0-%-Netto-Rechnung mit § 13b-Text – gegenüber einem
+  // Privatkunden falsch ausgewiesene Steuer (die USt bleibt geschuldet).
+  // Deshalb HART abbrechen statt Vorgabe.
+  const modus = kunde?.ustModus
+  if (modus !== '13b' && modus !== 'ust19') {
+    throw new Error('Kein Kunde bzw. kein USt-Modus (13b/ust19) am Kunden hinterlegt – Rechnung verweigert. Bitte den Kunden am Projekt pflegen (bei Geld wird nicht geraten).')
+  }
+  const ist13b = modus === '13b'
   const satz = ist13b ? 0 : parseZahl(ustSatzProzent)
   const ustBetrag = rund2(parseZahl(netto) * (satz / 100))
   return {
@@ -347,11 +355,20 @@ export function einbehaltBauen({ rechnung, kunde = null, abnahmeAm = '', jetzt =
 
 // ------------------------------------------------------------- Storno
 //
-// Storno statt Löschen (Plan 8.7/8.9): abgerechnetIn wird GELEERT (die Zeile
-// wird wieder abrechenbar), die Rechnung bleibt als 'storniert' stehen, der
-// Einbehalt entfällt, die Kennzahl wird zurückgezogen. In Etappen – und
-// idempotent: ein abgebrochener Storno lässt sich einfach wiederholen, weil
-// nur Zeilen MIT Marker angefasst werden.
+// Storno statt Löschen (Plan 8.7/8.9), SPIEGELBILDLICH zum Hinweg:
+//   1. start:     die Rechnung wird ZUERST auf 'storniert' gesetzt – ein
+//                 einzelner Schreibvorgang, der die Wieder-Fakturierung
+//                 sperrt. Bricht danach etwas ab, sind die Zeilen noch
+//                 markiert (nicht doppelt abrechenbar) und die Rechnung
+//                 bereits storniert – der Storno ist fortsetzbar.
+//   2. etappen:   abgerechnetIn wird GELEERT (Zeilen wieder abrechenbar),
+//                 in Etappen, idempotent (nur Zeilen MIT Marker).
+//   3. abschluss: Abschluss-Vermerk an der Rechnung (stornoAbgeschlossenAm –
+//                 daran erkennt die Oberfläche einen halben Storno und
+//                 bietet FORTSETZEN an), Einbehalt entfällt, Kennzahl zurück.
+// Die alte Reihenfolge (erst Marker leeren, dann Rechnung stornieren) riss
+// bei einem Abbruch ein Fenster auf, in dem dieselben Zeilen in eine ZWEITE
+// Rechnung liefen, während die erste weiter als gestellt dastand.
 export function stornoBauen({ rechnung, zeilen = [], grund = '', userId = '', jetzt = Date.now() } = {}) {
   if (!rechnung?.id) throw new Error('Keine Rechnung zum Stornieren.')
   const markierte = zeilen.filter((z) => z.abgerechnetIn === rechnung.id)
@@ -365,12 +382,19 @@ export function stornoBauen({ rechnung, zeilen = [], grund = '', userId = '', je
     etappen.push(zeilenPatches.slice(i, i + ETAPPEN_GROESSE))
   }
   return {
+    start: {
+      patches: [{
+        coll: 'rechnungen',
+        id: rechnung.id,
+        patch: { status: 'storniert', storniertAm: jetzt, storniertVon: userId, stornoGrund: String(grund).trim(), stornoAbgeschlossenAm: 0 },
+      }],
+    },
     etappen,
     abschluss: {
       patches: [{
         coll: 'rechnungen',
         id: rechnung.id,
-        patch: { status: 'storniert', storniertAm: jetzt, storniertVon: userId, stornoGrund: String(grund).trim() },
+        patch: { stornoAbgeschlossenAm: jetzt },
       }],
       einbehaltPatch: {
         coll: 'einbehalte',

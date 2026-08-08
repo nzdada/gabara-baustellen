@@ -161,6 +161,12 @@ function lokalerStore() {
   return {
     mode: 'lokal',
     async init() {},
+    // Serverzeit-Platzhalter für Zeitstempel in Dokumenten. Lokal gibt es
+    // keinen Server – die Gerätezeit ist die dokumentierte Entsprechung
+    // (gleiches Muster wie uebertragenAm in meldeAufgaben).
+    serverzeit() {
+      return Date.now()
+    },
     subscribe(coll, cb) {
       listener[coll].add(cb)
       cb([...db[coll]])
@@ -301,6 +307,18 @@ function lokalerStore() {
           throw new Error(`Bereits gemeldet: ${b.id}${alt.mitarbeiterName ? ` von ${alt.mitarbeiterName}` : ''}${wann ? `, ${wann}` : ''}`)
         }
       }
+      // WIE DIE FIRESTORE-REGEL: /aufmasszeilen erlaubt dem Melde-Batch nur
+      // CREATE – ein set auf eine existierende Zeile wäre ein update (nur
+      // Büro) und ließe den ganzen Batch sterben. Hier nachgebildet, damit
+      // beide Modi gleich reagieren UND ein Upsert nie still die Storno-
+      // Historie einer Zeile überschreibt. Nach einer Zurückweisung ist die
+      // feste Kennung frei (zurueckweisungBauen löscht sie und archiviert die
+      // Storno-Kopie) – der Normalfall trifft diese Sperre nie.
+      for (const z of aufmasszeilen) {
+        if (db.aufmasszeilen.some((d) => d.id === z.id)) {
+          throw new Error(`Aufmaßzeile ${z.id} existiert bereits – Meldung abgelehnt (Historie wird nicht überschrieben).`)
+        }
+      }
       const jetzt = Date.now()
       // uebertragenAm: im Firebase-Modus Serverzeit – lokal gibt es keinen
       // Server, die Gerätezeit beim Schreiben ist die ehrlichste Entsprechung.
@@ -310,10 +328,7 @@ function lokalerStore() {
         db.aufgaben = db.aufgaben.map((d) => (patches.has(d.id) ? { ...d, ...patches.get(d.id) } : d))
       }
       for (const z of aufmasszeilen) {
-        const vorhanden = db.aufmasszeilen.some((d) => d.id === z.id)
-        db.aufmasszeilen = vorhanden
-          ? db.aufmasszeilen.map((d) => (d.id === z.id ? { ...z } : d))
-          : [...db.aufmasszeilen, { ...z }]
+        db.aufmasszeilen = [...db.aufmasszeilen, { ...z }]
       }
       if (kennzahlen?.projektId) {
         if (!db.kennzahlen) db.kennzahlen = []
@@ -513,6 +528,12 @@ async function firebaseStore() {
     mode: 'firebase',
     app,
     async init() {},
+    // Serverzeit-Platzhalter: wird beim Schreiben vom SERVER aufgelöst –
+    // ein Handy mit verstellter Uhr kann den Zeitstempel nicht fälschen
+    // (Plan 4.2: hochgeladenAm/uebertragenAm sind SERVERZEIT).
+    serverzeit() {
+      return serverTimestamp()
+    },
     subscribe(coll, cb) {
       return onSnapshot(collection(dbf, coll), (snap) => cb(mapSnap(snap)))
     },

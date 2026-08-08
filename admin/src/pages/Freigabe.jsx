@@ -8,6 +8,7 @@ import { useWhere, useCollection, withStore } from '../hooks.js'
 import { euro, parseZahl } from '@shared/format.js'
 import { zahlText } from '@shared/aufmass.js'
 import { freigabeBauen, zurueckweisungBauen } from '@shared/leitstand.js'
+import { aufmasszeilenId } from '@shared/aufgaben.js'
 
 // Freigabe der Aufgaben-Meldungen (Plan 3.2, AP 7): je Zeile zwei Knöpfe –
 // [Freigeben] und [Zurückweisen mit Grund]. Die Zurückweisung ist EIN Vorgang
@@ -65,11 +66,15 @@ export default function Freigabe({ user }) {
     setFehler('')
     try {
       // Der komplette Aufgabenstand des Raums entscheidet, ob raeumeFertig
-      // heruntergezählt wird – einmalig laden, kein Dauer-Abo.
+      // heruntergezählt wird – einmalig laden, kein Dauer-Abo. Die Aufmaß-
+      // zeile wird MITGELADEN: sie liefert die Storno-Kopie (Historie) und
+      // den Abrechnungs-Schutz (bereits fakturierte Zeilen blockieren).
       const desProjekts = await withStore((s) => s.listWhere('aufgaben', 'projektId', zurueck.projektId))
+      const zeile = await withStore((s) => s.get('aufmasszeilen', aufmasszeilenId(zurueck.id)))
       const vorgang = zurueckweisungBauen(zurueck, desProjekts, {
         grund,
         userId: user?.userId || user?.id || '',
+        zeile,
       })
       await withStore((s) => s.schreibeVorgang(vorgang, { onFehler: (e) => setFehler(e.message || '') }))
       setZurueck(null)

@@ -126,11 +126,16 @@ export default function StundenKachel({ user }) {
     if (art === 'regie' && !anordnungId) { setQuittung(t('mt.keineAnordnung')); return }
     const ziel = mannschaft.filter((m) => gewaehlt.has(m.id) && (darfKolonne || m.id === user?.userId))
     if (!ziel.length) return
+    // EIN Vorgang (writeBatch) statt await-Schleife: Offline löst ein
+    // einzelnes setDoc erst bei Server-Bestätigung auf – der erste await
+    // hinge für immer, nur ein Teil der Kolonnenzeilen läge in der
+    // Warteschlange und die Quittung käme nie (Heimweg-Fall). schreibeVorgang
+    // quittiert nach spätestens 2500 ms und schreibt ALLE Zeilen zusammen.
     // Deterministische Kennungen machen den Vorgang idempotent – ein
-    // Wiederholen nach Abbruch ERSETZT statt zu verdoppeln (set()-Verhalten
-    // von store.add in beiden Modi).
-    for (const mitglied of ziel) {
-      await withStore((s) => s.add('stunden', stundenZeile({
+    // Wiederholen ERSETZT statt zu verdoppeln (set()-Verhalten, beide Modi).
+    const sets = ziel.map((mitglied) => ({
+      coll: 'stunden',
+      daten: stundenZeile({
         mitglied,
         datum: heute,
         projektId,
@@ -143,7 +148,13 @@ export default function StundenKachel({ user }) {
         taetigkeit,
         anordnungId: art === 'regie' ? anordnungId : '',
         geaendertVon: user?.name || '',
-      })))
+      }),
+    }))
+    try {
+      await withStore((s) => s.schreibeVorgang({ sets }, { onFehler: () => setQuittung(t('mt.meldungFehler')) }))
+    } catch (e) {
+      setQuittung(t('mt.meldungFehler'))
+      return
     }
     setQuittung(t('mt.stundenGesendet'))
     setTimeout(() => setQuittung(''), 4000)

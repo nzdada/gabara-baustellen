@@ -107,8 +107,12 @@ export default function Fototafel({ projektId, user }) {
         return
       }
       if (ergebnis.speicherWarnung) setHinweis(t('ft.speicherVoll'))
-      // Der EINE Zähler-Schritt am Raum (Punktpfad, beide Store-Modi gleich)
-      await withStore((s) => s.updateInkrement('raeume', raum.id, { [`fotoStand.${feld}`]: 1 }))
+      // Der EINE Zähler-Schritt am Raum (Punktpfad, beide Store-Modi gleich).
+      // BEWUSST OHNE await (Regel „NIE am Server hängen", wie Heute.jsx):
+      // updateDoc löst erst bei Server-Bestätigung auf – im Flugmodus bliebe
+      // die Kachel sonst dauerhaft auf „…" gesperrt. Das Delta liegt sicher
+      // in der Firestore-Warteschlange und geht beim nächsten Netz raus.
+      withStore((s) => s.updateInkrement('raeume', raum.id, { [`fotoStand.${feld}`]: 1 })).catch(() => {})
     } catch (err) {
       setFehler(err?.message || String(err))
     } finally {

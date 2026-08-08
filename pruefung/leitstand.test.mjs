@@ -137,13 +137,26 @@ const FERTIG = {
   einheit: 'm²',
 }
 const RAUM_STAND = [FERTIG, { ...ANLAGE.aufgaben[1], raumId: FERTIG.raumId, status: 'fertig' }]
-const RW = zurueckweisungBauen(FERTIG, RAUM_STAND, { grund: 'Decke fleckig', userId: 'buero', jetzt: 3000 })
+// Die geladene Aufmaßzeile am-<aufgabeId> – sie liefert die Storno-Kopie.
+const ZEILE = {
+  id: `am-${FERTIG.id}`, projektId: 'p-lt', menge: 24, einheit: 'm²',
+  geschaetzt: false, storniert: false, abgerechnetIn: '', erfasstVon: 'monteur',
+}
+const RW = zurueckweisungBauen(FERTIG, RAUM_STAND, { grund: 'Decke fleckig', userId: 'buero', jetzt: 3000, zeile: ZEILE })
 p('Rückweg', 'Aufgabe -> zurueck mit Grund',
   [RW.patches[0].patch.status, RW.patches[0].patch.zurueckGrund], ['zurueck', 'Decke fleckig'])
-p('Rückweg', 'Aufmaßzeile STORNIERT, nie gelöscht',
-  [RW.patches[1].coll, RW.patches[1].patch.storniert], ['aufmasszeilen', true])
+p('Rückweg', 'Storno-KOPIE unter neuer Kennung (Historie bleibt)',
+  [RW.sets[0].coll, RW.sets[0].daten.id, RW.sets[0].daten.storniert, RW.sets[0].daten.storniertGrund],
+  ['aufmasszeilen', `am-${FERTIG.id}-storno-3000`, true, 'Decke fleckig'])
+p('Rückweg', 'feste Kennung wird FREI (Nachbesserung = create in beiden Modi)',
+  RW.loesche[0], { coll: 'aufmasszeilen', id: `am-${FERTIG.id}` })
 p('Rückweg', 'Buchung wird GELÖSCHT (Nachbesserung erneut meldbar)',
-  RW.loesche[0], { coll: 'buchungen', id: `b-${FERTIG.raumId}-as-gr-auftrag` })
+  RW.loesche[1], { coll: 'buchungen', id: `b-${FERTIG.raumId}-as-gr-auftrag` })
+p('Rückweg', 'ohne Zeile: keine Kopie, keine Zeilen-Löschung',
+  (() => { const o = zurueckweisungBauen(FERTIG, [], { grund: 'x', jetzt: 3000 }); return [o.sets.length, o.loesche.length] })(),
+  [0, 1])
+p('Rückweg', 'bereits abgerechnete Zeile blockiert (erst Rechnung stornieren)',
+  wirft(() => zurueckweisungBauen(FERTIG, [], { grund: 'x', zeile: { ...ZEILE, abgerechnetIn: 'r-1' } })) !== null, true)
 p('Rückweg', 'Kennzahlen-Gegenbuchung inkl. raeumeFertig',
   RW.kennzahlen.deltas,
   { aufgabenFertig: -1, aufgabenZurueck: 1, wertFertigCent: -3960, m2Fertig: -24, raeumeFertig: -1 })
@@ -242,16 +255,39 @@ p('Store', 'Doppelklick auf ZUWEISEN verdoppelt nichts',
 p('Store', 'Aufgabe trägt die Zuweisung',
   (await store.get('aufgaben', ZUW.patches[0].id))?.status, 'zugewiesen')
 
-// Zurückweisung: Buchung verschwindet, Kennzahlen gegengebucht.
+// Zurückweisung: Buchung verschwindet, Kennzahlen gegengebucht – und die
+// NACHBESSERUNG ist danach erneut meldbar (der kritische Rückweg).
 await store.add('buchungen', { id: `b-${FERTIG.raumId}-as-gr-auftrag`, projektId: 'p-lt' })
+await store.add('aufmasszeilen', { ...ZEILE })
 await store.update('aufgaben', FERTIG.id, { status: 'fertig' })
+p('Store', 'Doppelmeldung auf EXISTIERENDE Aufmaßzeile abgelehnt (wie die Firestore-Regel)',
+  (await wirftAsync(() => store.meldeAufgaben({
+    aufmasszeilen: [{ ...ZEILE }],
+  }))) !== null, true)
 await store.schreibeVorgang(RW)
 p('Store', 'Zurückweisung: Aufgabe rot beim Monteur',
   (await store.get('aufgaben', FERTIG.id))?.status, 'zurueck')
 p('Store', 'Zurückweisung: Buchung ist weg',
   await store.get('buchungen', `b-${FERTIG.raumId}-as-gr-auftrag`), null)
+p('Store', 'Zurückweisung: feste Zeilen-Kennung ist frei',
+  await store.get('aufmasszeilen', `am-${FERTIG.id}`), null)
+p('Store', 'Zurückweisung: Storno-Kopie trägt die Historie',
+  (await store.get('aufmasszeilen', `am-${FERTIG.id}-storno-3000`))?.storniert, true)
 p('Store', 'Zurückweisung: Kennzahlen gegengebucht',
   (await store.ladeKennzahlen('p-lt'))?.aufgabenZurueck, 1)
+// Die Nachbesserung: Buchung + Aufmaßzeile entstehen NEU – kein Konflikt.
+await store.meldeAufgaben({
+  buchungen: [{ id: `b-${FERTIG.raumId}-as-gr-auftrag`, projektId: 'p-lt', aufgabeId: FERTIG.id }],
+  aufgaben: [{ id: FERTIG.id, patch: { status: 'fertig', anteil: 1 } }],
+  aufmasszeilen: [{ ...ZEILE }],
+  kennzahlen: { projektId: 'p-lt', deltas: { aufgabenFertig: 1, aufgabenZurueck: -1 }, felder: {} },
+})
+p('Store', 'Nachbesserung nach Zurückweisung erneut meldbar',
+  (await store.get('aufgaben', FERTIG.id))?.status, 'fertig')
+p('Store', 'Nachbesserung: neue Zeile da, Storno-Kopie unangetastet',
+  [(await store.get('aufmasszeilen', `am-${FERTIG.id}`))?.storniert,
+    (await store.get('aufmasszeilen', `am-${FERTIG.id}-storno-3000`))?.storniert],
+  [false, true])
 
 p('Store', 'leerer Vorgang schreibt nichts',
   (await store.schreibeVorgang({})).bestaetigt, false)

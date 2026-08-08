@@ -67,8 +67,16 @@ export default function Abrechnung() {
         if (erg.simuliert) { setMeldung({ art: 'info', text: 'Simuliert – FastBill-Zugang fehlt (Einstellungen → FastBill).' }); return }
         kunde = { ...kunde, fastbillCustomerId: String(erg.customerId) }
       }
-      const ist13b = (kunde.ustModus || '13b') === '13b'
-      const erg = await erstelleFastbillRechnung(r, kunde, ist13b ? text13b : '')
+      // Steuer-SCHNAPPSCHUSS (Plan 8.8): V2-Aufmaßrechnungen tragen den beim
+      // Rechnungslauf EINGEFRORENEN USt-Modus samt 13b-Text – die Übergabe
+      // nutzt ausschließlich ihn, nie den Live-Stand des Kunden (der könnte
+      // seit dem Lauf umgestellt worden sein). V1-Rechnungen wie bisher live.
+      const hatSchnappschuss = r.ustModus === '13b' || r.ustModus === 'ust19'
+      const ist13b = hatSchnappschuss
+        ? r.ustModus === '13b'
+        : (kunde.ustModus || '13b') === '13b'
+      const intro = ist13b ? ((hatSchnappschuss && r.rechtstext13b) || text13b) : ''
+      const erg = await erstelleFastbillRechnung(r, kunde, intro)
       if (erg.simuliert) { setMeldung({ art: 'info', text: 'Simuliert – FastBill-Zugang fehlt (Einstellungen → FastBill).' }); return }
       await withStore((s) => s.update('rechnungen', r.id, { fastbillInvoiceId: erg.invoiceId, status: 'uebertragen', uebertragenAm: Date.now() }))
       setMeldung({ art: 'ok', text: 'Rechnung liegt als Entwurf in FastBill.' })
@@ -111,19 +119,26 @@ export default function Abrechnung() {
     })
   }
 
-  // V2-Rechnungen aus dem Aufmaß (art 'aufmass'): STORNO statt Löschen.
-  // Bucht abgerechnetIn auf allen Zeilen zurück (in Etappen, idempotent –
-  // ein abgebrochener Storno lässt sich einfach wiederholen), setzt die
-  // Rechnung auf storniert, lässt den Einbehalt entfallen und zieht die
-  // Kennzahl abgerechnetCent zurück (Plan 8.7).
+  // V2-Rechnungen aus dem Aufmaß (art 'aufmass'): STORNO statt Löschen –
+  // SPIEGELBILDLICH zum Hinweg (Plan 8.7): (1) ERST die Rechnung auf
+  // 'storniert' (ein einzelner Vorgang – sperrt die Wieder-Fakturierung,
+  // selbst wenn danach alles abbricht), (2) dann abgerechnetIn in Etappen
+  // leeren, (3) zuletzt Abschluss-Vermerk + Einbehalt + Kennzahl. Bricht es
+  // zwischendrin ab, zeigt der fehlende Abschluss-Vermerk den halben Storno
+  // an und der Knopf bietet FORTSETZEN – nichts wird doppelt gebucht.
   async function stornieren(r) {
-    if (!confirm(t('rl.stornoFrage'))) return
+    const fortsetzung = r.status === 'storniert'
+    if (!fortsetzung && !confirm(t('rl.stornoFrage'))) return
     await aktion(r, async () => {
+      const onFehler = (e) => setMeldung({ art: 'fehler', text: e?.message || String(e) })
       await withStore(async (s) => {
         const zeilen = await s.listWhere('aufmasszeilen', 'abgerechnetIn', r.id)
-        const st = stornoBauen({ rechnung: r, zeilen })
+        const st = stornoBauen({ rechnung: r, zeilen, userId: '' })
+        if (!fortsetzung) {
+          await s.schreibeVorgang({ patches: st.start.patches }, { onFehler })
+        }
         for (const etappe of st.etappen) {
-          await s.schreibeVorgang({ patches: etappe })
+          await s.schreibeVorgang({ patches: etappe }, { onFehler })
         }
         const einbehalt = await s.get('einbehalte', `eb-${r.id}`)
         await s.schreibeVorgang({
@@ -132,7 +147,7 @@ export default function Abrechnung() {
             ...(einbehalt ? [st.abschluss.einbehaltPatch] : []),
           ],
           kennzahlen: st.abschluss.kennzahlen,
-        })
+        }, { onFehler })
       })
       setMeldung({ art: 'ok', text: t('rl.stornoOk') })
     })
@@ -255,6 +270,14 @@ export default function Abrechnung() {
                   )}
                   {r.art === 'aufmass' && ['vorbereitet', 'uebertragen', 'gestellt'].includes(r.status) && (
                     <button onClick={() => stornieren(r)} disabled={busy} className={`${knopf} text-red-500 hover:bg-red-50`}>{t('rl.stornieren')}</button>
+                  )}
+                  {/* Halber Storno (Rechnung storniert, Zeilen noch markiert):
+                      stornoAbgeschlossenAm === 0 setzt NUR der neue Start-
+                      Vorgang – Alt-Stornos (Feld fehlt) sind fertig und
+                      bekommen keinen Fortsetzen-Knopf (sonst würde die
+                      Kennzahl doppelt zurückgezogen). */}
+                  {r.art === 'aufmass' && r.status === 'storniert' && r.stornoAbgeschlossenAm === 0 && (
+                    <button onClick={() => stornieren(r)} disabled={busy} className={`${knopf} text-red-500 hover:bg-red-50`}>{t('rl.stornoFortsetzen')}</button>
                   )}
                   {r.art !== 'aufmass' && r.status === 'vorbereitet' && (
                     <button onClick={() => loeschen(r)} className={`${knopf} text-red-500 hover:bg-red-50`}>{t('allg.loeschen')}</button>

@@ -15,10 +15,12 @@
 //   EINEM Vorgang (Plan 3.2 "Aufgaben erteilen – ein Zug, drei Tipps").
 // - zurueckweisungBauen / freigabeBauen: die Freigabe-Ansicht. Die
 //   Zurückweisung bucht im SELBEN Vorgang zurück (Plan 14 #22): Aufgabe auf
-//   'zurueck' (landet rot beim Monteur), Aufmaßzeile STORNIERT (nie
-//   gelöscht – das Geldatom behält seine Historie), Buchung GELÖSCHT
-//   (nur so ist die Nachbesserung erneut meldbar – die feste Kennung würde
-//   sonst jede zweite Meldung abweisen), Kennzahlen-Gegenbuchung.
+//   'zurueck' (landet rot beim Monteur), Aufmaßzeile als STORNO-KOPIE
+//   archiviert und unter ihrer festen Kennung ENTFERNT (die Historie bleibt
+//   in der Kopie – und nur mit freier Kennung ist die Nachbesserung als
+//   CREATE erneut meldbar, ein set auf die alte Kennung wäre für die
+//   Firestore-Regeln ein verbotenes update), Buchung GELÖSCHT, Kennzahlen-
+//   Gegenbuchung.
 //
 // GESCHRIEBEN wird woanders: store.schreibeVorgang führt das Ergebnis als
 // EINEN writeBatch aus – alles oder nichts. `jetzt` ist injizierbar (Tests),
@@ -242,17 +244,31 @@ export function zuweisungBauen({ projekt, teamId, teamName = '', farbe = '', mit
 // Zurückweisen mit Grund – der Rückweg, ohne den der Monteur das Melden
 // einstellt (Plan 3.2, verbesserungen.md:39). EIN Vorgang:
 //   Aufgabe -> 'zurueck' (+ Grund, landet ROT auf dem Handy)
-//   Aufmaßzeile -> storniert (Storno statt Löschen – Geldatom behält Historie)
+//   Aufmaßzeile -> STORNO-KOPIE unter neuer Kennung (Storno statt Löschen –
+//              die Historie des Geldatoms bleibt erhalten) + Löschung der
+//              Zeile unter ihrer festen Kennung am-<aufgabeId>. WARUM: die
+//              Nachbesserung schreibt dieselbe Kennung per set(); bliebe das
+//              alte Dokument stehen, wäre das für die Firestore-Regeln ein
+//              UPDATE (nur Büro) – der ganze Nachbesserungs-Batch des
+//              Monteurs stürbe mit permission-denied, und ein Upsert würde
+//              zudem die Storno-Historie überschreiben.
 //   Buchung -> GELÖSCHT (die feste Kennung würde die Nachbesserung sonst
-//              als "bereits gemeldet" abweisen; die Historie trägt die
-//              stornierte Aufmaßzeile und die Aufgabe selbst)
+//              als "bereits gemeldet" abweisen)
 //   Kennzahlen -> Gegenbuchung (fertig-Zähler, Wert, m², ggf. raeumeFertig)
-export function zurueckweisungBauen(aufgabe, aufgabenDesRaums, { grund, userId = '', jetzt = Date.now() } = {}) {
+//
+// `zeile` ist die GELADENE Aufmaßzeile am-<aufgabeId> (oder null, wenn keine
+// existiert). Trägt sie bereits abgerechnetIn, wird die Zurückweisung
+// VERWEIGERT: die Zeile steckt in einer gestellten Rechnung – erst die
+// Rechnung stornieren, sonst wird dieselbe Leistung doppelt fakturiert.
+export function zurueckweisungBauen(aufgabe, aufgabenDesRaums, { grund, userId = '', jetzt = Date.now(), zeile = null } = {}) {
   if (aufgabe?.status !== 'fertig') {
     throw new Error('Nur fertig gemeldete Aufgaben können zurückgewiesen werden.')
   }
   if (!String(grund || '').trim()) {
     throw new Error('Eine Zurückweisung braucht einen Grund – der Monteur muss wissen, was nachzubessern ist.')
+  }
+  if (zeile?.abgerechnetIn) {
+    throw new Error('Die Aufmaßzeile ist bereits abgerechnet – erst die Rechnung stornieren, dann zurückweisen. Sonst würde dieselbe Leistung doppelt fakturiert.')
   }
   const deltas = {
     aufgabenFertig: -1,
@@ -270,7 +286,23 @@ export function zurueckweisungBauen(aufgabe, aufgabenDesRaums, { grund, userId =
   if (desRaums.length && desRaums.every((a) => istFertigStatus(a.status))) {
     deltas.raeumeFertig = -1
   }
+  // Storno-Kopie: die komplette Zeile unter neuer, deterministischer Kennung
+  // (am-<aufgabeId>-storno-<jetzt>) – storniert markiert, nie abrechenbar
+  // (positionsUebersicht/zeilenFuerRechnung überspringen storniert). Nur wenn
+  // die Zeile überhaupt existiert.
+  const sets = zeile?.id ? [{
+    coll: 'aufmasszeilen',
+    daten: {
+      ...zeile,
+      id: `${aufmasszeilenId(aufgabe.id)}-storno-${jetzt}`,
+      storniert: true,
+      storniertAm: jetzt,
+      storniertVon: userId,
+      storniertGrund: String(grund).trim(),
+    },
+  }] : []
   return {
+    sets,
     patches: [
       {
         coll: 'aufgaben',
@@ -284,13 +316,11 @@ export function zurueckweisungBauen(aufgabe, aufgabenDesRaums, { grund, userId =
           geaendertAm: jetzt,
         },
       },
-      {
-        coll: 'aufmasszeilen',
-        id: aufmasszeilenId(aufgabe.id),
-        patch: { storniert: true, storniertAm: jetzt, storniertVon: userId, storniertGrund: String(grund).trim() },
-      },
     ],
     loesche: [
+      // Die feste Kennung wird FREI gemacht – die Nachbesserung ist damit in
+      // beiden Store-Modi ein CREATE (Historie liegt in der Storno-Kopie).
+      ...(zeile?.id ? [{ coll: 'aufmasszeilen', id: aufmasszeilenId(aufgabe.id) }] : []),
       { coll: 'buchungen', id: buchungsId(aufgabe.raumId, aufgabe.schrittId, aufgabe.art || 'auftrag') },
     ],
     kennzahlen: { projektId: aufgabe.projektId, deltas, felder: {} },

@@ -40,6 +40,38 @@ function uhrzeit(ms) {
   return new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
 }
 
+// Die wartende Sammelmeldung lebt während der 10-Sekunden-Quittung nur im
+// React-State – Absturz, leerer Akku oder das OS-seitige Killen der PWA
+// würden sie verlieren (das Foto wäre gesichert, die Aufgaben blieben offen).
+// Deshalb wird sie ZUSÄTZLICH in localStorage gespiegelt und beim nächsten
+// Start nachgespielt. Doppelt kann nichts ankommen: die Buchungs-Kennungen
+// machen den Batch idempotent (zweiter Versuch stirbt an /buchungen).
+const PENDING_SCHLUESSEL = 'gabara-heute-pending'
+
+function pendingSichern(p) {
+  try {
+    localStorage.setItem(PENDING_SCHLUESSEL, JSON.stringify({
+      schluessel: p.schluessel,
+      meldung: p.meldung,
+      fotoId: p.fotoId,
+      raumabschlussRaumId: p.raumabschlussRaumId || '',
+    }))
+  } catch (e) { /* Speicher voll: die 10-s-Uhr trägt weiter */ }
+}
+
+function pendingEntfernen() {
+  try { localStorage.removeItem(PENDING_SCHLUESSEL) } catch (e) { /* egal */ }
+}
+
+function pendingGesichert() {
+  try {
+    const roh = localStorage.getItem(PENDING_SCHLUESSEL)
+    return roh ? JSON.parse(roh) : null
+  } catch (e) {
+    return null
+  }
+}
+
 // Zeile der HEUTE-Liste: Zeichen + Raum + Menge + Hinweis, rechts der
 // [▸]-Knopf "angefangen" (Zwei-Knopf-Zeile aus Entwurf A).
 function TagZeile({ zeile, gewaehlt, aufZeile, aufLang, aufStart }) {
@@ -168,8 +200,31 @@ export default function Heute({ user, fallback = null }) {
       }
     } catch (e) {
       zeigeAblehnung(e)
+    } finally {
+      // Der Vorgang liegt jetzt in der Warteschlange (oder wurde als
+      // Doppelmeldung abgelehnt) – die Absturz-Sicherung ist erledigt.
+      pendingEntfernen()
     }
   }
+
+  // Absturz-Nachspielen: lag beim letzten Lauf eine wartende Sammelmeldung
+  // im localStorage (App im 10-s-Fenster gestorben), wird sie jetzt STILL
+  // geschrieben. War sie doch schon angekommen, weist die Buchungs-Kennung
+  // den Batch ab – ohne Fehlbanner beim Start.
+  useEffect(() => {
+    const p = pendingGesichert()
+    if (!p?.meldung) return
+    pendingEntfernen()
+    withStore((s) => s.meldeAufgaben(p.meldung, { onFehler: () => {} }))
+      .then(() => {
+        if (p.raumabschlussRaumId) {
+          withStore((s) => s.updateInkrement('raeume', p.raumabschlussRaumId, {
+            [`fotoStand.${fotoStandFeld('auftrag', 'nachher')}`]: 1,
+          })).catch(() => {})
+        }
+      })
+      .catch(() => { /* bereits gemeldet – war schon geschrieben */ })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 10-Sekunden-Uhr der Quittung
   useEffect(() => {
@@ -294,7 +349,7 @@ export default function Heute({ user, fallback = null }) {
     }
     setAuswahl(new Set())
     const gruppe = gruppen.find((g) => g.schrittId === ziel[0].schrittId)
-    setPending({
+    const p = {
       schluessel: fotoId,
       meldung,
       fotoId,
@@ -303,7 +358,11 @@ export default function Heute({ user, fallback = null }) {
       schritt: gruppe ? tr({ de: gruppe.nameDe, ar: gruppe.nameAr }) : '',
       m2: summeM2(ziel),
       uebrig: 10,
-    })
+    }
+    setPending(p)
+    // Absturz-Sicherung: überlebt das 10-s-Fenster auch bei leerem Akku
+    // oder OS-Kill der PWA (Nachspielen beim nächsten Start).
+    pendingSichern(p)
   }
 
   async function rueckgaengig() {
@@ -311,6 +370,7 @@ export default function Heute({ user, fallback = null }) {
     if (!p) return
     erledigt.current.add(p.schluessel)   // nie mehr absenden
     setPending(null)
+    pendingEntfernen()                   // auch die Absturz-Sicherung ist hinfällig
     try {
       await withStore((s) => fotoVerwerfen(p.fotoId, s))
     } catch (e) { /* Foto bleibt liegen – die Warteschlange zeigt es weiter an */ }

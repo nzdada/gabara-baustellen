@@ -111,7 +111,12 @@ function RechnungslaufModal({ projekt, kunde, zeilen, positionen, lauf, text13b,
   const vorschau = useMemo(() => positionsUebersicht({ zeilen: basis, positionen })
     .filter((g) => g.positionId), [basis, positionen])
   const netto = Math.round(vorschau.reduce((s, g) => s + g.aufmass * g.einheitspreis, 0) * 100) / 100
-  const steuer = steuerSchnappschuss({ kunde, netto, text13b })
+  // Ohne Kunden/ustModus wird NICHT geraten (steuerSchnappschuss wirft) –
+  // der Lauf ist gesperrt, bis der Kunde am Projekt gepflegt ist.
+  const kundeFehlt = kunde?.ustModus !== '13b' && kunde?.ustModus !== 'ust19'
+  const steuer = kundeFehlt
+    ? { ustModus: '', ustSatz: 0, ustBetrag: 0, brutto: netto, rechtstext13b: '' }
+    : steuerSchnappschuss({ kunde, netto, text13b })
   const einbehalt = Math.round(steuer.brutto * (parseZahl(einbehaltProzent) / 100) * 100) / 100
 
   async function ausfuehren() {
@@ -252,10 +257,11 @@ function RechnungslaufModal({ projekt, kunde, zeilen, positionen, lauf, text13b,
         {stand && <Meldung art="info">{stand}</Meldung>}
         {fehler && <Meldung art="gefahr">{fehler}</Meldung>}
         {keineZeilen && <Meldung art="warnung">{t('rl.keineZeilen')}</Meldung>}
+        {kundeFehlt && <Meldung art="gefahr">{t('rl.kundeFehlt')}</Meldung>}
 
         <div className="flex justify-end gap-2 pt-1">
           <button onClick={onClose} disabled={laeuft} className={S.BTN_STILL}>{t('allg.abbrechen')}</button>
-          <button onClick={ausfuehren} disabled={laeuft || keineZeilen} className={S.BTN_PRIMAER}>
+          <button onClick={ausfuehren} disabled={laeuft || keineZeilen || kundeFehlt} className={S.BTN_PRIMAER}>
             {laeuft ? t('rl.laeuft') : lauf ? t('rl.fortsetzen') : t('rl.starten')}
           </button>
         </div>

@@ -149,14 +149,24 @@ p('Nachmessen', 'abgerechnete Zeile abgelehnt',
   p('Storno', 'alle markierten in Etappen', st.etappen.reduce((s, e) => s + e.length, 0), 950)
   p('Storno', 'Etappen unter der Batch-Grenze', st.etappen.every((e) => e.length <= ETAPPEN_GROESSE), true)
   p('Storno', 'Marker wird GELEERT, nicht gelöscht', st.etappen[0][0].patch.abgerechnetIn, '')
-  p('Storno', 'Rechnung wird storniert, nie entfernt', st.abschluss.patches[0].patch.status, 'storniert')
+  // Spiegelbildliche Reihenfolge: Rechnung ZUERST auf storniert – ein Abbruch
+  // zwischen den Schritten darf nie doppelt abrechenbare Zeilen hinterlassen.
+  p('Storno', 'Rechnung wird ZUERST storniert (sperrt Wieder-Fakturierung), nie entfernt',
+    st.start.patches[0].patch.status, 'storniert')
+  p('Storno', 'Start setzt den Storno auf UNABGESCHLOSSEN (Fortsetzen-Erkennung)',
+    st.start.patches[0].patch.stornoAbgeschlossenAm, 0)
+  p('Storno', 'Abschluss-Vermerk erst am Ende', st.abschluss.patches[0].patch.stornoAbgeschlossenAm, JETZT)
   p('Storno', 'Kennzahl zurückgezogen', st.abschluss.kennzahlen.deltas.abgerechnetCent, -194750)
 }
 
 // ---------------------------------------------------------------- Steuer
 p('Steuer', 'ust19: 19 % gerechnet', steuerSchnappschuss({ kunde: { ustModus: 'ust19' }, netto: 100 }).ustBetrag, 19)
 p('Steuer', 'ust19: kein 13b-Text', steuerSchnappschuss({ kunde: { ustModus: 'ust19' }, netto: 100 }).rechtstext13b, '')
-p('Steuer', 'ohne Kunde: 13b als Vorgabe (Bauleistung)', steuerSchnappschuss({ netto: 100 }).ustModus, '13b')
+// Bei Geld wird nicht geraten: ohne Kunden/ustModus KEINE stille 13b-Vorgabe
+// (gegenüber einem Privatkunden wäre das falsch ausgewiesene Steuer).
+p('Steuer', 'ohne Kunde wird VERWEIGERT', wirft(() => steuerSchnappschuss({ netto: 100 })) !== null, true)
+p('Steuer', 'Kunde ohne ustModus wird VERWEIGERT',
+  wirft(() => steuerSchnappschuss({ kunde: { id: 'k-x' }, netto: 100 })) !== null, true)
 
 // ---------------------------------------------------------------- Monate
 p('Datum', '31.01. + 1 Monat deckelt auf Monatsletzten', addMonate('2026-01-31', 1), '2026-02-28')

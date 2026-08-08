@@ -64,7 +64,7 @@ export default function MonteurBaustelle({ user }) {
       {/* Kopf */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4">
         <button onClick={() => navigate(-1)} className="text-sm text-slate-400 flex items-center gap-1 mb-1.5">
-          <Icon name="arrowLeft" className="w-4 h-4" /> Zurück
+          <Icon name="arrowLeft" className="w-4 h-4" /> {t('allg.zurueck')}
         </button>
         <p className="font-bold text-lg text-slate-900 leading-snug">{projekt.name}</p>
         <p className="text-sm text-slate-500">{projekt.nummer}</p>
