@@ -100,6 +100,11 @@ function lokalerStore() {
   }
   const listener = Object.fromEntries(COLLECTIONS.map((c) => [c, new Set()]))
   for (const coll of COLLECTIONS) if (!db[coll]) db[coll] = []
+  // Kennzahlen je Projekt (im Firebase-Modus das Unterdokument
+  // projekte/{id}/kennzahlen/live). KEINE eigene Top-Level-Sammlung, deshalb
+  // bewusst NICHT in COLLECTIONS – hier lokal eine Liste mit id = projektId.
+  if (!db.kennzahlen) db.kennzahlen = []
+  const kennzahlenListener = new Set() // Einträge { projektId, cb }
   // Katalog + Textbausteine nachrüsten, falls die Demo-DB älter ist
   if (db.katalog.length === 0 || db.bausteine.length === 0) {
     const frisch = erzeugeDemoDaten()
@@ -124,10 +129,19 @@ function lokalerStore() {
     }
     if (kanal) kanal.postMessage({ type: 'changed' })
     COLLECTIONS.forEach(benachrichtigen)
+    benachrichtigeKennzahlen()
   }
 
   function benachrichtigen(coll) {
     listener[coll].forEach((cb) => cb([...db[coll]]))
+  }
+
+  function kennzahlenDoc(projektId) {
+    return (db.kennzahlen || []).find((k) => k.id === projektId) || null
+  }
+
+  function benachrichtigeKennzahlen() {
+    kennzahlenListener.forEach((eintrag) => eintrag.cb(kennzahlenDoc(eintrag.projektId)))
   }
 
   function neuLaden() {
@@ -135,6 +149,7 @@ function lokalerStore() {
     if (neu) {
       db = neu
       COLLECTIONS.forEach(benachrichtigen)
+      benachrichtigeKennzahlen()
     }
   }
 
@@ -247,6 +262,63 @@ function lokalerStore() {
       })
       speichern()
     },
+    // V2-Sammelmeldung (shared/aufgaben.js meldungBauen): Buchungen +
+    // Aufgaben-Updates + Aufmaßzeilen + EIN Kennzahlen-Increment – alles oder
+    // nichts, wie der writeBatch im Firebase-Modus.
+    //
+    // IDEMPOTENZSCHUTZ WIE DIE FIRESTORE-REGEL: auf /buchungen ist update
+    // verboten (allow update: if false). Hier wird das nachgebildet – trägt
+    // auch nur EINE Buchung eine bereits vergebene Kennung, wird der GANZE
+    // Vorgang abgelehnt und NICHTS geschrieben, auch kein Increment. Nur so
+    // verhalten sich beide Modi gleich (Doppelmeldung aus dem Funkloch).
+    async meldeAufgaben({ buchungen = [], aufgaben = [], aufmasszeilen = [], kennzahlen = null } = {}) {
+      for (const b of buchungen) {
+        const alt = db.buchungen.find((x) => x.id === b.id)
+        if (alt) {
+          const wann = alt.erfasstAm
+            ? new Date(alt.erfasstAm).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+            : ''
+          throw new Error(`Bereits gemeldet: ${b.id}${alt.mitarbeiterName ? ` von ${alt.mitarbeiterName}` : ''}${wann ? `, ${wann}` : ''}`)
+        }
+      }
+      const jetzt = Date.now()
+      // uebertragenAm: im Firebase-Modus Serverzeit – lokal gibt es keinen
+      // Server, die Gerätezeit beim Schreiben ist die ehrlichste Entsprechung.
+      db.buchungen = [...db.buchungen, ...buchungen.map((b) => ({ ...b, uebertragenAm: jetzt }))]
+      if (aufgaben.length) {
+        const patches = new Map(aufgaben.map((u) => [u.id, u.patch]))
+        db.aufgaben = db.aufgaben.map((d) => (patches.has(d.id) ? { ...d, ...patches.get(d.id) } : d))
+      }
+      for (const z of aufmasszeilen) {
+        const vorhanden = db.aufmasszeilen.some((d) => d.id === z.id)
+        db.aufmasszeilen = vorhanden
+          ? db.aufmasszeilen.map((d) => (d.id === z.id ? { ...z } : d))
+          : [...db.aufmasszeilen, { ...z }]
+      }
+      if (kennzahlen?.projektId) {
+        if (!db.kennzahlen) db.kennzahlen = []
+        const alt = db.kennzahlen.find((k) => k.id === kennzahlen.projektId) || { id: kennzahlen.projektId }
+        const neu = { ...alt, ...(kennzahlen.felder || {}) }
+        for (const [feld, betrag] of Object.entries(kennzahlen.deltas || {})) {
+          const summe = (Number(alt[feld]) || 0) + (Number(betrag) || 0)
+          neu[feld] = Math.round(summe * 1000) / 1000
+        }
+        db.kennzahlen = [...db.kennzahlen.filter((k) => k.id !== kennzahlen.projektId), neu]
+      }
+      speichern()
+      return { bestaetigt: true }
+    },
+    // Kennzahlen eines Projekts lesen/abonnieren (Gegenstück zum
+    // Unterdokument projekte/{id}/kennzahlen/live im Firebase-Modus).
+    async ladeKennzahlen(projektId) {
+      return kennzahlenDoc(projektId)
+    },
+    subscribeKennzahlen(projektId, cb) {
+      const eintrag = { projektId, cb }
+      kennzahlenListener.add(eintrag)
+      cb(kennzahlenDoc(projektId))
+      return () => kennzahlenListener.delete(eintrag)
+    },
     // Gegenstueck im lokalen Betrieb. Ein Browser-Vorgang laeuft ohnehin ohne
     // Unterbrechung durch; die gleiche Schnittstelle haelt beide Betriebsarten
     // deckungsgleich, damit der Aufrufer nicht unterscheiden muss.
@@ -356,6 +428,7 @@ async function firebaseStore() {
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
     collection, doc, onSnapshot, getDocs, getDoc,
     addDoc, setDoc, updateDoc, deleteDoc, writeBatch, query, where, runTransaction, increment,
+    serverTimestamp,
   } = await import('firebase/firestore')
 
   const app = initializeApp(FIREBASE_CONFIG)
@@ -492,6 +565,63 @@ async function firebaseStore() {
       const lauf = batch.commit()
       lauf.catch((e) => onFehler?.(e))
       await Promise.race([lauf.catch(() => {}), new Promise((auf) => setTimeout(auf, 2500))])
+    },
+    // V2-Sammelmeldung (shared/aufgaben.js meldungBauen) als EIN writeBatch:
+    // je Aufgabe Buchung (create) + Aufgaben-Update + Aufmaßzeile, dazu EIN
+    // aggregiertes Increment auf projekte/{id}/kennzahlen/live.
+    //
+    // DER IDEMPOTENZSCHUTZ steckt in der Buchungs-Kennung: set() auf eine
+    // schon vorhandene Kennung gilt für die Firestore-Regeln als UPDATE – und
+    // update ist auf /buchungen verboten. Melden zwei Geräte aus dem Funkloch
+    // denselben Schritt, scheitert der zweite Batch KOMPLETT am Server, das
+    // Increment kommt nie doppelt an (Plan 4.2, Szenario Schulkeller).
+    //
+    // Wie meldeLeistungen: nicht auf den Server warten (Funkloch!), sondern
+    // höchstens fristMs auf die Bestätigung – der lokale Zwischenspeicher
+    // quittiert sofort, der Vorgang geht beim nächsten Netz raus. Ein
+    // Server-NEIN (Doppelmeldung) kommt dann über onFehler an.
+    async meldeAufgaben({ buchungen = [], aufgaben = [], aufmasszeilen = [], kennzahlen = null } = {}, { fristMs = 2500, onFehler } = {}) {
+      if (!buchungen.length && !aufgaben.length && !aufmasszeilen.length) return { bestaetigt: false }
+      const batch = writeBatch(dbf)
+      for (const b of buchungen) {
+        const { id, ...felder } = b
+        // uebertragenAm ist SERVERZEIT – die Gerätezeit eines Handys, das
+        // stundenlang offline war, taugt nicht als Übertragungsnachweis.
+        batch.set(doc(dbf, 'buchungen', id), { ...felder, uebertragenAm: serverTimestamp() })
+      }
+      for (const u of aufgaben) {
+        batch.update(doc(dbf, 'aufgaben', u.id), u.patch)
+      }
+      for (const z of aufmasszeilen) {
+        const { id, ...felder } = z
+        batch.set(doc(dbf, 'aufmasszeilen', id), felder)
+      }
+      if (kennzahlen?.projektId) {
+        const patch = { ...(kennzahlen.felder || {}) }
+        for (const [feld, betrag] of Object.entries(kennzahlen.deltas || {})) {
+          patch[feld] = increment(Number(betrag) || 0)
+        }
+        // set + merge statt update: das live-Dokument muss beim allerersten
+        // Melden eines Projekts noch nicht existieren.
+        batch.set(doc(dbf, 'projekte', kennzahlen.projektId, 'kennzahlen', 'live'), patch, { merge: true })
+      }
+      const lauf = batch.commit()
+      lauf.catch((e) => onFehler?.(e))
+      const bestaetigt = await Promise.race([
+        lauf.then(() => true, () => false),
+        new Promise((auf) => setTimeout(() => auf(false), fristMs)),
+      ])
+      return { bestaetigt }
+    },
+    // Kennzahlen eines Projekts (Unterdokument projekte/{id}/kennzahlen/live)
+    async ladeKennzahlen(projektId) {
+      const snap = await getDoc(doc(dbf, 'projekte', projektId, 'kennzahlen', 'live'))
+      return snap.exists() ? { id: projektId, ...snap.data() } : null
+    },
+    subscribeKennzahlen(projektId, cb) {
+      return onSnapshot(doc(dbf, 'projekte', projektId, 'kennzahlen', 'live'),
+        (snap) => cb(snap.exists() ? { id: projektId, ...snap.data() } : null),
+        (err) => { console.warn('Kennzahlen nicht lesbar:', err.code); cb(null) })
     },
     // Eine Rechnung ANLEGEN und alle Quellen in EINEM Vorgang fortschreiben.
     //
@@ -723,4 +853,11 @@ export function getStore() {
 
 export function storeModus() {
   return FIREBASE_CONFIG.enabled ? 'firebase' : 'lokal'
+}
+
+// NUR für Prüfskripte (pruefung/*.test.mjs): einen frischen lokalen Store
+// erzeugen, unabhängig von FIREBASE_CONFIG.enabled. Die Apps gehen immer
+// über getStore() – wer das hier im App-Code aufruft, umgeht die Moduswahl.
+export function erzeugeLokalenStoreFuerTest() {
+  return lokalerStore()
 }
