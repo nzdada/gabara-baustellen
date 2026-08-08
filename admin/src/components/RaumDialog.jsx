@@ -6,6 +6,7 @@ import { flaechenVon, einzelflaechen } from '@shared/raumflaeche.js'
 import { tuerenVon, neueTuer, WAENDE, TUER_BREITE } from '@shared/tueren.js'
 import { aufgabenVon, fortschrittAufgaben, ausVorlage, neueAufgabe, VORLAGEN } from '@shared/raumaufgaben.js'
 import { fotoAus } from '@shared/bild.js'
+import { istMonteurRolle } from '@shared/auth.js'
 import { useWhere, withStore } from '../hooks.js'
 
 // Ein Raum in voller Breite: Daten, Aufgaben, Flächen, Fotos.
@@ -24,7 +25,10 @@ export default function RaumDialog({ raum, projektId, user, nurLesen = false, on
   const kamera = useRef(null)
   const wartet = useRef(null)
 
-  const istBuero = user?.rolle !== 'mitarbeiter' && !nurLesen
+  // NICHT über einen Direktvergleich mit 'mitarbeiter' – dabei fiele der
+  // Vorarbeiter auf die Büro-Seite und könnte abgehakte, fotodokumentierte
+  // Arbeitsschritte löschen (Fund der Gegenprüfung vom 08.08.2026).
+  const istBuero = !istMonteurRolle(user?.rolle) && !nurLesen
   const aufgaben = useMemo(() => aufgabenVon(raum), [raum])
   const fort = fortschrittAufgaben(raum)
   const f = flaechenVon(raum)

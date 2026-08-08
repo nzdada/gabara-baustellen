@@ -30,7 +30,10 @@ export function teamName(user) {
 export function teamsAus(users) {
   const map = new Map()
   for (const u of users) {
-    if (u.rolle !== 'mitarbeiter' || u.aktiv === false) continue
+    // istMonteurRolle aus auth.js hier nicht importierbar (auth zieht den
+    // Store nach sich) – deshalb die Liste. Der VORARBEITER gehört in sein
+    // Team, sonst verschwindet er aus Kalender und Wochentafel.
+    if (!['mitarbeiter', 'vorarbeiter'].includes(u.rolle) || u.aktiv === false) continue
     const name = teamName(u)
     if (!map.has(name)) map.set(name, { name, farbe: u.farbe || STANDARD_FARBE, mitglieder: [] })
     map.get(name).mitglieder.push(u)

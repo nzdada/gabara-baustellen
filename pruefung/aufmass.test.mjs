@@ -182,9 +182,28 @@ const H = raumAufmass(HALLE, VOB)
 p('Große Öffnung', '6,00 m² wird abgezogen', H.summen.abzuege, 6)
 p('Große Öffnung', 'Abzugzeile mit Faktor −1',
   H.zeilen.find((z) => z.art === 'abzug').faktor, -1)
+p('Große Öffnung', 'Abzugzeile trägt die Menge NEGATIV (Blattsumme = Σ Zeilen)',
+  H.zeilen.find((z) => z.art === 'abzug').menge, -6)
+p('Große Öffnung', 'Σ Wand-/Abzugzeilen = Wand netto',
+  Math.round(H.zeilen.filter((z) => z.art === 'wand' || z.art === 'abzug')
+    .reduce((s, z) => s + z.menge, 0) * 1000) / 1000, 110.8)
 p('Große Öffnung', 'Leibung wird TROTZDEM gesondert gerechnet (5.2.4)',
   H.summen.leibungen, 2.5)
 p('Große Öffnung', 'Wand 32×3,65 − 6,00 = 110,80', H.summen.wand, 110.8)
+
+// ---------------------------------------------------------------- Nische (5.2.4: Rückfläche + Leibung)
+const NISCHE = {
+  nummer: '2.01', name: 'Flur', breite: 3, laenge: 6, grundflaeche: 18,
+  umfang: 18, umfangGemessen: true, hoeheLicht: 2.5, aufbauBoden: 0.12,
+  oeffnungen: [{ art: 'nische', breite: 1.0, hoehe: 2.0, leibungstiefe: 0.3 }],
+}
+const N = raumAufmass(NISCHE, VOB)
+p('Nische', '2,00 m² unter der Schwelle → übermessen, kein Abzug', N.summen.abzuege, 0)
+p('Nische', 'Rückfläche 1,00 × 2,00 als eigene Zeile',
+  N.zeilen.find((z) => z.bauteil.includes('nischenrückfläche')).menge, 2)
+p('Nische', 'Leibung 2×(1+2)×0,30 = 1,80 zusätzlich',
+  N.zeilen.find((z) => z.bauteil.includes('nischeleibung')).menge, 1.8)
+p('Nische', 'Leibungssumme = Rückfläche + Leibung', N.summen.leibungen, 3.8)
 
 // ---------------------------------------------------------------- § 2 Abs. 3
 p('Mengen', '+7 % bleibt unter der Schwelle', mengenAbweichung(150, 160.5).ueberSchwelle, false)

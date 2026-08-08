@@ -445,6 +445,7 @@ export const TEXTE = {
   'einst.inaktiv': { de: 'inaktiv', ar: 'غير نشط' },
   'einst.buero': { de: 'Büro/Admin', ar: 'المكتب / المدير' },
   'einst.monteur': { de: 'Monteur', ar: 'فني' },
+  'einst.vorarbeiter': { de: 'Vorarbeiter', ar: 'رئيس العمال' },
   'einst.facharbeiter': { de: 'Facharbeiter', ar: 'عامل ماهر' },
   'einst.helfer': { de: 'Helfer/Azubi', ar: 'مساعد / متدرب' },
   'einst.anlegen': { de: 'Anlegen', ar: 'إنشاء' },

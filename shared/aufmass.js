@@ -275,7 +275,10 @@ export function raumAufmass(raum, rwOderId) {
         bauteil: `${bauteil} / ${m.art}`,
         ansatz: `${zahlText(m.breite)} × ${zahlText(m.hoehe)}`,
         faktor: -m.anzahl,
-        menge: runde(a.abzug),
+        // NEGATIV – auf dem Aufmaßblatt gilt durchgängig
+        // menge = Ansatz × Faktor, und die Blattsumme ist die Summe der
+        // Zeilen. Mit positivem Betrag würde der Abzug doppelt zählen.
+        menge: -runde(a.abzug),
         geschaetzt: false,
         hinweis: `Einzelgröße ${zahlText(a.einzel)} m² über ${zahlText(rw.uebermessenBisM2)} m² – Abzug`,
       })
@@ -320,16 +323,32 @@ export function raumAufmass(raum, rwOderId) {
     for (const o of oeffnungen) {
       const m = masseVon(o)
       const le = leibungsFlaeche(o)
-      if (le.flaeche <= 0) continue
-      leibungSumme += le.flaeche
-      zeilen.push({
-        art: 'leibung',
-        bauteil: `${bauteil} / ${m.art}leibung`,
-        ansatz: `${zahlText(le.laufmeter)} × ${zahlText(le.tiefe)}`,
-        faktor: m.anzahl,
-        menge: le.flaeche,
-        geschaetzt: false,
-      })
+      if (le.flaeche > 0) {
+        leibungSumme += le.flaeche
+        zeilen.push({
+          art: 'leibung',
+          bauteil: `${bauteil} / ${m.art}leibung`,
+          ansatz: `${zahlText(le.laufmeter)} × ${zahlText(le.tiefe)}`,
+          faktor: m.anzahl,
+          menge: le.flaeche,
+          geschaetzt: false,
+        })
+      }
+      // 5.2.4 nennt BEIDES: "Rückflächen von Nischen sowie Leibungen" –
+      // die Rückwand der Nische (Breite × Höhe) ist eine eigene Zeile,
+      // zusätzlich zur umlaufenden Leibung.
+      if (m.art === 'nische') {
+        const rueck = runde(m.breite * m.hoehe * m.anzahl)
+        leibungSumme += rueck
+        zeilen.push({
+          art: 'leibung',
+          bauteil: `${bauteil} / nischenrückfläche`,
+          ansatz: `${zahlText(m.breite)} × ${zahlText(m.hoehe)}`,
+          faktor: m.anzahl,
+          menge: rueck,
+          geschaetzt: false,
+        })
+      }
     }
   }
 

@@ -171,7 +171,17 @@ export function beobachteAnmeldung(cb) {
       // Beim App-Start EINMAL ein frisches Token erzwingen: Nach einem
       // Rollenwechsel (setze-rolle.mjs widerruft die alten Token) wirkt die
       // neue Rolle so sofort statt erst nach bis zu einer Stunde.
-      const claim = await mitFrist(rolleAusToken(user, true), 8000, '')
+      //
+      // FRIST ≠ KEIN CLAIM (Fund der Gegenprüfung 08.08.2026): Läuft das
+      // Erzwingen in die Frist (hängende Verbindung), heißt das nicht, dass
+      // das Konto keinen Claim hat – dann gilt das ZWISCHENGESPEICHERTE
+      // Token. Sonst landete ein Büro-Konto ohne users-Dokument stumm in
+      // der Monteur-Ansicht.
+      const FRIST_ABGELAUFEN = Symbol('frist')
+      let claim = await mitFrist(rolleAusToken(user, true), 8000, FRIST_ABGELAUFEN)
+      if (claim === FRIST_ABGELAUFEN) {
+        claim = await mitFrist(rolleAusToken(user, false), 3000, '')
+      }
       if (claim) {
         // Der Claim genügt für die Rolle; das Profil liefert nur noch den
         // Anzeigenamen und darf deshalb auch scheitern, ohne zu blockieren.

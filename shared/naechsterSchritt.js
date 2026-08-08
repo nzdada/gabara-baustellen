@@ -197,7 +197,8 @@ export function schritteBuero({
 
   // 6. Mitarbeiter ohne Benutzerkonto – ohne UID greift die Übergangsregel und
   //    jeder Angemeldete darf alles; außerdem trennt der Stundenzettel nicht sauber.
-  const ohneKonto = users.filter((u) => u.aktiv !== false && u.rolle === 'mitarbeiter' && !u.email)
+  const ohneKonto = users.filter((u) => u.aktiv !== false
+    && ['mitarbeiter', 'vorarbeiter'].includes(u.rolle) && !u.email)
   if (ohneKonto.length) {
     raus.push({
       id: 'users-ohne-konto',

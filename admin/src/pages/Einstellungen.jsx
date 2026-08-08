@@ -179,6 +179,7 @@ function Mitarbeiter() {
                 <td className="py-2 pr-3">
                   <select className={feld} defaultValue={u.rolle} onChange={(e) => withStore((s) => s.update('users', u.id, { rolle: e.target.value }))}>
                     <option value="admin">{t('einst.buero')}</option>
+                    <option value="vorarbeiter">{t('einst.vorarbeiter')}</option>
                     <option value="mitarbeiter">{t('einst.monteur')}</option>
                   </select>
                 </td>
@@ -235,7 +236,7 @@ function Mitarbeiter() {
           <input className={feld} placeholder={t('allg.name')} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
           <input className={feld} placeholder={t('allg.email')} value={d.email} onChange={(e) => setD({ ...d, email: e.target.value })} />
           <select className={feld} value={d.rolle} onChange={(e) => setD({ ...d, rolle: e.target.value })}>
-            <option value="mitarbeiter">{t('einst.monteur')}</option><option value="admin">{t('einst.buero')}</option>
+            <option value="mitarbeiter">{t('einst.monteur')}</option><option value="vorarbeiter">{t('einst.vorarbeiter')}</option><option value="admin">{t('einst.buero')}</option>
           </select>
           <input className={feld} placeholder={t('einst.teamPlatzLang')} value={d.team} onChange={(e) => setD({ ...d, team: e.target.value })} />
           <select className={feld} value={d.qualifikation} onChange={(e) => setD({ ...d, qualifikation: e.target.value })}>
