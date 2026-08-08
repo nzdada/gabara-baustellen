@@ -14,6 +14,7 @@ import MonteurBaustelle from './MonteurBaustelle.jsx'
 import Heute from './Heute.jsx'
 import StundenKachel from './StundenKachel.jsx'
 import RegieMelden from './RegieMelden.jsx'
+import AufmassRaum from './AufmassRaum.jsx'
 import FotoLeiste from './FotoLeiste.jsx'
 
 // Handy-Ansicht für Monteure (V2, Plan Kapitel 3.1): untere Leiste
@@ -352,6 +353,7 @@ export default function MonteurApp({ user, vorschau = false }) {
           <Route path="/monteur/baustelle/:id" element={<MonteurBaustelle user={user} />} />
           <Route path="/monteur/stunden" element={<StundenKachel user={user} />} />
           <Route path="/monteur/regie" element={<RegieMelden user={user} />} />
+          <Route path="/monteur/aufmass" element={<AufmassRaum user={user} />} />
           <Route path="/monteur/spesen" element={<Spesen user={user} />} />
           <Route path="*" element={<Navigate to="/monteur" replace />} />
         </Routes>

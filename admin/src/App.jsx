@@ -23,6 +23,7 @@ import Dashboard from './pages/Dashboard.jsx'
 import Stunden from './pages/Stunden.jsx'
 import Hilfe from './pages/Hilfe.jsx'
 import Abrechnung from './pages/Abrechnung.jsx'
+import Aufmass from './pages/Aufmass.jsx'
 import MonteurApp from './pages/monteur/MonteurApp.jsx'
 import { useCollection } from './hooks.js'
 
@@ -35,6 +36,7 @@ const NAV = [
   { to: '/freigabe', schluessel: 'nav.freigabe', icon: 'check' },
   { to: '/fotoampel', schluessel: 'nav.fotoampel', icon: 'foto' },
   { to: '/kunden', schluessel: 'nav.kunden', icon: 'firma' },
+  { to: '/aufmass', schluessel: 'nav.aufmass', icon: 'lv' },
   { to: '/abrechnung', schluessel: 'nav.abrechnung', icon: 'euro' },
   { to: '/uebersicht', schluessel: 'nav.uebersicht', icon: 'home' },
   { to: '/anfragen', schluessel: 'nav.anfragen', icon: 'inbox' },
@@ -329,6 +331,7 @@ export default function App() {
         <Route path="/freigabe" element={<Freigabe user={user} />} />
         <Route path="/fotoampel" element={<Fotoampel />} />
         <Route path="/anfragen" element={<Anfragen user={user} />} />
+        <Route path="/aufmass" element={<Aufmass user={user} />} />
         <Route path="/abrechnung" element={<Abrechnung />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/stunden" element={<Stunden />} />

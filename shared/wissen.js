@@ -503,6 +503,89 @@ export const WISSEN = [
             de: 'Der Einbehalt wird derzeit NICHT an FastBill übertragen. Er muss dort in der Rechnung von Hand nachgetragen werden, sonst mahnt FastBill den vollen Betrag an.',
             ar: 'لا يُرسَل الضمان المحتجز حاليًا إلى FastBill. يجب إضافته يدويًا هناك في الفاتورة، وإلا سيطالب FastBill بالمبلغ الكامل.',
           } },
+          { p: {
+            de: 'Neu seit V2: Einbehalte aus dem Rechnungslauf werden mit Fälligkeitsdatum vorgemerkt (Abnahme + 48 Monate VOB bzw. 60 Monate BGB). Drei Monate vor der Fälligkeit erscheint eine Zeile im Leitstand – ein nicht angemahnter Einbehalt wird erfahrungsgemäß in jedem dritten Fall nie gezogen.',
+            ar: 'جديد في النسخة الثانية: تُسجَّل الضمانات من دورة الفوترة مع تاريخ استحقاق (الاستلام + 48 شهرًا VOB أو 60 شهرًا BGB). قبل الاستحقاق بثلاثة أشهر يظهر سطر في لوحة القيادة – فالضمان الذي لا يُطالَب به يضيع في ثلث الحالات.',
+          } },
+        ],
+      },
+      {
+        id: 'aufmass-ansicht',
+        frage: { de: 'Was zeigt die Aufmaß-Ansicht und warum sind Zeilen rot?', ar: 'ماذا تعرض شاشة المساحة ولماذا بعض الأسطر حمراء؟' },
+        zu: '/aufmass',
+        antwort: [
+          { p: {
+            de: 'Jede Fertigmeldung auf der Baustelle erzeugt automatisch eine Aufmaßzeile – das Geldatom des Systems. Die Ansicht AUFMASS zeigt je LV-Position Vertrag, Aufmaß und Abgerechnet samt Abweichung in Prozent; jede Position lässt sich bis zur einzelnen Zeile mit dem Rechenweg (Ansatz, z. B. „18,20 × 2,62“) aufklappen.',
+            ar: 'كل بلاغ إنجاز من الورشة يُنشئ تلقائيًا سطر مساحة – هو الذرة المالية للنظام. تعرض شاشة المساحة لكل بند: العقد والمساحة والمفوتر مع نسبة الانحراف؛ ويمكن فتح كل بند حتى السطر الفردي مع طريقة الحساب (مثل «18,20 × 2,62»).',
+          } },
+          { p: {
+            de: 'ROTE Zeilen sind geschätzt (Umfang überschlagen oder Bodenaufbau nicht erfasst). Sie dürfen gemeldet, aber NIE abgerechnet werden. „Alle bestätigen“ erfasst nur gemessene Zeilen unter 10 % Abweichung; geschätzte bleiben immer einzeln und verlangen beim Nachmessen, wer gemessen hat und wann.',
+            ar: 'الأسطر الحمراء مقدَّرة (المحيط تقريبي أو طبقات الأرضية غير مسجلة). يجوز الإبلاغ عنها لكن لا تُفوتر أبدًا. «تأكيد الكل» يشمل فقط الأسطر المقيسة تحت انحراف 10٪؛ والمقدَّرة تُعالج فرديًا ويُسأل عند القياس: من قاس ومتى.',
+          } },
+          { merke: {
+            de: 'Über 10 % Abweichung vom Vertrag greift § 2 Abs. 3 VOB/B: neuer Einheitspreis verlangbar. Genau deshalb sind solche Zeilen vom Sammelknopf ausgenommen.',
+            ar: 'فوق انحراف 10٪ عن العقد تسري § 2 فقرة 3 VOB/B: يمكن طلب سعر وحدة جديد. ولهذا تُستثنى هذه الأسطر من زر التأكيد الجماعي.',
+          } },
+        ],
+      },
+      {
+        id: 'aufmassblatt',
+        frage: { de: 'Wozu das Aufmaßblatt (PDF)?', ar: 'ما فائدة ورقة المساحة (PDF)؟' },
+        zu: '/aufmass',
+        antwort: [
+          { p: {
+            de: 'Nach § 14 Abs. 1 VOB/B gehören die Mengenberechnungen als Anlage zur Rechnung – fehlen sie, ist die Rechnung nicht prüfbar und nach § 14 Abs. 4 nicht fällig. Das Aufmaßblatt druckt je Position jede Zeile mit Ort, Ansatz, Faktor und Menge, dazu Summe, Vertragsmenge und Abweichung.',
+            ar: 'وفق § 14 فقرة 1 VOB/B يجب إرفاق حسابات الكميات بالفاتورة – وبدونها لا تكون الفاتورة قابلة للتدقيق ولا مستحقة وفق § 14 فقرة 4. تطبع ورقة المساحة لكل بند كل سطر مع الموضع والمعادلة والمعامل والكمية، ثم المجموع وكمية العقد والانحراف.',
+          } },
+          { p: {
+            de: 'Im Kopf steht die Abrechnungsregel im KLARTEXT (z. B. „Öffnungen bis 2,50 m² übermessen · Rohbaumaß · Leibungen gesondert“). Die VOB-korrekte Rechnung bringt 15–19 % mehr Fläche als die alte Abzugsrechnung – ohne den Klartext auf dem Papier sähe das nach Aufschlag aus. Unten: das gemeinsame Aufmaß nach § 14 Abs. 2 mit Unterschriftsfeldern für AN und AG.',
+            ar: 'في الرأس تظهر قاعدة المحاسبة بنص واضح (مثل «الفتحات حتى 2٫50 م² تُحتسب · قياس البناء الخام · العضادات منفصلة»). الحساب الصحيح وفق VOB يعطي مساحة أكبر بـ 15–19٪ من طريقة الخصم القديمة – وبدون النص الواضح على الورق سيبدو ذلك زيادة سعرية. وفي الأسفل: القياس المشترك وفق § 14 فقرة 2 مع حقلي توقيع للطرفين.',
+          } },
+          { achtung: {
+            de: 'Geschätzte Zeilen drucken mit ⚠ und gelten als GESPERRT – sie zählen in der Blattsumme, dürfen aber nicht in die Rechnung, bis sie nachgemessen sind.',
+            ar: 'الأسطر المقدَّرة تُطبع بعلامة ⚠ وتُعد مقفلة – تدخل في مجموع الورقة لكنها لا تدخل الفاتورة حتى تُقاس.',
+          } },
+        ],
+      },
+      {
+        id: 'rechnungslauf',
+        frage: { de: 'Wie funktioniert der Rechnungslauf nach Aufmaß?', ar: 'كيف تعمل دورة الفوترة حسب المساحة؟' },
+        zu: '/aufmass',
+        antwort: [
+          { schritte: [
+            { de: 'Aufmaß-Ansicht öffnen, Zeilen prüfen und bestätigen („Alle bestätigen“ oder einzeln nachmessen).', ar: 'افتح شاشة المساحة، راجع الأسطر وأكدها («تأكيد الكل» أو بالقياس الفردي).' },
+            { de: '„Abrechnen“ antippen: Vorschau mit Netto, Steuer (§ 13b oder 19 %) und Sicherheitseinbehalt prüfen.', ar: 'انقر «الفوترة»: راجع المعاينة مع الصافي والضريبة (§ 13b أو 19٪) والضمان المحتجز.' },
+            { de: 'Lauf starten. Das System markiert die Zeilen in Etappen zu 400 – erst wenn KEINE Zeile mehr offen ist, entsteht die Rechnung.', ar: 'ابدأ الدورة. يعلّم النظام الأسطر على مراحل من 400 – ولا تنشأ الفاتورة إلا عندما لا يبقى سطر مفتوح.' },
+            { de: 'Die fertige Rechnung liegt unter ABRECHNUNG (Status „vorbereitet“) und geht von dort wie gewohnt an FastBill.', ar: 'تجد الفاتورة الجاهزة في «الفوترة» (حالة «معدة») وتُرسل من هناك إلى FastBill كالمعتاد.' },
+          ] },
+          { p: {
+            de: 'Bricht der Lauf ab (Netz weg, Browser zu), ist NICHTS verloren: Er steht als „unterbrochen“ in der Ansicht und wird mit einem Klick fortgesetzt. Jede Zeile trägt ihren Rechnungs-Marker (abgerechnetIn) nur EINMAL – Doppelfakturierung ist damit strukturell unmöglich, nicht nur durch Disziplin.',
+            ar: 'إذا انقطعت الدورة (انقطاع الشبكة أو إغلاق المتصفح) لا يضيع شيء: تبقى «متوقفة» في الشاشة وتُستأنف بنقرة. كل سطر يحمل علامة فاتورته مرة واحدة فقط – فالفوترة المزدوجة مستحيلة بنيويًا لا انضباطيًا فقط.',
+          } },
+          { merke: {
+            de: 'Steuer-Schnappschuss: § 13b-Modus, Steuersatz, Betrag und Rechtstext werden in die Rechnung KOPIERT. Wird der Kunde später auf 19 % umgestellt, bleiben alte Rechnungen unverändert (§ 146 Abs. 4 AO). Storno bucht alles zurück – gelöscht wird nie.',
+            ar: 'لقطة الضريبة: نمط § 13b والنسبة والمبلغ والنص القانوني تُنسخ داخل الفاتورة. لو تغيّر العميل لاحقًا إلى 19٪ تبقى الفواتير القديمة كما هي (§ 146 فقرة 4 AO). الإلغاء يعيد كل شيء – ولا يُحذف شيء أبدًا.',
+          } },
+        ],
+      },
+      {
+        id: 'nachtrag-ankuendigung',
+        frage: { de: 'Was tun bei Leistungen ohne LV-Position (§ 2 Abs. 6)?', ar: 'ماذا أفعل مع أعمال بلا بند في جدول الكميات (§ 2 فقرة 6)؟' },
+        zu: '/aufmass',
+        antwort: [
+          { p: {
+            de: 'Eine Leistung ohne LV-Position (z. B. Leibungen, die der Vertrag nicht ausweist) ist eine ZUSÄTZLICHE Leistung. Der Vergütungsanspruch besteht nur, wenn er dem Auftraggeber VOR Ausführungsbeginn angekündigt wird – wer das erst im Aufmaß entdeckt, hat den Anspruch dem Grunde nach verloren.',
+            ar: 'العمل بدون بند في جدول الكميات (مثل عضادات لم يذكرها العقد) هو عمل إضافي. ولا ينشأ حق الأجر إلا إذا أُعلن لصاحب العمل قبل بدء التنفيذ – ومن يكتشفه عند القياس فقط يكون قد خسر الحق من أساسه.',
+          } },
+          { schritte: [
+            { de: 'Sobald Aufgaben ohne Position existieren, zeigt die Aufmaß-Ansicht (und der Leitstand) eine rote Zeile.', ar: 'بمجرد وجود مهام بلا بند تعرض شاشة المساحة (ولوحة القيادة) سطرًا أحمر.' },
+            { de: '„Ankündigung erzeugen (PDF)“ antippen – das Ein-Klick-Dokument listet die Leistungen und trägt Felder für den Zugangsnachweis.', ar: 'انقر «إنشاء الإعلان (PDF)» – مستند بنقرة واحدة يسرد الأعمال ويحوي حقول إثبات الوصول.' },
+            { de: 'Dokument dem Auftraggeber NACHWEISBAR zustellen (Quittung, Mail) – erst dann ausführen lassen.', ar: 'سلّم المستند لصاحب العمل بشكل مُثبَت (إيصال أو بريد) – وبعدها فقط يُنفَّذ العمل.' },
+          ] },
+          { achtung: {
+            de: 'Ohne nachweisbaren Zugang VOR der Ausführung: kein Geld. Beispiele aus der Praxis: dritte Beschichtung 2.242 €, Q3 statt Q2 rund 4.025 € – beides wäre verloren.',
+            ar: 'بدون وصول مُثبَت قبل التنفيذ: لا مال. أمثلة عملية: طبقة طلاء ثالثة 2242 يورو، أو Q3 بدل Q2 نحو 4025 يورو – وكلاهما كان سيضيع.',
+          } },
         ],
       },
     ],
@@ -676,6 +759,27 @@ export const WISSEN = [
           { merke: {
             de: 'Die Sperre ist kein Fehler, sondern der Schutz der Beweisfotos. Melden, Stunden und Ansehen funktionieren auch gesperrt weiter.',
             ar: 'القفل ليس عطلًا بل حماية لصور الإثبات. الإبلاغ والساعات والعرض تعمل كلها حتى أثناء القفل.',
+          } },
+        ],
+      },
+      {
+        id: 'aufmass-erfassen',
+        frage: { de: 'Wie erfasse ich das Aufmaß eines Raums?', ar: 'كيف أسجل قياس غرفة؟' },
+        zu: '/monteur/aufmass',
+        antwort: [
+          { p: {
+            de: 'Der Aufmaß-Bildschirm (Knopf „Aufmaß“ im HEUTE-Kopf, nur Vorarbeiter und Büro) ist der einzige Bildschirm mit Zahlenfeldern – er wird einmal je Raum benutzt und darf langsam sein. Alle Eingaben verstehen das Komma („2,62“).',
+            ar: 'شاشة المساحة (زر «المساحة» في رأس شاشة اليوم، لرئيس العمال والمكتب فقط) هي الشاشة الوحيدة بحقول أرقام – تُستخدم مرة لكل غرفة ويجوز أن تكون بطيئة. كل الحقول تفهم الفاصلة («2,62»).',
+          } },
+          { schritte: [
+            { de: 'Länge und Breite messen, „aus B × L rechnen“ – Fläche und Umfang füllen sich, Umfang gilt als GEMESSEN.', ar: 'قس الطول والعرض ثم «احسب من العرض × الطول» – تمتلئ المساحة والمحيط، ويُعد المحيط مقيسًا.' },
+            { de: 'Lichte Höhe plus Bodenaufbau eintragen – zusammen ergibt das die Abrechnungshöhe (Rohbaumaß nach DIN 18363, 5.2.1).', ar: 'أدخل الارتفاع الصافي وطبقات الأرضية – معًا يعطيان ارتفاع المحاسبة (قياس البناء الخام وفق DIN 18363, 5.2.1).' },
+            { de: 'Öffnungen anlegen (Tür/Fenster/Nische) mit Leibungstiefe – bis 2,50 m² wird übermessen, Leibungen zählen GESONDERT.', ar: 'أضف الفتحات (باب/نافذة/كوة) مع عمق العضادة – حتى 2٫50 م² تُحتسب الفتحة، والعضادات تُحسب منفصلة.' },
+            { de: 'Stand auf „gemessen“ stellen und speichern. „Bestätigt“ setzt später das Büro in der Aufmaß-Ansicht.', ar: 'اضبط الحالة على «مقيس» واحفظ. أما «مؤكد» فيضعه المكتب لاحقًا في شاشة المساحة.' },
+          ] },
+          { achtung: {
+            de: 'Ohne Bodenaufbau bleibt die Wandzeile GESCHÄTZT und für die Rechnung gesperrt. Es gibt absichtlich keinen stillen Vorgabewert – ein erfundener Aufbau würde Fläche berechnen, die es nicht gibt.',
+            ar: 'بدون طبقات الأرضية يبقى سطر الجدار مقدَّرًا ومقفلًا للفوترة. لا توجد قيمة افتراضية صامتة عمدًا – فطبقات مخترعة تعني محاسبة مساحة غير موجودة.',
           } },
         ],
       },

@@ -11,6 +11,7 @@ import {
   syncKunde, erstelleFastbillRechnung, schliesseRechnungAb,
   sendeRechnungPerMail, holeRechnungStatus,
 } from '@shared/fastbill.js'
+import { stornoBauen } from '@shared/abrechnung.js'
 
 // Abrechnung: Rechnungs-Spiegel + FastBill-Aktionen.
 // FastBill übernimmt Nummernvergabe, E-Rechnung, Versand und Mahnwesen –
@@ -107,6 +108,33 @@ export default function Abrechnung() {
       const erg = await sendeRechnungPerMail(r.fastbillInvoiceId, empfaenger, `Rechnung ${r.fastbillNummer || ''} – ${einst.praxisName}`, 'Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie unsere Rechnung.\n\nMit freundlichen Grüßen\nGabara Service GmbH')
       if (erg.simuliert) { setMeldung({ art: 'info', text: 'Simuliert – kein FastBill-Zugang.' }); return }
       setMeldung({ art: 'ok', text: `Versand über FastBill angestoßen an ${empfaenger}.` })
+    })
+  }
+
+  // V2-Rechnungen aus dem Aufmaß (art 'aufmass'): STORNO statt Löschen.
+  // Bucht abgerechnetIn auf allen Zeilen zurück (in Etappen, idempotent –
+  // ein abgebrochener Storno lässt sich einfach wiederholen), setzt die
+  // Rechnung auf storniert, lässt den Einbehalt entfallen und zieht die
+  // Kennzahl abgerechnetCent zurück (Plan 8.7).
+  async function stornieren(r) {
+    if (!confirm(t('rl.stornoFrage'))) return
+    await aktion(r, async () => {
+      await withStore(async (s) => {
+        const zeilen = await s.listWhere('aufmasszeilen', 'abgerechnetIn', r.id)
+        const st = stornoBauen({ rechnung: r, zeilen })
+        for (const etappe of st.etappen) {
+          await s.schreibeVorgang({ patches: etappe })
+        }
+        const einbehalt = await s.get('einbehalte', `eb-${r.id}`)
+        await s.schreibeVorgang({
+          patches: [
+            ...st.abschluss.patches,
+            ...(einbehalt ? [st.abschluss.einbehaltPatch] : []),
+          ],
+          kennzahlen: st.abschluss.kennzahlen,
+        })
+      })
+      setMeldung({ art: 'ok', text: t('rl.stornoOk') })
     })
   }
 
@@ -225,7 +253,10 @@ export default function Abrechnung() {
                       {t('abr.pdfFolgt')}
                     </span>
                   )}
-                  {r.status === 'vorbereitet' && (
+                  {r.art === 'aufmass' && ['vorbereitet', 'uebertragen', 'gestellt'].includes(r.status) && (
+                    <button onClick={() => stornieren(r)} disabled={busy} className={`${knopf} text-red-500 hover:bg-red-50`}>{t('rl.stornieren')}</button>
+                  )}
+                  {r.art !== 'aufmass' && r.status === 'vorbereitet' && (
                     <button onClick={() => loeschen(r)} className={`${knopf} text-red-500 hover:bg-red-50`}>{t('allg.loeschen')}</button>
                   )}
                 </div>

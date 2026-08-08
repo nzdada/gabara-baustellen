@@ -107,6 +107,9 @@ export function erzeugeDemoDaten() {
       kundeId: 'k-bothmer', anschrift: { strasse: 'Eserwallstraße 1-3', plzOrt: '86150 Augsburg' },
       gewerk: 'Malerarbeiten', status: 'inArbeit',
       startDatum: heutePlus(-14), endeDatum: heutePlus(14), projektvolumen: 7896,
+      // AP 8: Abrechnungsregel ist PFLICHT je Baustelle (Plan 8.2) – aus dem
+      // Nachunternehmervertrag. Bodenaufbau als Vorbelegung, nie stiller Wert.
+      abrechnungsregel: 'vob18363', bodenaufbauStd: 0.12,
       farbe: '#f97316',
       beschreibung: 'Nachunternehmer-Vertrag Bothmer vom 12.05.2026. Ausführung nach VOB DIN 18363. 2 Arbeitsschritte: Grundierung + Erstanstrich, danach Zweitanstrich; Zargen schleifen und lackieren.',
       createdAt: jetzt - 30 * 86400000,
@@ -116,6 +119,7 @@ export function erzeugeDemoDaten() {
       kundeId: 'k-bothmer', anschrift: { strasse: 'Projekt S36', plzOrt: 'München' },
       gewerk: 'Malerarbeiten', status: 'beauftragt',
       startDatum: heutePlus(21), endeDatum: heutePlus(60), projektvolumen: 0,
+      abrechnungsregel: 'vob18363', bodenaufbauStd: 0.12,
       farbe: '#6366f1',
       beschreibung: 'Leer-LV vom 22.07.2026 (Unser Zeichen li/lö). GRUNDSÄTZLICH ALLE PREISE OHNE MATERIAL. Einheitspreise in Klärung.',
       createdAt: jetzt - 9 * 86400000,
@@ -125,6 +129,7 @@ export function erzeugeDemoDaten() {
       kundeId: 'k-huber', anschrift: { strasse: 'Bgm.-Aurnhammer-Str. 12', plzOrt: '86199 Augsburg' },
       gewerk: 'Malerarbeiten', status: 'offen',
       startDatum: heutePlus(30), endeDatum: heutePlus(35), projektvolumen: 2400,
+      abrechnungsregel: 'pauschal', bodenaufbauStd: 0,
       farbe: '#10b981',
       beschreibung: 'Wohnzimmer, Flur und Küche streichen, ca. 180 m² Wand-/Deckenfläche. Angebot in Arbeit.',
       createdAt: jetzt - 5 * 86400000,
@@ -588,6 +593,24 @@ export function erzeugeDemoDaten() {
     storniert: false,
   }]
 
+  // --- V2 (AP 8): Die Aufmaßzeile zur fertigen Demo-Aufgabe (im echten
+  // Betrieb entsteht sie im selben Batch wie die Buchung, meldungBauen).
+  // geschaetzt=true, weil der Raum nie nachgemessen wurde – die Büro-Ansicht
+  // AUFMASS zeigt damit sofort die Rechnungssperre und den Nachmessen-Weg.
+  const aufmasszeilen = [{
+    id: 'am-auf-r-106-as-grundieren',
+    projektId: 'p-iga',
+    positionId: 'lv-p-iga-1-1', oz: '1.1',
+    kurztext: 'Wand- und Deckenflächen vorbereiten, reinigen, grundieren',
+    einheit: 'm²',
+    raumId: 'r-106', raumName: '1.06 WC', bauteil: '1.06 WC',
+    ansatz: '9', faktor: 1, menge: 9, art: 'haupt',
+    regelwerk: '', geschaetzt: true, quelle: 'aufgabe',
+    aufgabeId: 'auf-r-106-as-grundieren',
+    erfasstAm: heuteUm(10, 12), erfasstVon: SAMIR,
+    storniert: false, abgerechnetIn: '',
+  }]
+
   // --- V2 (AP 7): Kennzahlen der Demo-Baustelle + Geräte-Lebenszeichen. Im
   // echten Betrieb schreiben die Meldungs-Batches diese Zähler fort; die Demo
   // rechnet sie EINMAL aus dem angelegten Stand aus, damit der Leitstand
@@ -642,7 +665,7 @@ export function erzeugeDemoDaten() {
     einsaetze,
     buchungen,
     arbeitsschritte,
-    aufmasszeilen: [],
+    aufmasszeilen,
     regieanordnungen: [],
     fotos: [],
     stunden: [],

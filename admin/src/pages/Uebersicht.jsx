@@ -420,6 +420,7 @@ export default function Uebersicht({ user }) {
   const regieanordnungen = useCollection('regieanordnungen')
   const geraete = useCollection('geraete')
   const arbeitsschritte = useCollection('arbeitsschritte')
+  const einbehalte = useCollection('einbehalte')
 
   const tage = useMemo(() => wochenTage(heute), [heute])
   const alleTage = useMemo(() => (tage.includes(heute) ? tage : [heute, ...tage]), [tage, heute])
@@ -446,11 +447,11 @@ export default function Uebersicht({ user }) {
   // Band 2: WAS HAKT – Stockungserkennung (neu) + die bewährten Büro-Schritte.
   const handlungen = useMemo(() => {
     const leitstand = schritteLeitstand({
-      teams, einsaetzeHeute, regieanordnungen, lvpositionen, projekte, geraete, kennzahlen, users,
+      teams, einsaetzeHeute, regieanordnungen, lvpositionen, projekte, geraete, kennzahlen, users, einbehalte,
     })
     const klassisch = schritteBuero({ projekte, lvpositionen, berichte, requests, users })
     return [...leitstand, ...klassisch].sort((a, b) => a.stufe - b.stufe).slice(0, 7)
-  }, [teams, einsaetzeHeute, regieanordnungen, lvpositionen, projekte, geraete, kennzahlen, users, berichte, requests])
+  }, [teams, einsaetzeHeute, regieanordnungen, lvpositionen, projekte, geraete, kennzahlen, users, einbehalte, berichte, requests])
 
   // Band 4: Baustellen ohne Kolonne diese Woche
   const ohneKolonne = useMemo(() => {

@@ -697,6 +697,144 @@ function stundenBlatt({ mitarbeiter, tage = [], zeitraum, summe, bemerkungen = '
       </div>`
 }
 
+// ---------- Aufmaßblatt (§ 14 Abs. 1 VOB/B) ----------
+//
+// Das Papier, das bisher ganz fehlte: Ohne die Mengenberechnung als Anlage
+// ist die Rechnung nicht prüfbar und nach § 14 Abs. 4 nicht fällig.
+// Aufbau nach Plan 8.4: Kopf mit Regelwerk im KLARTEXT (die Korrektur um
+// 15–19 % mehr Fläche muss auf dem Papier begründet sein, sonst schafft sie
+// Streit statt Geld), je Position die Zeilen mit Ort/Ansatz/Faktor/Menge/Art,
+// geschätzte Zeilen ⚠ und ausdrücklich GESPERRT, Summe gegen Vertragsmenge
+// mit § 2-Abs.-3-Warnung, unten das gemeinsame Aufmaß nach § 14 Abs. 2.
+//
+// `gruppen` kommt aus positionsUebersicht (shared/abrechnung.js);
+// `regelwerk` ist der Schnappschuss { name, klartext } – drucken.js schlägt
+// bewusst nichts nach.
+
+function mengeText(n) {
+  return (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+}
+
+const AUFMASS_ART = { wand: 'haupt', decke: 'haupt', haupt: 'haupt', leibung: 'Leibung', zulage: 'Zulage', abzug: 'Abzug' }
+
+export function druckeAufmassblatt({ projekt, kunde, gruppen = [], regelwerk = null, einst = {} }) {
+  const geschaetztGesamt = gruppen.reduce((s, g) => s + (g.geschaetztAnzahl || 0), 0)
+
+  const regelBlock = `<div class="box recht">
+    <strong>Abrechnungsregel:</strong> ${esc(regelwerk?.name || 'nicht festgelegt – bitte am Projekt nachtragen')}<br>
+    ${esc(regelwerk?.klartext || '')}
+  </div>`
+
+  const positionsBloecke = gruppen.map((g) => {
+    const zeilen = g.zeilen.map((z) => {
+      const gesperrt = Boolean(z.geschaetzt)
+      return `<tr${gesperrt ? ' class="pruefen"' : ''} style="${gesperrt ? 'background:#fefce8' : ''}">
+        <td>${esc(z.bauteil || z.raumName || '–')}</td>
+        <td dir="ltr">${esc(z.ansatz || '–')}</td>
+        <td class="r">${esc(String(z.faktor ?? 1))}</td>
+        <td class="r">${mengeText(z.menge)}</td>
+        <td>${esc(AUFMASS_ART[z.art] || z.art || 'haupt')}${gesperrt ? ' <strong>⚠ geschätzt</strong>' : ''}</td>
+      </tr>`
+    }).join('')
+    const ab = g.abweichung || {}
+    const abText = g.vertrag > 0
+      ? `${ab.prozent > 0 ? '+' : ''}${(ab.prozent || 0).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
+      : '–'
+    return `<h2>Pos. ${esc(g.oz || '–')} · ${esc(g.kurztext || 'ohne LV-Position (§ 2 Abs. 6 VOB/B)')} · Einh. ${esc(g.einheit || 'm²')}</h2>
+      <table>
+        <thead><tr><th>Ort</th><th>Ansatz</th><th class="r">Fak.</th><th class="r">Menge</th><th>Art</th></tr></thead>
+        <tbody>
+          ${zeilen}
+          <tr class="summe"><td colspan="3">Summe Position</td><td class="r">${mengeText(g.aufmass)}</td><td>${esc(g.einheit || '')}</td></tr>
+          <tr><td colspan="3" class="meta">Vertragsmenge</td><td class="r meta">${g.vertrag > 0 ? mengeText(g.vertrag) : '–'}</td><td class="meta">${esc(g.einheit || '')}</td></tr>
+          <tr><td colspan="3" class="meta">Abweichung</td><td class="r"><strong>${abText}</strong></td><td></td></tr>
+        </tbody>
+      </table>
+      ${ab.ueberSchwelle ? `<div class="box warn"><strong>§ 2 Abs. 3 VOB/B:</strong> ${esc(ab.hinweis)}</div>` : ''}`
+  }).join('')
+
+  drucke({
+    titel: 'Aufmaßblatt',
+    nummer: projekt?.nummer || '',
+    einst,
+    fussExtra: `Ausdruck vom ${new Date().toLocaleDateString('de-DE')}`,
+    body: `
+      ${beteiligteBlock({ projekt, kunde, datum: '', datumLabel: 'Aufmaß-Stand', monteur: '' })}
+      ${regelBlock}
+      ${positionsBloecke || '<p class="meta">Keine Aufmaßzeilen vorhanden.</p>'}
+      ${geschaetztGesamt > 0 ? `<div class="box warn"><strong>⚠ ${geschaetztGesamt} Zeile(n) geschätzt</strong> (Umfang oder Bodenaufbau nicht gemessen) –
+        für die Rechnung <strong>gesperrt</strong>, bis sie nachgemessen und bestätigt sind.</div>` : ''}
+      <div class="box recht"><strong>Gemeinsames Aufmaß nach § 14 Abs. 2 VOB/B.</strong>
+        Das Aufmaß wurde gemeinsam vorgenommen bzw. dem Auftraggeber zur gemeinsamen Feststellung angeboten.</div>
+      <div class="unterschriften">
+        <div>
+          <div class="art">für den Auftragnehmer</div>
+          <div class="flaeche"></div>
+          <div class="linie"><div class="klar">&nbsp;</div><div class="rolle">Datum, Name, Funktion</div></div>
+        </div>
+        <div>
+          <div class="art">für den Auftraggeber</div>
+          <div class="flaeche"></div>
+          <div class="linie"><div class="klar">&nbsp;</div><div class="rolle">Datum, Name, Funktion</div></div>
+        </div>
+      </div>`,
+  })
+}
+
+// ---------- Nachtragsankündigung (§ 2 Abs. 6 VOB/B) ----------
+//
+// Das Ein-Klick-Dokument: Sobald Leistungen OHNE LV-Position anstehen, muss
+// der Vergütungsanspruch VOR Ausführungsbeginn angekündigt werden – sonst ist
+// er dem Grunde nach verloren (Plan 8.6). `aufgaben` sind die betroffenen
+// Aufgaben (Raum, Schritt, Menge); der Zugang wird handschriftlich vermerkt.
+
+export function druckeNachtragsankuendigung({ projekt, kunde, aufgaben = [], einst = {} }) {
+  const zeilen = aufgaben.map((a) => `<tr>
+    <td>${esc([a.raumNummer, a.raumName].filter(Boolean).join(' ') || a.raumId || '–')}</td>
+    <td>${esc(a.schrittNameDe || a.kurztext || '–')}</td>
+    <td class="r">${a.menge ? mengeText(a.menge) : '–'}</td>
+    <td>${esc(a.einheit || '')}</td>
+  </tr>`).join('')
+
+  drucke({
+    titel: 'Nachtragsankündigung',
+    nummer: projekt?.nummer || '',
+    einst,
+    fussExtra: `Ausdruck vom ${new Date().toLocaleDateString('de-DE')}`,
+    body: `
+      ${beteiligteBlock({ projekt, kunde, datum: '', datumLabel: 'Datum', monteur: '' })}
+      <div class="box recht"><strong>Ankündigung eines Anspruchs auf besondere Vergütung – § 2 Abs. 6 VOB/B.</strong><br>
+        Für die nachfolgend aufgeführten, im Leistungsverzeichnis <strong>nicht vorgesehenen</strong> Leistungen
+        wird hiermit <strong>vor Beginn der Ausführung</strong> ein Anspruch auf besondere Vergütung angekündigt.
+        Die Höhe der Vergütung wird gemäß § 2 Abs. 6 Nr. 2 VOB/B nach den Grundlagen der Preisermittlung für die
+        vertragliche Leistung bestimmt und in einem Nachtragsangebot beziffert.</div>
+      <h2>Betroffene Leistungen (ohne LV-Position)</h2>
+      <table>
+        <thead><tr><th>Ort / Raum</th><th>Leistung</th><th class="r">Menge (vorauss.)</th><th>Einheit</th></tr></thead>
+        <tbody>${zeilen || '<tr><td colspan="4" class="meta">–</td></tr>'}</tbody>
+      </table>
+      <h2>Zugang beim Auftraggeber</h2>
+      <div class="box">
+        Übergeben am: ____________ &nbsp; an: ______________________________<br><br>
+        ☐ persönlich übergeben (Quittung) &nbsp;&nbsp; ☐ per E-Mail &nbsp;&nbsp; ☐ per Post/Bautagebuch
+        <br><br><span class="meta">Der Zugang dieser Ankündigung ist nachzuweisen – ohne nachweisbaren Zugang
+        vor Ausführungsbeginn besteht der Vergütungsanspruch dem Grunde nach nicht.</span>
+      </div>
+      <div class="unterschriften">
+        <div>
+          <div class="art">Auftragnehmer</div>
+          <div class="flaeche"></div>
+          <div class="linie"><div class="klar">${esc(firma(einst).name)}</div><div class="rolle">Datum, Unterschrift</div></div>
+        </div>
+        <div>
+          <div class="art">Zugang bestätigt (Auftraggeber)</div>
+          <div class="flaeche"></div>
+          <div class="linie"><div class="klar">&nbsp;</div><div class="rolle">Datum, Name, Unterschrift</div></div>
+        </div>
+      </div>`,
+  })
+}
+
 // ---------- Abschlussbericht / Fertigstellungsanzeige ----------
 //
 // "Wenn die Baustelle fertig ist, kann man anhand der Tätigkeiten einen Bericht

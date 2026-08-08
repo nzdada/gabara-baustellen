@@ -16,6 +16,7 @@ import Modal from '../components/Modal.jsx'
 import * as S from '../stil.js'
 import { Seitenkopf, Leer, ChipReihe, Segment, Meldung } from '../components/Seite.jsx'
 import { druckeRegiebericht, druckeAbnahme, druckeAbschluss } from '../drucken.js'
+import { REGELWERKE } from '@shared/aufmass.js'
 
 // Projekt-Detailseite (#/projekte/:id): Dreispalter im HERO-Stil –
 // links Bereichs-Navigation, Mitte Inhalt, rechts Projektdaten-Panel.
@@ -678,6 +679,47 @@ export default function ProjektDetail({ user }) {
                   platzhalter="–"
                 />
               </div>
+            </div>
+
+            {/* Abrechnungsregel (Plan 8.2): PFLICHTFELD aus dem Nachunternehmer-
+                vertrag. Sie steht im Klartext auf jedem Aufmaßblatt und wird an
+                jeder Aufmaßzeile als Schnappschuss gespeichert. Ein Wechsel
+                mitten im Projekt WARNT mit der Zahl gestellter Rechnungen –
+                ein stiller Wechsel sähe für den GU nach Aufschlag aus. */}
+            <div>
+              <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1">{t('pd.regelwerk')}</p>
+              <select
+                value={projekt.abrechnungsregel || ''}
+                onChange={(e) => {
+                  const neu = e.target.value
+                  if (!neu) return
+                  const gestellte = rechnungen.filter((r) => ['uebertragen', 'gestellt', 'bezahlt'].includes(r.status)).length
+                  if (projekt.abrechnungsregel && neu !== projekt.abrechnungsregel && gestellte > 0
+                    && !window.confirm(t('pd.regelwerkWechselFrage', { anzahl: gestellte }))) return
+                  patchProjekt({ abrechnungsregel: neu })
+                }}
+                className="w-full rounded-feld border border-rahmen bg-karte px-3 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-praxis-500"
+              >
+                <option value="">{t('pd.regelwerkWaehlen')}</option>
+                {Object.values(REGELWERKE).map((rw) => (
+                  <option key={rw.id} value={rw.id}>{rw.name}</option>
+                ))}
+              </select>
+              {!projekt.abrechnungsregel ? (
+                <p className="text-[12px] text-red-600 mt-1.5">{t('pd.regelwerkPflicht')}</p>
+              ) : (
+                <p className="text-[12px] text-schrift-zart mt-1.5">{REGELWERKE[projekt.abrechnungsregel]?.klartext}</p>
+              )}
+            </div>
+
+            <div>
+              <p className="text-[12px] font-bold uppercase tracking-wide text-schrift-zart mb-1">{t('pd.bodenaufbau')}</p>
+              <FeldInput
+                wert={projekt.bodenaufbauStd}
+                onWert={(v) => patchProjekt({ bodenaufbauStd: v })}
+                platzhalter="0,12"
+              />
+              <p className="text-[12px] text-schrift-zart mt-1">{t('pd.bodenaufbauHinweis')}</p>
             </div>
 
             <div>

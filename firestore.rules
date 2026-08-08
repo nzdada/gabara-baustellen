@@ -286,7 +286,18 @@ service cloud.firestore {
         // 'fotoStand' (AP 6): die Zaehler der Fototafel (auftragVorher,
         // auftragNachher, regieVorher, regieNachher) – der Monteur zaehlt
         // beim Ausloesen hoch, sonst scheitert jede Aufnahme still.
-        || (istMonteur() && nurFelder(['fertig', 'notiz', 'status', 'aufgaben', 'fotoStand']));
+        || (istMonteur() && nurFelder(['fertig', 'notiz', 'status', 'aufgaben', 'fotoStand']))
+        // AP 8, Aufmaß-Bildschirm (Plan 3.1 Bildschirm 7): der VORARBEITER
+        // misst vor Ort und schreibt die Aufmaß-Felder des Raums – Maße,
+        // Öffnungen mit Leibungstiefe, Mengenvorgaben und den Stand
+        // geschaetzt/gemessen. 'bestaetigt' setzt fachlich nur das Büro; die
+        // Oberfläche bietet es dem Vorarbeiter nicht an.
+        || (istVorarbeiter() && nurFelder([
+             'fertig', 'notiz', 'status', 'aufgaben', 'fotoStand',
+             'laenge', 'breite', 'grundflaeche', 'umfang', 'umfangGemessen',
+             'hoeheLicht', 'aufbauBoden', 'abhaengung', 'oeffnungen', 'mengen',
+             'aufmassStand', 'aufmassVon', 'aufmassAm',
+           ]));
       allow delete: if darfVerwalten();
     }
 

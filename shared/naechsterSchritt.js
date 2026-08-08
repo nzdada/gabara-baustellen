@@ -26,6 +26,7 @@ import { fortschrittRaum } from './raumflaeche.js'
 import { fortschrittAufgaben } from './raumaufgaben.js'
 import { heuteISO } from './slots.js'
 import { mengenAbweichung, zahlText } from './aufmass.js'
+import { isoVonZeit, addMonate } from './abrechnung.js'
 import { parseZahl } from './format.js'
 
 // Dringlichkeit: kleiner = weiter oben
@@ -245,9 +246,13 @@ export function schritteBuero({
 // die Zeile DRINGEND – jeder weitere Tag verschiebt die Anerkennungsuhr.
 export const STUNDENZETTEL_FRIST_TAGE = 3
 
+// Einbehalte tauchen so viele Monate VOR der Fälligkeit im Band WAS HAKT auf –
+// genug Vorlauf, um Bürgschaft oder Anforderung vorzubereiten (Plan 8.9).
+export const EINBEHALT_VORLAUF_MONATE = 3
+
 export function schritteLeitstand({
   teams = [], einsaetzeHeute = [], regieanordnungen = [], lvpositionen = [],
-  projekte = [], geraete = [], kennzahlen = [], users = [], jetzt = Date.now(),
+  projekte = [], geraete = [], kennzahlen = [], users = [], einbehalte = [], jetzt = Date.now(),
 } = {}) {
   const raus = []
   const projektVon = (id) => projekte.find((p) => p.id === id)
@@ -373,6 +378,33 @@ export function schritteLeitstand({
                 ar: `${wartend} صورة في قائمة الانتظار – محفوظة على الجهاز فقط.` },
       ziel: '/einstellungen',
       knopf: { de: 'Geräte', ar: 'الأجهزة' },
+    })
+  }
+
+  // 7. Sicherheitseinbehalte (Plan 8.9): drei Monate vor Fälligkeit erscheint
+  //    die Zeile – ein nicht angemahnter Einbehalt wird in etwa jedem dritten
+  //    Fall NIE gezogen. Überfällige werden DRINGEND.
+  const heuteIso = isoVonZeit(jetzt)
+  const vorlaufBis = addMonate(heuteIso, EINBEHALT_VORLAUF_MONATE)
+  const faellige = einbehalte
+    .filter((e) => e.status === 'offen' && e.faelligAm && e.faelligAm <= vorlaufBis)
+    .sort((x, y) => String(x.faelligAm).localeCompare(String(y.faelligAm)))
+  for (const e of faellige.slice(0, 2)) {
+    const p = projektVon(e.projektId)
+    const ueberfaellig = e.faelligAm < heuteIso
+    const betrag = Math.round(parseZahl(e.betrag))
+    raus.push({
+      id: `einbehalt-${e.id}`,
+      stufe: ueberfaellig ? DRINGEND : HINWEIS,
+      icon: 'euro',
+      text: {
+        de: `Einbehalt ${betrag} €${p ? ` (${p.name})` : ''} ${ueberfaellig ? 'ist seit' : 'wird am'} ${e.faelligAm} fällig`,
+        ar: `الضمان المحتجز ${betrag} يورو${p ? ` (${p.name})` : ''} ${ueberfaellig ? 'مستحق منذ' : 'يستحق في'} ${e.faelligAm}`,
+      },
+      detail: { de: 'Anfordern oder durch Bürgschaft ablösen – nicht angemahnte Einbehalte verjähren in der Schublade.',
+                ar: 'اطلبه أو استبدله بكفالة – الضمانات غير المطالب بها تسقط بالتقادم.' },
+      ziel: '/abrechnung',
+      knopf: { de: 'Abrechnung', ar: 'الفوترة' },
     })
   }
 

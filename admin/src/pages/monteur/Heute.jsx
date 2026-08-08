@@ -5,7 +5,7 @@ import { t, tr, useLang, datumLok } from '@shared/i18n.js'
 import { heuteISO, addTage } from '@shared/slots.js'
 import { meldungBauen } from '@shared/aufgaben.js'
 import { zahlText } from '@shared/aufmass.js'
-import { istMonteurRolle } from '@shared/auth.js'
+import { istMonteurRolle, istVorarbeiterRolle } from '@shared/auth.js'
 import { fotoAufnehmen, fotoVerwerfen, fotoStandFeld } from '@shared/fotoablage.js'
 import {
   ZEICHEN, WARTET_GRUENDE, einsatzFuerTag, aufgabenZumEinsatz, tagesgruppen,
@@ -394,6 +394,16 @@ export default function Heute({ user, fallback = null }) {
           >
             <Icon name="regie" className="w-4 h-4" /> {t('mt.regieMelden')}
           </button>
+          {/* Aufmaß (Plan 3.1 Bildschirm 7): selten, eigener Modus – nur
+              Vorarbeiter und Büro sehen den Einstieg überhaupt. */}
+          {(istVorarbeiterRolle(user?.rolle) || user?.rolle === 'admin') && (
+            <button
+              onClick={() => navigate(`/monteur/aufmass?projekt=${einsatz.projektId}`)}
+              className="min-h-12 col-span-3 inline-flex items-center justify-center gap-1.5 text-sm font-bold text-praxis-700 bg-praxis-50 rounded-2xl"
+            >
+              <Icon name="lv" className="w-4 h-4" /> {t('mt.aufmass')}
+            </button>
+          )}
         </div>
       </div>
 

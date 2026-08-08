@@ -264,3 +264,39 @@ sind committet. **AP 6 (Fotos offline-zuerst)** brachte:
 - Demo: Kennzahlen-Startdokument für p-iga + ein Gerät mit Foto-Rückstand.
   Wiki-Bereich `leitstand` (5 Artikel de+ar). Neue Prüfdatei
   `pruefung/leitstand.test.mjs` (66 Fälle, in `npm test`).
+
+**AP 8 (Aufmaß und Abrechnung)** brachte:
+
+- `shared/abrechnung.js` – reiner AP-8-Kern: positionsUebersicht (Vertrag/
+  Aufmaß/Abgerechnet + § 2-Abs.-3-Abweichung), alleBestaetigenBauen (NUR
+  gemessene Zeilen unter 10 % – geschätzte und Über-Schwelle-Zeilen bleiben
+  gesperrt), zeileNachmessenBauen (verlangt gemessenVon+gemessenAm),
+  Rechnungslauf nach Plan 8.7 (rechnungslaufAnlegen/naechsteEtappe zu 400,
+  idempotent, Rechnung ERST wenn offen == 0), steuerSchnappschuss (8.8:
+  ustModus/Satz/Betrag/13b-Text werden in die Rechnung KOPIERT),
+  einbehaltBauen (faelligAm = Abnahme + 48/60 Monate, addMonate deckelt auf
+  Monatsletzten), stornoBauen (Marker leeren in Etappen, Rechnung storniert,
+  Einbehalt entfällt, Kennzahl abgerechnetCent zurück), ankuendigungBauen
+  (§ 2 Abs. 6: Vermerk je Aufgabe + Gegenbuchung aufgabenOhnePosition).
+- Büro-Seite `/aufmass` (`admin/src/pages/Aufmass.jsx`): je Position
+  aufklappbar bis zur Zeile mit Formeltext, Nachmessen-Dialog, „Alle
+  bestätigen“ mit Hinweistext, Aufmaßblatt-PDF, rote § 2-Abs.-6-Box mit
+  Ein-Klick-Ankündigung, Rechnungslauf-Modal (start-/fortsetzbar; die fertige
+  Rechnung liegt mit art 'aufmass' unter /abrechnung und geht von dort an
+  FastBill). Abrechnung.jsx: V2-Rechnungen haben STORNO statt Löschen.
+- Monteur-Aufmaß `/monteur/aufmass` (`AufmassRaum.jsx`, Bildschirm 7): nur
+  Vorarbeiter/Büro (Einstieg im HEUTE-Kopf), B×L-Rechner, hoeheLicht+
+  aufbauBoden (Pflicht, sonst geschätzt), Öffnungen mit Leibungstiefe,
+  Live-Rechnung nach Regelwerk, aufmassStand geschaetzt→gemessen (bestaetigt
+  nur Büro). firestore.rules: Vorarbeiter darf die Aufmaß-Felder am Raum.
+- `drucken.js`: druckeAufmassblatt (§ 14 Abs. 1, Regelwerk im Klartext,
+  Ort/Ansatz/Faktor/Menge/Art, ⚠ geschätzt=gesperrt, Summe/Vertrag/
+  Abweichung, gemeinsames Aufmaß § 14 Abs. 2) und
+  druckeNachtragsankuendigung (§ 2 Abs. 6, Zugangsvermerk).
+- Projekt: `abrechnungsregel` als Pflichtfeld (Warnung beim Umschalten mit
+  Zahl gestellter Rechnungen) + `bodenaufbauStd` (ProjektDetail.jsx).
+  Leitstand: Einbehalt-Zeile 3 Monate vor Fälligkeit (naechsterSchritt.js,
+  Uebersicht.jsx lädt einbehalte). Demo: Regelwerk an allen Projekten + eine
+  geschätzte Aufmaßzeile. Wiki: 5 Artikel de+ar (aufmass-ansicht,
+  aufmassblatt, rechnungslauf, nachtrag-ankuendigung, aufmass-erfassen).
+  Neue Prüfdatei `pruefung/abrechnung.test.mjs` (47 Fälle, in `npm test`).
