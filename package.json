@@ -13,7 +13,7 @@
     "dev:admin": "npm run dev -w admin",
     "build": "npm run build -w website && npm run build -w admin",
     "pruefe-importe": "node pruefe-importe.mjs",
-    "test": "node pruefung/aufmass.test.mjs && node pruefung/aufgaben.test.mjs"
+    "test": "node pruefung/aufmass.test.mjs && node pruefung/aufgaben.test.mjs && node pruefung/monteurtag.test.mjs"
   },
   "devDependencies": {
     "sharp": "^0.35.3"

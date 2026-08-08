@@ -174,6 +174,16 @@ function lokalerStore() {
       gefiltert([...db[coll]])
       return () => listener[coll].delete(gefiltert)
     },
+    // Live-Abo auf ein LISTEN-Feld (z. B. einsaetze.tage enthält heute) –
+    // Gegenstück zur array-contains-Query im Firebase-Modus. Nötig für den
+    // HEUTE-Bildschirm des Monteurs: Einsätze liegen mit tage[] vor
+    // (Plan 4.2 – die Abfrage über 12–24 Dokumente statt 504).
+    subscribeContains(coll, feld, wert, cb) {
+      const gefiltert = (rows) => cb(rows.filter((r) => Array.isArray(r[feld]) && r[feld].includes(wert)))
+      listener[coll].add(gefiltert)
+      gefiltert([...db[coll]])
+      return () => listener[coll].delete(gefiltert)
+    },
     async list(coll) {
       return [...db[coll]]
     },
@@ -450,6 +460,12 @@ async function firebaseStore() {
     // Gefiltertes Live-Abo per Firestore-Query (lädt nur passende Dokumente)
     subscribeWhere(coll, feld, wert, cb) {
       return onSnapshot(query(collection(dbf, coll), where(feld, '==', wert)), (snap) => cb(mapSnap(snap)))
+    },
+    // Live-Abo auf ein LISTEN-Feld (einsaetze.tage enthält heute). Eine
+    // einzelne array-contains-Bedingung braucht KEINEN Verbundindex –
+    // erst die Kombination mit weiteren Feldern (firestore.indexes.json).
+    subscribeContains(coll, feld, wert, cb) {
+      return onSnapshot(query(collection(dbf, coll), where(feld, 'array-contains', wert)), (snap) => cb(mapSnap(snap)))
     },
     async list(coll) {
       return mapSnap(await getDocs(collection(dbf, coll)))

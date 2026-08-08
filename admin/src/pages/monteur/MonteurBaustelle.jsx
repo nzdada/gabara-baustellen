@@ -1,19 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '@shared/ui.jsx'
 import { euro } from '@shared/format.js'
 import { useLang, t, datumLok } from '@shared/i18n.js'
 import { heuteISO } from '@shared/slots.js'
-import { useCollection, useWhere, withStore } from '../../hooks.js'
-import MengeMelden, { MeineMeldungen } from './MengeMelden.jsx'
+import { useCollection, useWhere } from '../../hooks.js'
 import RaumFlaechen from './RaumFlaechen.jsx'
-import { sortiereNeuesteZuerst } from '@shared/leistungen.js'
 import BerichtForm from '../../components/BerichtForm.jsx'
 import SpesenForm from '../../components/SpesenForm.jsx'
 
-// Baustellen-Detail für Monteure: Arbeitsauftrag (LV mit Ist-Mengen-Eingabe),
-// große Buttons für Regiebericht / Reklamation / Abnahme / Spesen,
-// eigene Berichte mit Status. Große Touch-Ziele für die Baustelle.
+// Baustellen-Detail für Monteure: Räume, große Buttons für Regiebericht /
+// Reklamation / Abnahme / Spesen, eigene Berichte mit Status.
+//
+// V2 (AP 5): Die alte Mengen-Eingabe (MengeMelden – „alles zweimal sagen")
+// ist aus der Ansicht genommen. Gemeldet wird auf HEUTE über die Aufgaben
+// (Sammelmeldung mit Foto); die Datei MengeMelden.jsx bleibt bis zur
+// Migration (AP 10) liegen, wird aber nirgends mehr eingebunden.
 
 const BERICHT_STATUS = {
   entwurf: ['status.entwurf', 'bg-slate-100 text-slate-600'],
@@ -21,11 +23,6 @@ const BERICHT_STATUS = {
   freigegeben: ['status.freigegeben', 'bg-emerald-100 text-emerald-700'],
   abgerechnet: ['status.abgerechnet', 'bg-violet-100 text-violet-700'],
 }
-
-// Die frühere Komponente IstFeld stand hier: ein Feld je Position mit der
-// KUMULIERTEN Gesamtmenge, das bei jedem Tastendruck still speicherte. Ersetzt
-// durch MengeMelden.jsx – Tagesmenge, ein bewusster Melden-Knopf, Rückgängig
-// und ein Protokoll, aus dem hervorgeht, wer wann wie viel gemeldet hat.
 
 export default function MonteurBaustelle({ user }) {
   useLang()
@@ -35,12 +32,6 @@ export default function MonteurBaustelle({ user }) {
   const patients = useCollection('patients')
   const positionen = useWhere('lvpositionen', 'projektId', id)
   const berichte = useWhere('berichte', 'projektId', id)
-  // Tagesprotokoll dieser Baustelle. Bewusst projektbezogen abonniert – die
-  // Sammlung waechst mit Position x Tag x Raum, ein Vollabo waere teuer.
-  const meldungen = useWhere('leistungen', 'projektId', id)
-  const [quittung, setQuittung] = useState(null)     // { anzahl, ids, bestaetigt }
-  const [stornoLaeuft, setStornoLaeuft] = useState('')
-  const inFlight = useRef(new Set())
   const [formTyp, setFormTyp] = useState(null)       // 'regie' | 'reklamation' | 'abnahme'
   const [bearbeite, setBearbeite] = useState(null)
   const [spesenForm, setSpesenForm] = useState(false)
@@ -53,35 +44,7 @@ export default function MonteurBaustelle({ user }) {
     () => positionen.filter((p) => p.typ === 'position').sort((a, b) => (a.sort || 0) - (b.sort || 0)),
     [positionen]
   )
-  // Bedarfs- und NEP-Positionen zaehlen in KEINER Summe mit. Sie standen bisher
-  // gleichrangig in der Liste, mit eigenem Eingabefeld – wer dort meldet, meldet
-  // in ein Feld, das nirgends auftaucht. Jetzt in einen eigenen, eingeklappten
-  // Block: sichtbar bleiben sie, weil sie nach Anordnung doch anfallen koennen.
-  // EIN Weg zum Stornieren, doppelt verriegelt.
-  //
-  // Es gibt zwei Knöpfe, die dasselbe wollen: den in der Quittung und den in
-  // "Meine Meldungen". Beide sind gleichzeitig sichtbar, weil die neue Zeile
-  // sofort im Live-Abo erscheint, die Quittung aber zehn Sekunden stehen bleibt.
-  // Ohne Riegel bucht der zweite Tipper ein zweites Mal gegen – istMenge fiele
-  // unter die Meldungssumme, und die Rechnung enthielte zu wenig.
-  //
-  // Riegel 1: der gelesene Stand (m.storniert) – schützt gegen Wiederholung.
-  // Riegel 2: eine Menge laufender Vorgänge – schützt gegen den Doppelklick,
-  //           bevor der erste Vorgang im Abo angekommen ist.
-  async function stornoEinmal(m) {
-    if (!m || m.storniert || inFlight.current.has(m.id)) return
-    inFlight.current.add(m.id)
-    setStornoLaeuft(m.id)
-    try {
-      await withStore((s) => s.storniereLeistung(m, { von: user?.name || '' }))
-    } finally {
-      inFlight.current.delete(m.id)
-      setStornoLaeuft('')
-    }
-  }
-
   const wertbar = arbeitsPositionen.filter((p) => !p.flags?.bedarf && !p.flags?.nep)
-  const nurAufAnordnung = arbeitsPositionen.filter((p) => p.flags?.bedarf || p.flags?.nep)
   const soll = wertbar.reduce((s, p) => s + (p.menge || 0) * (p.einheitspreis || 0), 0)
   const ist = wertbar.reduce((s, p) => s + (p.istMenge || 0) * (p.einheitspreis || 0), 0)
   const prozent = soll > 0 ? Math.min(100, Math.round((ist / soll) * 100)) : 0
@@ -147,65 +110,6 @@ export default function MonteurBaustelle({ user }) {
 
       <RaumFlaechen projektId={id} user={user} />
 
-      {/* Arbeitsauftrag: melden, was HEUTE geschafft wurde.
-          Vorher stand hier je Position ein Feld mit der kumulierten Gesamtmenge –
-          der Monteur musste selbst addieren, und jede Eingabe ueberschrieb still
-          den Stand des Kollegen. */}
-      {wertbar.length > 0 && (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4">
-          <p className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-            <Icon name="lv" className="w-5 h-5 text-praxis-600" /> {t('melden.titel')}
-          </p>
-
-          <MengeMelden
-            projektId={id}
-            positionen={wertbar}
-            meldungen={meldungen}
-            user={user}
-            onFertig={(q) => {
-              setQuittung(q)
-              setTimeout(() => setQuittung((a) => (a === q ? null : a)), 10000)
-            }}
-          />
-
-          {nurAufAnordnung.length > 0 && (
-            <details className="mt-4 border-t border-slate-100 pt-3">
-              <summary className="text-sm font-semibold text-slate-500 cursor-pointer">
-                {t('monteur.nurAufAnordnung', { anzahl: nurAufAnordnung.length })}
-              </summary>
-              <p className="mt-1.5 text-[12px] text-slate-400">{t('monteur.anordnungHinweis')}</p>
-              <div className="mt-2">
-                <MengeMelden
-                  projektId={id}
-                  positionen={nurAufAnordnung}
-                  meldungen={meldungen}
-                  user={user}
-                  onFertig={(q) => {
-                    setQuittung(q)
-                    setTimeout(() => setQuittung((a) => (a === q ? null : a)), 10000)
-                  }}
-                />
-              </div>
-            </details>
-          )}
-        </div>
-      )}
-
-      {/* Eigene Meldungen mit Zuruecknehmen. Zuruecknehmen heisst STORNIEREN:
-          die Zeile bleibt als Nachweis stehen und wird gegengerechnet. */}
-      {meldungen.length > 0 && (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4">
-          <p className="font-bold text-slate-800 mb-3">{t('melden.meineMeldungen')}</p>
-          <MeineMeldungen
-            meldungen={sortiereNeuesteZuerst(meldungen)}
-            user={user}
-            positionen={arbeitsPositionen}
-            aufStorno={stornoEinmal}
-            laeuftFuer={stornoLaeuft}
-          />
-        </div>
-      )}
-
       {/* Berichte dieser Baustelle */}
       {meineBerichte.length > 0 && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4">
@@ -232,40 +136,6 @@ export default function MonteurBaustelle({ user }) {
               )
             })}
           </div>
-        </div>
-      )}
-
-      {/* Quittung mit Rueckgaengig – 10 Sekunden sichtbar. Ein Fehlgriff auf der
-          Leiter soll sich ohne Umweg ueber die Meldungsliste beheben lassen. */}
-      {quittung && (
-        <div className="fixed bottom-20 left-3 right-3 z-50 bg-slate-800 text-white rounded-2xl px-4 py-3 flex items-center gap-3 shadow-lg">
-          <Icon name="erfolg" className="w-5 h-5 text-emerald-400 shrink-0" />
-          <span className="text-sm flex-1">
-            {t('melden.gemeldet', { anzahl: quittung.anzahl })}
-            {quittung.bestaetigt === false && (
-              <span className="block text-[12px] text-amber-300">{t('melden.wirdUebertragen')}</span>
-            )}
-          </span>
-          <button
-            disabled={Boolean(stornoLaeuft)}
-            onClick={async () => {
-              for (const mid of quittung.ids || []) {
-                await stornoEinmal(meldungen.find((m) => m.id === mid))
-              }
-              setQuittung(null)
-            }}
-            className="text-sm font-bold text-emerald-300 px-2 min-h-11 shrink-0 disabled:opacity-40"
-          >
-            {t('melden.rueckgaengig')}
-          </button>
-          {/* Wegtippen darf NICHT Stornieren bedeuten – dafür ein eigenes X. */}
-          <button
-            onClick={() => setQuittung(null)}
-            aria-label={t('allg.schliessen')}
-            className="text-white/60 px-2 min-h-11 shrink-0"
-          >
-            <Icon name="x" className="w-4 h-4" />
-          </button>
         </div>
       )}
 

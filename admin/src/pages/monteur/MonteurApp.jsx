@@ -11,10 +11,20 @@ import { useCollection, withStore } from '../../hooks.js'
 import DatumWahl from '../../components/DatumWahl.jsx'
 import SpesenForm from '../../components/SpesenForm.jsx'
 import MonteurBaustelle from './MonteurBaustelle.jsx'
+import Heute from './Heute.jsx'
+import StundenKachel from './StundenKachel.jsx'
+import RegieMelden from './RegieMelden.jsx'
 
-// Handy-Ansicht für Monteure: große Buttons, wenig Text, alles Wichtige in
-// drei Tabs (Heute · Baustellen · Spesen). Läuft im Vollbild ohne Admin-Chrome.
-// Admins erreichen sie als Vorschau über /monteur.
+// Handy-Ansicht für Monteure (V2, Plan Kapitel 3.1): untere Leiste
+// HEUTE · RÄUME · STUNDEN – drei Knöpfe. HEUTE öffnet direkt den Einsatz des
+// Tages (kein Zwischenmenü); Spesen sind über STUNDEN erreichbar, Regie über
+// den Kopf von HEUTE. Läuft im Vollbild ohne Admin-Chrome, Admins erreichen
+// sie als Vorschau über /monteur.
+//
+// Die alte Terminliste (V1-appointments) bleibt als Rückfallebene, solange
+// noch keine V2-Einsätze existieren (Migration = AP 10). Die alte
+// Mengen-Eingabe (MengeMelden) ist aus der Navigation genommen – die Datei
+// bleibt, bis AP 10 sie endgültig ablöst.
 
 const KATEGORIE = {
   umsetzung: { schluessel: 'kat.umsetzung', farbe: 'bg-praxis-100 text-praxis-800' },
@@ -90,7 +100,9 @@ function EinsatzKarte({ termin, projekt, team, onErledigt, onOeffnen }) {
   )
 }
 
-function Heute({ user }) {
+// V1-Rückfallebene: die Terminliste aus appointments. Wird nur noch gezeigt,
+// wenn für heute KEIN V2-Einsatz existiert (siehe Heute.jsx).
+function TerminListe({ user }) {
   const appointments = useCollection('appointments')
   const projekte = useCollection('projekte')
   const users = useCollection('users')
@@ -293,9 +305,9 @@ function Spesen({ user }) {
 }
 
 const TABS = [
-  { to: '/monteur', schluessel: 'monteur.heute', icon: 'calendar', exakt: true },
-  { to: '/monteur/baustellen', schluessel: 'monteur.baustellen', icon: 'folder' },
-  { to: '/monteur/spesen', schluessel: 'monteur.spesen', icon: 'spesen' },
+  { to: '/monteur', schluessel: 'mt.tabHeute', icon: 'calendar', exakt: true },
+  { to: '/monteur/raeume', schluessel: 'mt.tabRaeume', icon: 'raum' },
+  { to: '/monteur/stunden', schluessel: 'mt.tabStunden', icon: 'clock' },
 ]
 
 export default function MonteurApp({ user, vorschau = false }) {
@@ -330,9 +342,12 @@ export default function MonteurApp({ user, vorschau = false }) {
           </p>
         )}
         <Routes>
-          <Route path="/monteur" element={<Heute user={user} />} />
-          <Route path="/monteur/baustellen" element={<Baustellen user={user} />} />
+          <Route path="/monteur" element={<Heute user={user} fallback={<TerminListe user={user} />} />} />
+          <Route path="/monteur/raeume" element={<Baustellen user={user} />} />
+          <Route path="/monteur/baustellen" element={<Navigate to="/monteur/raeume" replace />} />
           <Route path="/monteur/baustelle/:id" element={<MonteurBaustelle user={user} />} />
+          <Route path="/monteur/stunden" element={<StundenKachel user={user} />} />
+          <Route path="/monteur/regie" element={<RegieMelden user={user} />} />
           <Route path="/monteur/spesen" element={<Spesen user={user} />} />
           <Route path="*" element={<Navigate to="/monteur" replace />} />
         </Routes>

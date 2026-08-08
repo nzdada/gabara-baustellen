@@ -203,8 +203,10 @@ await store.addMany('aufgaben', START)
 const VORGANG = meldungBauen(START, MONTEUR, '2026-08-08', { fotoId: 'foto-9', jetzt: 6000 })
 const ergebnis = await store.meldeAufgaben(VORGANG)
 p('Store', 'Meldung bestätigt', ergebnis.bestaetigt, true)
+// Filter /^b-r\d/: NUR die Test-Buchungen (r1..r5) zaehlen – die Demo-Daten
+// bringen seit AP 5 eine eigene Buchung b-r-106-... mit.
 p('Store', 'Buchungen geschrieben, uebertragenAm gesetzt',
-  (await store.list('buchungen')).filter((b) => b.id.startsWith('b-r')).every((b) => b.uebertragenAm > 0), true)
+  (await store.list('buchungen')).filter((b) => /^b-r\d/.test(b.id)).every((b) => b.uebertragenAm > 0), true)
 p('Store', 'Aufgabe steht auf fertig', (await store.get('aufgaben', 'auf-r1-s1')).status, 'fertig')
 p('Store', 'Aufmaßzeile liegt vor', (await store.get('aufmasszeilen', 'am-auf-r1-s1'))?.quelle, 'aufgabe')
 const kz1 = await store.ladeKennzahlen('p-test')
@@ -220,7 +222,7 @@ const kz2 = await store.ladeKennzahlen('p-test')
 p('Store', 'Ablehnung KOMPLETT: Kennzahlen unverändert (kein halbes Increment)',
   [kz2.m2Fertig, kz2.wertFertigCent, kz2.aufgabenFertig], [84, 13860, 2])
 p('Store', 'Ablehnung KOMPLETT: keine zusätzliche Buchung',
-  (await store.list('buchungen')).filter((b) => b.id.startsWith('b-r')).length, 2)
+  (await store.list('buchungen')).filter((b) => /^b-r\d/.test(b.id)).length, 2)
 // Auch eine TEILWEISE Überschneidung (1 neue + 1 schon gemeldete) muss ganz scheitern
 const NEU = aufgabe('r5', 's1', { menge: 10, wertCent: 1650 })
 await store.addMany('aufgaben', [NEU])

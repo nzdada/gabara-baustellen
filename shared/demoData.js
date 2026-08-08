@@ -5,6 +5,7 @@
 // behandlung/status/arzt/...) + neue Felder (projektId, kategorie, mitarbeiterIds, ...).
 
 import { EINSTELLUNGEN_DEFAULTS } from './einstellungen.js'
+import { neueAufgabenFuerRaum, buchungsId } from './aufgaben.js'
 
 const TEST_EMAIL = 'info@gabara-demo.de'
 
@@ -53,6 +54,8 @@ const DEMO_UNTERSCHRIFT = `data:image/svg+xml;utf8,${encodeURIComponent(
 const AHMAD = 'rO3IHM6Nazd1QestDRZQVa0Kgz43'
 const SAMIR = 'MI3PQq0ezyUtQePyLiy9J82m7gN2'
 const BUERO = 'adgI9BERvuMhvXAWVFx9nbXkqy33'
+// Demo-Vorarbeiter (V2/AP 5) – hat noch KEIN Firebase-Konto, nur lokale Demo.
+const WALID = 'u-walid-vorarbeiter'
 
 export function erzeugeDemoDaten() {
   const jetzt = Date.now()
@@ -69,6 +72,10 @@ export function erzeugeDemoDaten() {
     { id: BUERO, email: 'nasirdada.98@gmail.com', name: 'Büro Gabara', rolle: 'admin', team: 'Büro', farbe: '#8B1A1A', qualifikation: 'facharbeiter', stundensatzIntern: 0, aktiv: true },
     { id: AHMAD, email: 'monteur@gabara-demo.de', name: 'Ahmad Monteur', rolle: 'mitarbeiter', team: 'Team 1', farbe: '#f97316', qualifikation: 'facharbeiter', stundensatzIntern: 28, aktiv: true },
     { id: SAMIR, email: 'samir@gabara-demo.de', name: 'Samir Monteur', rolle: 'mitarbeiter', team: 'Team 2', farbe: '#0ea5e9', qualifikation: 'helfer', stundensatzIntern: 25, aktiv: true },
+    // V2 (AP 5): Demo-Vorarbeiter für die Stunden-Kolonnenzeile. Noch OHNE
+    // echtes Firebase-Konto (Kunst-ID) – online legt das Büro ihn richtig an,
+    // die Regeln schlagen ohnehin nur unter users/<Auth-UID> nach.
+    { id: WALID, email: 'vorarbeiter@gabara-demo.de', name: 'Walid Vorarbeiter', rolle: 'vorarbeiter', team: 'Team 1', farbe: '#16a34a', qualifikation: 'facharbeiter', stundensatzIntern: 32, aktiv: true },
   ]
 
   // --- Kunden (Spiegel; FastBill ist führend, fastbillCustomerId nach Sync) ---
@@ -466,6 +473,121 @@ export function erzeugeDemoDaten() {
     meldung('lv-p-iga-3-1', '3.1', 'Stck.', 2, -3, AHMAD, 'Büro 1.01'),
   ]
 
+  // --- V2 (AP 5): Räume, Einsatz und Aufgaben für den HEUTE-Bildschirm ---
+  // Die Demo bildet GENAU das Bild aus Plan Kapitel 3.1 nach: eine Gruppe
+  // GRUNDIEREN mit ☐ / ⚠ Vorher / ▸ läuft / 📷 letzter / ✓ fertig / ⏸ wartet.
+
+  // Startvorlage Maler: die sieben Schritte, zweisprachig. bezug steuert,
+  // welche Flaeche des Raums die Menge liefert (shared/aufmass.js).
+  const arbeitsschritte = [
+    { id: 'as-abkleben', nameDe: 'Abkleben und abdecken', nameAr: 'لصق الشريط والتغطية', kuerzel: 'AB', sort: 1, bezug: 'stueck', aktiv: true },
+    { id: 'as-spachteln', nameDe: 'Spachteln Q2', nameAr: 'المعجون Q2', kuerzel: 'SP', sort: 2, bezug: 'wanddecke', aktiv: true },
+    { id: 'as-schleifen', nameDe: 'Schleifen', nameAr: 'الصنفرة', kuerzel: 'SCH', sort: 3, bezug: 'wanddecke', aktiv: true },
+    { id: 'as-grundieren', nameDe: 'Grundieren', nameAr: 'التأسيس', kuerzel: 'GR', sort: 4, bezug: 'wanddecke', aktiv: true },
+    { id: 'as-anstrich1', nameDe: '1. Anstrich', nameAr: 'الطلاء الأول', kuerzel: 'A1', sort: 5, bezug: 'wanddecke', aktiv: true },
+    { id: 'as-anstrich2', nameDe: '2. Anstrich', nameAr: 'الطلاء الثاني', kuerzel: 'A2', sort: 6, bezug: 'wanddecke', aktiv: true },
+    { id: 'as-endreinigung', nameDe: 'Endreinigung', nameAr: 'التنظيف النهائي', kuerzel: 'ER', sort: 7, bezug: 'stueck', aktiv: true },
+  ]
+
+  let raumSort = 0
+  const raumV2 = (id, nummer, name, wandDeckeM2, felder = {}) => ({
+    id, projektId: 'p-iga', nummer, name, bereich: '1. OG', sort: ++raumSort,
+    art: 'raum',
+    laenge: 0, breite: 0, grundflaeche: 0, umfang: 0, umfangGemessen: false,
+    hoeheLicht: 2.5, aufbauBoden: 0.12, abhaengung: 0,
+    // Gemessene Wand-/Deckenfläche als ausdrückliche Mengenvorgabe je bezug –
+    // so hängt die Demo nicht am Regelwerk (das je Baustelle Pflicht ist).
+    mengen: { wanddecke: wandDeckeM2 },
+    oeffnungen: [],
+    aufmassStand: 'geschaetzt', aufmassVon: '', aufmassAm: '',
+    fotoStand: { auftragVorher: 1, auftragNachher: 0, regieVorher: 0, regieNachher: 0 },
+    zustand: 'aktiv', wartetGrund: '', wartetBis: '',
+    notiz: '', aktiv: true,
+    ...felder,
+  })
+  const raeume = [
+    raumV2('r-101', '1.01', 'Flur', 24),
+    // 1.02 hat noch KEIN Vorher-Bild -> ⚠ Vorher in der HEUTE-Liste
+    raumV2('r-102', '1.02', 'Büro', 38, { fotoStand: { auftragVorher: 0, auftragNachher: 0, regieVorher: 0, regieNachher: 0 } }),
+    raumV2('r-103', '1.03', 'Büro', 46),
+    raumV2('r-104', '1.04', 'Besprechung', 52),
+    raumV2('r-105', '1.05', 'Küche', 18),
+    raumV2('r-106', '1.06', 'WC', 9),
+    raumV2('r-107', '1.07', 'Bibliothek', 64, { zustand: 'wartet', wartetGrund: 'zugestellt', wartetBis: heutePlus(6) }),
+  ]
+
+  // Aufgaben je Raum × Schritt über den ECHTEN V2-Bau (deterministische
+  // Kennungen, wertCent eingefroren). Küche und WC haben nur noch den einen
+  // Schritt – die Küche zeigt damit das 📷 des Raumabschlusses.
+  const schrittVon = (sid) => arbeitsschritte.find((s) => s.id === sid)
+  const positionFuer = {
+    'as-grundieren': 'lv-p-iga-1-1',
+    'as-anstrich1': 'lv-p-iga-2-1',
+    'as-anstrich2': 'lv-p-iga-2-2',
+  }
+  const aufgaben = []
+  const baueAufgaben = (raum, schrittIds) => {
+    for (const sid of schrittIds) {
+      const position = lvpositionen.find((lv) => lv.id === positionFuer[sid])
+      aufgaben.push(...neueAufgabenFuerRaum(raum, [schrittVon(sid)], position, { jetzt }))
+    }
+  }
+  const dreiSchritte = ['as-grundieren', 'as-anstrich1', 'as-anstrich2']
+  baueAufgaben(raeume[0], dreiSchritte)
+  baueAufgaben(raeume[1], dreiSchritte)
+  baueAufgaben(raeume[2], dreiSchritte)
+  baueAufgaben(raeume[3], dreiSchritte)
+  baueAufgaben(raeume[4], ['as-grundieren'])
+  baueAufgaben(raeume[5], ['as-grundieren'])
+  baueAufgaben(raeume[6], dreiSchritte)
+
+  const einsatzTage = [heutePlus(0), heutePlus(1), heutePlus(2)]
+  const einsaetze = [{
+    id: 'e-iga-heute', projektId: 'p-iga', projektName: 'IGA Augsburg – Barmer Büroflächen EG + 1. OG',
+    teamId: 'kolonne-1', teamName: 'Kolonne 1', farbe: '#f97316',
+    mitarbeiterIds: [WALID, AHMAD, SAMIR],
+    tage: einsatzTage, von: '07:00', bis: '16:00',
+    titel: '1. OG grundieren', hinweis: '', kategorie: 'umsetzung',
+    aufgabenAnzahl: 7, aufgabenFertig: 1,
+    googleEventIds: [], status: 'laeuft', erstelltAm: jetzt,
+  }]
+
+  const heuteUm = (stunde, minute) => {
+    const d = new Date()
+    d.setHours(stunde, minute, 0, 0)
+    return d.getTime()
+  }
+  const passeAn = (id, felder) => {
+    const a = aufgaben.find((x) => x.id === id)
+    if (a) Object.assign(a, felder)
+  }
+  // Alle Grundieren-Aufgaben gehören zum heutigen Einsatz der Kolonne 1
+  for (const a of aufgaben) {
+    if (a.schrittId === 'as-grundieren') {
+      Object.assign(a, { status: 'zugewiesen', teamId: 'kolonne-1', teamName: 'Kolonne 1', tage: einsatzTage, einsatzId: 'e-iga-heute' })
+    }
+  }
+  passeAn('auf-r-103-as-grundieren', { status: 'laeuft', anteil: 0.5 })
+  passeAn('auf-r-106-as-grundieren', {
+    status: 'fertig', anteil: 1, fertigAm: heuteUm(10, 12), fertigVon: SAMIR, fertigVonName: 'Samir Monteur',
+  })
+  for (const a of aufgaben) {
+    if (a.raumId === 'r-107') {
+      Object.assign(a, { status: 'wartet', wartetGrund: 'zugestellt', wartetBis: heutePlus(6) })
+    }
+  }
+
+  // Zur fertigen Demo-Aufgabe gehört die BUCHUNG mit der festen Kennung –
+  // nur so zeigt die Demo auch die Doppelmeldungs-Sperre ("bereits gemeldet").
+  const buchungen = [{
+    id: buchungsId('r-106', 'as-grundieren', 'auftrag'),
+    projektId: 'p-iga', aufgabeId: 'auf-r-106-as-grundieren', raumId: 'r-106', schrittId: 'as-grundieren', art: 'auftrag',
+    menge: 9, einheit: 'm²', mengeStand: 'geschaetzt',
+    mitarbeiterId: SAMIR, mitarbeiterName: 'Samir Monteur', datum: heutePlus(0),
+    erfasstAm: heuteUm(10, 12), uebertragenAm: heuteUm(10, 13),
+    storniert: false,
+  }]
+
   return {
     users, patients, projekte, lvpositionen, appointments, berichte, photos, spesen, leistungen,
     katalog, bausteine, requests, settings,
@@ -474,29 +596,17 @@ export function erzeugeDemoDaten() {
     // leeren Feldern hat ihn beim Zuruecksetzen ueberschrieben. resetDemo laesst
     // die Sammlung 'integrationen' inzwischen komplett unangetastet.
     integrationen: [],
-    // Raeume und ihre Sollmengen bleiben leer: sie entstehen aus dem Bauplan
-    // oder von Hand. Ohne diese Schluessel wuerde resetDemo an der fehlenden
-    // Sammlung scheitern.
-    raeume: [],
+    // V2-Räume des IGA-Projekts (AP 5) – Grundlage der HEUTE-Demo.
+    // raumsoll bleibt leer (geht in V2 in `aufgaben` auf).
+    raeume,
     raumsoll: [],
-    // --- V2-Sammlungen (Plan vom 07.08.2026). Vorerst leer registriert,
-    // damit resetDemo und der lokale Modus sie kennen. Echte Beispieldaten
-    // kommen mit den jeweiligen Arbeitspaketen (AP 4 ff.) – eine fehlende
-    // Sammlung hier scheitert STILL (Fuenf-Eintragungen-Regel).
-    aufgaben: [],
-    einsaetze: [],
-    buchungen: [],
-    // Startvorlage Maler: die sieben Schritte, zweisprachig. bezug steuert,
-    // welche Flaeche des Raums die Menge liefert (shared/aufmass.js).
-    arbeitsschritte: [
-      { id: 'as-abkleben', nameDe: 'Abkleben und abdecken', nameAr: 'لصق الشريط والتغطية', kuerzel: 'AB', sort: 1, bezug: 'stueck', aktiv: true },
-      { id: 'as-spachteln', nameDe: 'Spachteln Q2', nameAr: 'المعجون Q2', kuerzel: 'SP', sort: 2, bezug: 'wanddecke', aktiv: true },
-      { id: 'as-schleifen', nameDe: 'Schleifen', nameAr: 'الصنفرة', kuerzel: 'SCH', sort: 3, bezug: 'wanddecke', aktiv: true },
-      { id: 'as-grundieren', nameDe: 'Grundieren', nameAr: 'التأسيس', kuerzel: 'GR', sort: 4, bezug: 'wanddecke', aktiv: true },
-      { id: 'as-anstrich1', nameDe: '1. Anstrich', nameAr: 'الطلاء الأول', kuerzel: 'A1', sort: 5, bezug: 'wanddecke', aktiv: true },
-      { id: 'as-anstrich2', nameDe: '2. Anstrich', nameAr: 'الطلاء الثاني', kuerzel: 'A2', sort: 6, bezug: 'wanddecke', aktiv: true },
-      { id: 'as-endreinigung', nameDe: 'Endreinigung', nameAr: 'التنظيف النهائي', kuerzel: 'ER', sort: 7, bezug: 'stueck', aktiv: true },
-    ],
+    // --- V2-Sammlungen (Plan vom 07.08.2026). Beispieldaten kommen mit den
+    // jeweiligen Arbeitspaketen – eine fehlende Sammlung hier scheitert
+    // STILL (Fuenf-Eintragungen-Regel).
+    aufgaben,
+    einsaetze,
+    buchungen,
+    arbeitsschritte,
     aufmasszeilen: [],
     regieanordnungen: [],
     fotos: [],

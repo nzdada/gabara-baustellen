@@ -44,6 +44,25 @@ export function useWhere(name, feld, wert) {
   return rows
 }
 
+// Live-Abo auf ein Listen-Feld (array-contains): einsaetze, deren tage[]
+// den heutigen Tag enthalten. Lädt im Firebase-Modus NUR die Treffer.
+export function useContains(name, feld, wert) {
+  const [rows, setRows] = useState([])
+  useEffect(() => {
+    if (wert === undefined || wert === null || wert === '') { setRows([]); return () => {} }
+    let unsub = () => {}
+    let aktiv = true
+    getStore().then((store) => {
+      if (aktiv) unsub = store.subscribeContains(name, feld, wert, setRows)
+    })
+    return () => {
+      aktiv = false
+      unsub()
+    }
+  }, [name, feld, wert])
+  return rows
+}
+
 export async function withStore(fn) {
   const store = await getStore()
   return fn(store)

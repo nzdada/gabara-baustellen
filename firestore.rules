@@ -392,14 +392,21 @@ service cloud.firestore {
 
     // Stunden je Person und Tag (art auftrag|regie). Der Monteur schreibt
     // nur die eigene Zeile und nur solange sie nicht eingereicht ist.
+    // Der VORARBEITER sendet zusätzlich die KOLONNENZEILE (Plan 3.1,
+    // Bildschirm 4): Zeilen für andere, aber nur solange status 'erfasst'
+    // ist – eingereichte/freigegebene Zeilen bleiben auch ihm verschlossen.
     match /stunden/{id} {
       allow read: if angemeldet();
       allow create: if darfVerwalten()
-        || (istMonteur() && request.resource.data.userId == request.auth.uid);
+        || (istMonteur() && request.resource.data.userId == request.auth.uid)
+        || (istVorarbeiter() && request.resource.data.get('status', '') == 'erfasst');
       allow update: if darfVerwalten()
         || (istMonteur()
             && resource.data.userId == request.auth.uid
-            && resource.data.status == 'erfasst');
+            && resource.data.status == 'erfasst')
+        || (istVorarbeiter()
+            && resource.data.status == 'erfasst'
+            && request.resource.data.get('status', '') == 'erfasst');
       allow delete: if darfVerwalten();
     }
 

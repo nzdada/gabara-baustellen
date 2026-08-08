@@ -529,11 +529,86 @@ export const WISSEN = [
       },
       {
         id: 'melden',
-        frage: { de: 'Wie meldet der Monteur die geleistete Menge?', ar: 'كيف يبلّغ الفني عن الكمية المنجزة؟' },
+        frage: { de: 'Wie melde ich fertige Räume? (HEUTE-Bildschirm)', ar: 'كيف أبلّغ عن الغرف المنجزة؟ (شاشة اليوم)' },
+        zu: '/monteur',
         antwort: [
           { p: {
-            de: 'In der Baustellen-Ansicht steht bei jeder Aufgabe ein Feld für die geleistete Menge. Eintragen genügt – gespeichert wird von selbst, samt Name und Datum. Genau dieser Wert ist später in der Abrechnung vorbelegt.',
-            ar: 'في شاشة ورشة البناء يوجد حقل للكمية المنجزة عند كل مهمة. يكفي الإدخال – ويُحفظ تلقائيًا مع الاسم والتاريخ. وهذه القيمة بالذات تكون معبّأة مسبقًا في الفوترة لاحقًا.',
+            de: 'HEUTE zeigt den Einsatz des Tages: die Räume, gruppiert nach Arbeitsschritt (Grundieren, 1. Anstrich, …). Niemand tippt eine Zahl – die Mengen kommen aus dem Raum.',
+            ar: 'تعرض شاشة اليوم مهمة اليوم: الغرف مجمّعة حسب خطوة العمل (التأسيس، الطلاء الأول، …). لا أحد يكتب رقمًا – فالكميات تأتي من الغرفة.',
+          } },
+          { schritte: [
+            { de: 'Räume antippen, die fertig sind (Haken ☑). [alle] wählt die ganze Gruppe.', ar: 'اضغط على الغرف المنجزة (علامة ☑). زر [الكل] يختار المجموعة كاملة.' },
+            { de: 'FERTIG antippen – die Kamera öffnet sich direkt.', ar: 'اضغط تم – تفتح الكاميرا مباشرة.' },
+            { de: 'Ein Foto als Beleg auslösen. Fertig – keine weitere Rückfrage.', ar: 'التقط صورة واحدة كإثبات. انتهى – بلا أي سؤال إضافي.' },
+            { de: 'Unten erscheint die Quittung mit RÜCKGÄNGIG – 10 Sekunden lang lässt sich alles zurücknehmen. Danach hilft nur noch das Büro (Storno mit Grund).', ar: 'يظهر في الأسفل إيصال مع زر تراجع – يمكن التراجع خلال 10 ثوانٍ. بعدها لا يساعد إلا المكتب (إلغاء مع ذكر السبب).' },
+          ] },
+          { merke: {
+            de: 'Die Zeichen: ☐ offen · ☑ ausgewählt · ▸ läuft · 📷 letzter Schritt (öffnet direkt die Kamera, Raum wird abgeschlossen) · ✓ fertig · ⚠ Vorher-Bild fehlt · ⏸ wartet.',
+            ar: 'الرموز: ☐ مفتوح · ☑ مختار · ▸ جارٍ · 📷 الخطوة الأخيرة (تفتح الكاميرا مباشرة وتُغلق الغرفة) · ✓ منجز · ⚠ صورة قبل مفقودة · ⏸ ينتظر.',
+          } },
+          { achtung: {
+            de: 'Meldet ein Kollege denselben Raum aus dem Funkloch ein zweites Mal, lehnt das System die zweite Meldung komplett ab – es wird NIE doppelt gebucht.',
+            ar: 'إذا أبلغ زميل عن نفس الغرفة مرة ثانية من منطقة بلا تغطية، يرفض النظام البلاغ الثاني كاملًا – لا يُسجَّل شيء مرتين أبدًا.',
+          } },
+        ],
+      },
+      {
+        id: 'angefangen-wartet',
+        frage: { de: 'Angefangen, Teilstand und „Raum wartet" – wie geht das?', ar: 'بدأ العمل، الإنجاز الجزئي و«الغرفة تنتظر» – كيف؟' },
+        zu: '/monteur',
+        antwort: [
+          { p: {
+            de: 'Rechts an jeder Zeile sitzt der kleine Knopf ▸ „angefangen": ein Tipp, kein Foto, keine Mengenbuchung. Das Büro sieht damit abends, wo gearbeitet wurde, auch wenn noch nichts fertig ist.',
+            ar: 'على جانب كل سطر يوجد زر صغير ▸ «بدأ»: ضغطة واحدة، بلا صورة وبلا تسجيل كمية. هكذا يرى المكتب مساءً أين جرى العمل حتى لو لم يكتمل شيء.',
+          } },
+          { p: {
+            de: 'Langes Drücken auf eine Zeile öffnet mehr: den Teilanteil in Zehnteln (10–90 %) und „Raum wartet" mit Grund (zugestellt, Vorgewerk fehlt, kein Zutritt, Estrich nass, Kunde sperrt) und Wiedervorlage-Datum.',
+            ar: 'الضغط المطوّل على السطر يفتح المزيد: نسبة الإنجاز بالأعشار (10–90%) و«الغرفة تنتظر» مع السبب (مسدودة، العمل السابق ناقص، لا دخول، الأرضية رطبة، العميل يمنع) وتاريخ إعادة العرض.',
+          } },
+          { merke: {
+            de: 'Ein wartender Raum bleibt in der Gesamtrechnung enthalten – der Fortschritt springt NICHT auf 100 %. Am Wiedervorlage-Tag taucht er von selbst wieder auf.',
+            ar: 'الغرفة المنتظرة تبقى ضمن الحساب الكلي – فلا يقفز التقدم إلى 100%. وفي يوم إعادة العرض تظهر من جديد تلقائيًا.',
+          } },
+        ],
+      },
+      {
+        id: 'stunden-kachel',
+        frage: { de: 'Wie erfasse ich die Tagesstunden der Kolonne?', ar: 'كيف أسجّل ساعات الفرقة اليومية؟' },
+        zu: '/monteur/stunden',
+        antwort: [
+          { p: {
+            de: 'Der Reiter STUNDEN ist eine Kolonnenzeile: Datum, Baustelle, Mannschaft, Von/Bis und Art kommen aus dem Einsatz. Die Tätigkeit wird aus den heute gemeldeten Schritten erzeugt – das ist der Pflichttext nach § 15 Abs. 3 VOB/B. Zwei Tipps für drei Mann.',
+            ar: 'تبويب الساعات هو سطر فرقة: التاريخ وورشة البناء والطاقم ومن/إلى والنوع تأتي من المهمة. ويُنشأ وصف العمل من الخطوات المبلَّغ عنها اليوم – وهو النص الإلزامي حسب § 15 فقرة 3 VOB/B. ضغطتان لثلاثة رجال.',
+          } },
+          { p: {
+            de: 'Nur der Vorarbeiter (oder das Büro) sendet die ganze Kolonne. Jeder andere sieht seine eigene Zeile vorbelegt und sendet nur sie. Unten steht immer sichtbar, wer zuletzt geändert hat.',
+            ar: 'رئيس الفرقة وحده (أو المكتب) يرسل الفرقة كاملة. وكل شخص آخر يرى سطره الخاص معبّأ ويرسله فقط. وفي الأسفل يظهر دائمًا من عدّل آخر مرة.',
+          } },
+          { merke: {
+            de: 'Zeiten und Pause laufen über ±15-Minuten-Knöpfe – im Tagesablauf gibt es keine tippbare Zahl.',
+            ar: 'الأوقات والاستراحة تُضبط بأزرار ±15 دقيقة – لا يوجد رقم يُكتب في سير اليوم.',
+          } },
+        ],
+      },
+      {
+        id: 'regie-anordnung',
+        frage: { de: 'Wie melde ich Regie (Zusatzarbeit) richtig?', ar: 'كيف أبلّغ عن عمل إضافي بشكل صحيح؟' },
+        zu: '/monteur',
+        antwort: [
+          { p: {
+            de: 'Über „Regie melden" im Kopf von HEUTE. Die erste Frage ist immer: WER hat das angeordnet? Name, Datum und die Art als drei Symbolknöpfe (💬 mündlich · 📄 schriftlich · ✉ Mail). Ohne Anordnung besteht nach § 2 Abs. 8 VOB/B grundsätzlich kein Vergütungsanspruch – deshalb steht die Frage zuerst.',
+            ar: 'عبر «الإبلاغ عن عمل إضافي» في أعلى شاشة اليوم. السؤال الأول دائمًا: من أمر بذلك؟ الاسم والتاريخ والنوع بثلاثة أزرار رمزية (💬 شفهيًا · 📄 خطيًا · ✉ بريد). بدون أمر لا يوجد مبدئيًا حق بالأجر حسب § 2 فقرة 8 VOB/B – لذلك يأتي هذا السؤال أولًا.',
+          } },
+          { schritte: [
+            { de: 'Anordnung: Wer, wann, wie (💬/📄/✉).', ar: 'الأمر: من، متى، كيف (💬/📄/✉).' },
+            { de: 'Was: Baustein antippen (zweisprachig), Freitext nur bei Bedarf.', ar: 'ماذا: اختر عبارة جاهزة (بلغتين)، ونص حر عند الحاجة فقط.' },
+            { de: 'Vorher-Foto (Pflicht).', ar: 'صورة قبل (إلزامية).' },
+            { de: 'Stunden – vorbelegt aus dem Einsatz.', ar: 'الساعات – معبّأة مسبقًا من المهمة.' },
+            { de: 'Nachher-Foto (Pflicht), dann EINREICHEN.', ar: 'صورة بعد (إلزامية)، ثم تقديم.' },
+          ] },
+          { merke: {
+            de: 'EINREICHEN bleibt gesperrt, bis alle fünf Punkte stehen – darüber steht immer, was noch fehlt.',
+            ar: 'يبقى زر التقديم مقفلًا حتى تكتمل النقاط الخمس – وفوقه يظهر دائمًا ما الذي ينقص.',
           } },
         ],
       },

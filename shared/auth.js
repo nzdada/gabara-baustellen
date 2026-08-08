@@ -26,6 +26,9 @@ export function istVorarbeiterRolle(rolle) {
 export const DEMO_ZUGAENGE = [
   { email: 'buero@gabara-demo.de', passwort: 'demo2026', name: 'Büro Gabara (Demo)', rolle: 'admin' },
   { email: 'monteur@gabara-demo.de', passwort: 'demo2026', name: 'Ahmad Monteur (Demo)', rolle: 'mitarbeiter' },
+  // V2 (AP 5): Vorarbeiter-Demo – darf zusätzlich die Kolonnen-Stundenzeile
+  // absenden (istVorarbeiterRolle), sonst wie Monteur.
+  { email: 'vorarbeiter@gabara-demo.de', passwort: 'demo2026', name: 'Walid Vorarbeiter (Demo)', rolle: 'vorarbeiter' },
 ]
 
 const SESSION_KEY = 'gabara-admin-session'
