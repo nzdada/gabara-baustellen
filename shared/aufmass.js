@@ -381,8 +381,11 @@ export function mengenAbweichung(vertragsMenge, aufmassMenge) {
   if (soll <= 0) {
     return { prozent: 0, ueberSchwelle: false, richtung: 'keine', hinweis: '' }
   }
-  const prozent = runde(((ist - soll) / soll) * 100, 1)
-  const ueberSchwelle = Math.abs(prozent) > MENGEN_SCHWELLE_PROZENT
+  const roh = ((ist - soll) / soll) * 100
+  const prozent = runde(roh, 1)
+  // Geprüft wird der UNGERUNDETE Wert: 10,04 % ist "mehr als 10 %",
+  // auch wenn die Anzeige 10,0 zeigt.
+  const ueberSchwelle = Math.abs(roh) > MENGEN_SCHWELLE_PROZENT
   const richtung = prozent > 0 ? 'mehr' : prozent < 0 ? 'weniger' : 'gleich'
   return {
     prozent,
