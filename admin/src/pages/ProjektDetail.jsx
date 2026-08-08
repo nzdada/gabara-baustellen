@@ -17,6 +17,7 @@ import * as S from '../stil.js'
 import { Seitenkopf, Leer, ChipReihe, Segment, Meldung } from '../components/Seite.jsx'
 import { druckeRegiebericht, druckeAbnahme, druckeAbschluss } from '../drucken.js'
 import { REGELWERKE } from '@shared/aufmass.js'
+import { heuteISO } from '@shared/slots.js'
 
 // Projekt-Detailseite (#/projekte/:id): Dreispalter im HERO-Stil –
 // links Bereichs-Navigation, Mitte Inhalt, rechts Projektdaten-Panel.
@@ -401,10 +402,19 @@ export default function ProjektDetail({ user }) {
                   das steht dann auch drauf. */}
               {raeume.some((r) => r.aktiv !== false) && (
                 <button
-                  onClick={() => druckeAbschluss({
-                    projekt, kunde, raeume, positionen: lv, berichte, einst,
-                    fertigAm: projekt?.fertigAm || '',
-                  })}
+                  onClick={async () => {
+                    druckeAbschluss({
+                      projekt, kunde, raeume, positionen: lv, berichte, einst,
+                      fertigAm: projekt?.fertigAm || '',
+                    })
+                    // AP 9 (Plan 7.5): Der Zugang der Fertigstellungsanzeige
+                    // startet die 12-Werktage-Frist des § 12 Abs. 5 VOB/B –
+                    // erst mit dem Vermerk läuft der Zähler im Leitstand.
+                    if (!projekt?.fertigAngezeigtAm && confirm(t('abn.anzeigeVermerken'))) {
+                      const heute = heuteISO()
+                      await withStore((s) => s.update('projekte', projekt.id, { fertigAngezeigtAm: heute }))
+                    }
+                  }}
                   className="inline-flex items-center gap-2 px-4 min-h-11 rounded-feld border border-rahmen bg-karte text-sm font-semibold text-schrift hover:bg-gedeckt"
                 >
                   <Icon name="drucken" className="w-4 h-4" /> {t('pd.abschlussDrucken')}

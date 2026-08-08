@@ -300,3 +300,41 @@ sind committet. **AP 6 (Fotos offline-zuerst)** brachte:
   geschätzte Aufmaßzeile. Wiki: 5 Artikel de+ar (aufmass-ansicht,
   aufmassblatt, rechnungslauf, nachtrag-ankuendigung, aufmass-erfassen).
   Neue Prüfdatei `pruefung/abrechnung.test.mjs` (47 Fälle, in `npm test`).
+
+**AP 9 (Stunden, Regie-Anerkennungsuhr, Abnahme)** brachte:
+
+- `shared/fristen.js` – Werktags-Rechenkern: bayerische Feiertage (Ostern
+  nach Butcher, inkl. Mariä Himmelfahrt; Friedensfest bewusst NICHT),
+  Samstag zählt als Werktag. anerkanntAbIso (§ 15 Abs. 3: 6 Werktage nach
+  EINGETRAGENEM Zugang, „gilt seit“ = erster Werktag danach – beide
+  Plan-Beispiele exakt reproduziert: 12.08.→21.08., 15.08.→24.08.),
+  abnahmeFristEnde/fiktiveAbnahmeAb (§ 12 Abs. 5: 12 Werktage).
+- `shared/abnahme.js` – Abnahme-Kern: fotoPaar (frühestes Vorher, spätestes
+  Nachher, nur Raumtafel-Rollen; Regie auch meldebeleg), fotoBeleg
+  (EXIF/Gerät + Servereingang + Prüfsumme), teilabnahme (vollständig =
+  beide Auftragsbilder + kein wartet; unvollständige NAMENTLICH mit Grund;
+  bereits abgenommene nachrichtlich), abnahmePatches (raum.abnahmeAm je
+  Raum), abnahmeSeiten (je Raum beide Bildpaare + Regiestunden-Summe).
+- Stunden.jsx neu: Quelle Sammlung `stunden` (nicht mehr Regieberichte),
+  Spalte Art + getrennte Summen Auftrag/Regie, bemerkungen befüllbar,
+  CSV-Export je Monat (Lohnbüro), Bildschirm zeigt ALLE Kalendertage wie
+  das PDF. BerichtForm schreibt Regie-Stundenzeilen beim Einreichen
+  zusätzlich in `stunden` (deterministische Kennung, je Person+Tag
+  zusammengefasst). stundenBlatt (drucken.js): Art-Spalte, Zwischensummen
+  „Auftrag x · Regie y · gesamt“, Regieteil mit Satz/Betrag/Anordnungszeile
+  (Auftragsteil bewusst ohne Satz).
+- Berichte.jsx: neuer Reiter „Anordnungen“ mit Anerkennungsuhr – Vorlegen-
+  Dialog (vorgelegtAm + zugangsnachweis, anerkanntAb wird EINGEFROREN,
+  Warnhinweis „gerechnet ab EINGETRAGENEM Zugang“), Widerspruch → bestritten.
+  Leitstand: zwei neue Zeilenarten (gilt als anerkannt; Abnahmefrist-Zähler/
+  fiktive Abnahme über projekt.fertigAngezeigtAm – gesetzt per Abfrage nach
+  „Abschlussbericht drucken“ in ProjektDetail).
+- druckeAbnahme erweitert: Raumseiten (break-before:page) mit beiden
+  Bildpaaren + Beweiszeilen (900er/Vorschau-Derivat, nie das 1600er),
+  Teilabnahme-Deckblatt „Nicht Gegenstand dieser Abnahme“, Vertragsstrafen-
+  Vorbehalt ZWEI Zustände (bei „nein“ der ausdrückliche Satz), „keine
+  sonstigen Vorbehalte“ muss aktiv gewählt werden (BerichtForm-Gate),
+  Mängelrüge mit ZUGANGSdatum. esc() auf jeder Nutzereingabe.
+- Wiki: stunden/auftrag-regie-csv, berichte/anerkennungsuhr,
+  berichte/teilabnahme (de+ar). Texte-Block „AP 9“ (stunden.*, ra.*, abn.*).
+  Neue Prüfdatei `pruefung/fristen.test.mjs` (48 Fälle, in `npm test`).

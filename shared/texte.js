@@ -1379,6 +1379,49 @@ export const TEXTE = {
   'pd.regelwerkWechselFrage': { de: 'Achtung: {anzahl} Rechnung(en) wurden nach der bisherigen Regel gestellt. Ein Wechsel gilt nur für KÜNFTIGE Aufmaße – alte Zeilen behalten ihren Schnappschuss. Wirklich umstellen?', ar: 'تنبيه: صدرت {anzahl} فاتورة وفق القاعدة السابقة. التغيير يسري على القياسات القادمة فقط – الأسطر القديمة تحتفظ بنسختها. هل تريد التغيير فعلًا؟' },
   'pd.bodenaufbau': { de: 'Bodenaufbau üblich (m)', ar: 'طبقات الأرضية المعتادة (م)' },
   'pd.bodenaufbauHinweis': { de: 'Nur Vorbelegung fürs Aufmaß je Raum – dort bleibt es Pflichtangabe, kein stiller Vorgabewert.', ar: 'قيمة أولية فقط لقياس كل غرفة – يبقى الإدخال هناك إلزاميًا، لا قيمة صامتة.' },
+
+  // ---- AP 9 · Stunden, Anerkennungsuhr, Abnahme -----------------------------
+
+  // Stundenlisten V2 (Quelle: Sammlung stunden)
+  'stunden.subV2': { de: 'Monats-Stundenzettel je Mitarbeiter – alle Stunden (Auftrag + Regie) aus der Stundensammlung, BG-Bau-tauglich', ar: 'كشف ساعات شهري لكل موظف – كل الساعات (عقد + إضافي) من سجل الساعات، مطابق لمتطلبات BG Bau' },
+  'stunden.art': { de: 'Art', ar: 'النوع' },
+  'stunden.artAuftrag': { de: 'Auftrag', ar: 'عقد' },
+  'stunden.artRegie': { de: 'Regie', ar: 'إضافي' },
+  'stunden.csv': { de: 'CSV (Lohnbüro)', ar: 'CSV (مكتب الرواتب)' },
+  'stunden.bemerkungen': { de: 'Bemerkungen fürs Blatt', ar: 'ملاحظات للكشف' },
+  'stunden.bemerkungenPlatz': { de: 'z. B. Urlaub 12.–16.08., Krankmeldung liegt vor …', ar: 'مثلًا: إجازة 12–16.08، إجازة مرضية موثقة …' },
+  'stunden.leerTextV2': { de: 'In diesem Monat stehen keine Zeilen in der Stundensammlung. Stunden entstehen über die Stunden-Kachel der Monteure, über „Regie melden" und beim Einreichen von Regieberichten.', ar: 'لا توجد سطور في سجل الساعات لهذا الشهر. تنشأ الساعات عبر بطاقة الساعات لدى الفنيين، وعبر «الإبلاغ عن عمل إضافي»، وعند إرسال تقارير العمل.' },
+  'stunden.hinweisV2': { de: 'Quelle ist die Stundensammlung je Person und Tag (§ 15 Abs. 3 VOB/B) – Auftrags- und Regiestunden getrennt. Die Pause ergibt sich aus Anwesenheit minus gemeldeter Arbeitszeit. PDF und CSV sind bewusst deutsch – Empfänger sind Auftraggeber, Lohnbüro und Berufsgenossenschaft.', ar: 'المصدر هو سجل الساعات لكل شخص ويوم (§ 15 فقرة 3 VOB/B) – ساعات العقد والإضافي منفصلة. تُحسب الاستراحة من الحضور ناقص وقت العمل المُبلَّغ. ملفا PDF وCSV بالألمانية عمدًا – فالمستلمون هم صاحب العمل ومكتب الرواتب والتأمين المهني.' },
+
+  // Regieanordnungen + Anerkennungsuhr (ra.*)
+  'ra.chip': { de: 'Anordnungen', ar: 'الأوامر' },
+  'ra.keine': { de: 'Keine Regieanordnungen', ar: 'لا أوامر عمل إضافي' },
+  'ra.keineText': { de: 'Regieanordnungen entstehen über „Regie melden" auf dem Handy. Hier führt das Büro die Anerkennungsuhr: vorlegen, Zugang festhalten, Frist beobachten.', ar: 'تنشأ أوامر العمل الإضافي عبر «الإبلاغ عن عمل إضافي» على الهاتف. هنا يدير المكتب ساعة الاعتراف: التقديم وتوثيق التسليم ومراقبة المهلة.' },
+  'ra.titelVorlegen': { de: 'Stundenzettel vorlegen', ar: 'تقديم كشف الساعات' },
+  'ra.vorgelegtAm': { de: 'Zugang beim Auftraggeber am', ar: 'تاريخ التسليم لصاحب العمل' },
+  'ra.zugangsnachweis': { de: 'Zugangsnachweis', ar: 'إثبات التسليم' },
+  'ra.zn_quittung': { de: 'Übergabequittung', ar: 'إيصال تسليم' },
+  'ra.zn_mail': { de: 'E-Mail (mit Lesebestätigung)', ar: 'بريد إلكتروني (مع تأكيد قراءة)' },
+  'ra.zn_uebergabe': { de: 'persönliche Übergabe (Zeuge)', ar: 'تسليم شخصي (بشاهد)' },
+  'ra.zn_unbekannt': { de: 'unbekannt / fehlt', ar: 'غير معروف / مفقود' },
+  'ra.warnZugang': { de: 'Gerechnet wird ab dem EINGETRAGENEN Zugang. Der Zugang selbst ist nachzuweisen (Übergabequittung, Mail mit Lesebestätigung) – ohne Nachweis trägt die Anerkennungsfiktion vor Gericht nicht.', ar: 'تُحسب المهلة من تاريخ التسليم المُدخل. ويجب إثبات التسليم نفسه (إيصال، بريد مع تأكيد قراءة) – بدون إثبات لا يصمد الاعتراف الحكمي أمام المحكمة.' },
+  'ra.wirdAnerkannt': { de: 'Ohne Widerspruch gilt der Nachweis ab dem {datum} als anerkannt (§ 15 Abs. 3 VOB/B – 6 Werktage, bayerische Feiertage, Samstag zählt).', ar: 'بدون اعتراض يُعدّ الكشف معترفًا به اعتبارًا من {datum} (§ 15 فقرة 3 VOB/B – 6 أيام عمل، عطل بافاريا، السبت يُحتسب).' },
+  'ra.vorlegen': { de: 'Jetzt vorlegen', ar: 'قدّم الآن' },
+  'ra.widerspruch': { de: 'Widerspruch erfassen', ar: 'تسجيل اعتراض' },
+  'ra.widersprochenAm': { de: 'Widerspruch zugegangen am', ar: 'تاريخ ورود الاعتراض' },
+  'ra.widerspruchText': { de: 'Inhalt des Widerspruchs', ar: 'مضمون الاعتراض' },
+  'ra.statusOffen': { de: 'nicht vorgelegt', ar: 'لم يُقدَّم' },
+  'ra.statusLaeuft': { de: 'Frist läuft – anerkannt ab {datum}', ar: 'المهلة جارية – الاعتراف من {datum}' },
+  'ra.statusAnerkannt': { de: 'gilt seit {datum} als anerkannt', ar: 'يُعدّ معترفًا به منذ {datum}' },
+  'ra.statusBestritten': { de: 'bestritten', ar: 'مُعترَض عليه' },
+
+  // Abnahmeprotokoll V2 (abn.*)
+  'abn.freigabeFrage': { de: 'Teilabnahme: {voll} vollständige Räume werden abgenommen, {fehlt} unvollständige stehen namentlich auf dem Deckblatt („Nicht Gegenstand dieser Abnahme"). Fortfahren?', ar: 'استلام جزئي: سيُستلم {voll} غرفة مكتملة، وستُذكر {fehlt} غرفة غير مكتملة بالاسم على صفحة الغلاف («ليست موضوع هذا الاستلام»). هل تريد المتابعة؟' },
+  'abn.freigabeOk': { de: 'Abnahme freigegeben – {voll} Raum/Räume raumweise abgenommen (Gewährleistung läuft je Raum).', ar: 'اعتُمد الاستلام – استُلمت {voll} غرفة غرفةً غرفة (الضمان يسري لكل غرفة).' },
+  'abn.gateSonstige': { de: 'Sonstige Vorbehalte: „keine" aktiv wählen oder Text eintragen', ar: 'التحفظات الأخرى: اختر «لا يوجد» صراحةً أو أدخل نصًا' },
+  'abn.sonstigeKeine': { de: 'Keine sonstigen Vorbehalte', ar: 'لا تحفظات أخرى' },
+  'abn.ruegeZugang': { de: 'Mängelrüge zugegangen am (Zugangsdatum, nicht Erstellungsdatum)', ar: 'تاريخ وصول إخطار العيوب (تاريخ التسليم، لا تاريخ الإنشاء)' },
+  'abn.anzeigeVermerken': { de: 'Zugang der Fertigstellungsanzeige heute vermerken? Ab dann zählt der Leitstand die 12 Werktage bis zur fiktiven Abnahme (§ 12 Abs. 5 VOB/B).', ar: 'هل تريد توثيق تسليم إشعار الإنجاز اليوم؟ من ذلك الحين يعدّ لوح القيادة 12 يوم عمل حتى الاستلام الحكمي (§ 12 فقرة 5 VOB/B).' },
 }
 
 registriereTexte(TEXTE)

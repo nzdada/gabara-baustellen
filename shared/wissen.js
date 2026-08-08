@@ -364,6 +364,49 @@ export const WISSEN = [
         ],
       },
       {
+        id: 'anerkennungsuhr',
+        frage: { de: 'Was ist die Anerkennungsuhr, und wie lege ich einen Stundenzettel vor?', ar: 'ما هي ساعة الاعتراف، وكيف أقدّم كشف الساعات؟' },
+        zu: '/berichte',
+        antwort: [
+          { p: {
+            de: 'Nach § 15 Abs. 3 VOB/B muss der Auftraggeber einen zugegangenen Stundenlohnzettel binnen 6 Werktagen zurückgeben – sonst gilt er als ANERKANNT. Das ist die größte Geldwirkung des Systems: Nicht vorgelegte Zettel wandern bisher erst mit der Schlussrechnung raus, und der Auftraggeber streicht sie mit dem Argument verspäteter Vorlage.',
+            ar: 'وفق § 15 فقرة 3 VOB/B يجب على صاحب العمل إعادة كشف الساعات المُستلم خلال 6 أيام عمل – وإلا عُدَّ معترفًا به. هذا أكبر أثر مالي في النظام: الكشوف غير المقدَّمة كانت تخرج مع الفاتورة النهائية فقط، فيشطبها صاحب العمل بحجة التأخير.',
+          } },
+          { schritte: [
+            { de: 'Berichte → Reiter „Anordnungen" öffnen: jede Regieanordnung zeigt ihren Stand (nicht vorgelegt / Frist läuft / gilt als anerkannt / bestritten).', ar: 'افتح التقارير ← تبويب «الأوامر»: كل أمر يعرض حالته (لم يُقدَّم / المهلة جارية / يُعدّ معترفًا به / مُعترَض عليه).' },
+            { de: '„Jetzt vorlegen": Zugangsdatum und Zugangsnachweis (Quittung, Mail mit Lesebestätigung) eintragen. Das System rechnet das Anerkennungsdatum aus – 6 Werktage, bayerische Feiertage, der Samstag zählt.', ar: '«قدّم الآن»: أدخل تاريخ التسليم وإثباته (إيصال، بريد مع تأكيد قراءة). يحسب النظام تاريخ الاعتراف – 6 أيام عمل، عطل بافاريا، والسبت يُحتسب.' },
+            { de: 'Kommt ein Widerspruch des Auftraggebers, „Widerspruch erfassen" – die Uhr stoppt, der Anspruch muss normal bewiesen werden.', ar: 'إذا ورد اعتراض من صاحب العمل فاختر «تسجيل اعتراض» – تتوقف الساعة ويجب إثبات الحق بالطريق العادي.' },
+          ] },
+          { achtung: {
+            de: 'Gerechnet wird ab dem EINGETRAGENEN Zugang. Der Zugang selbst ist nachzuweisen – ohne Übergabequittung oder Lesebestätigung trägt die Anerkennungsfiktion vor Gericht nicht.',
+            ar: 'تُحسب المهلة من تاريخ التسليم المُدخل. ويجب إثبات التسليم نفسه – بدون إيصال أو تأكيد قراءة لا يصمد الاعتراف الحكمي أمام المحكمة.',
+          } },
+        ],
+      },
+      {
+        id: 'teilabnahme',
+        frage: { de: 'Wie funktioniert das Abnahmeprotokoll mit Raumseiten und Teilabnahme?', ar: 'كيف يعمل محضر الاستلام بصفحات الغرف والاستلام الجزئي؟' },
+        zu: '/berichte',
+        antwort: [
+          { p: {
+            de: 'Das Abnahme-PDF baut sich aus dem Fotobestand von selbst: je abgenommenem Raum eine Seite mit beiden Bildpaaren – Auftrag (Vorher/Nachher) und, falls angeordnet, Regie. Unter jedem Bild stehen Aufnahmezeit mit Quelle (EXIF/Gerät), Servereingang und Prüfsumme: das macht aus einem bestreitbaren Bild ein Dokument.',
+            ar: 'يبني ملف PDF للاستلام نفسه من مخزون الصور: لكل غرفة مستلمة صفحة بزوجي الصور – العقد (قبل/بعد) وإن وُجد أمرٌ فالإضافي أيضًا. تحت كل صورة وقت الالتقاط بمصدره (EXIF/الجهاز) ودخول الخادم وبصمة التحقق: هذا يحوّل صورة قابلة للإنكار إلى مستند.',
+          } },
+          { p: {
+            de: 'Teilabnahme statt Alles-oder-nichts: Vollständige Räume (beide Auftragsbilder, kein „wartet") werden abgenommen – bei der Freigabe der Abnahme bekommt jeder dieser Räume sein eigenes Abnahmedatum, die Gewährleistung startet RAUMWEISE. Unvollständige Räume stehen namentlich mit Grund auf dem Deckblatt: „Nicht Gegenstand dieser Abnahme".',
+            ar: 'استلام جزئي بدل الكل أو لا شيء: الغرف المكتملة (صورتا العقد، وليست «منتظرة») تُستلم – وعند اعتماد الاستلام تحصل كل غرفة على تاريخ استلامها، ويبدأ الضمان غرفةً غرفة. أما الغرف غير المكتملة فتُذكر بالاسم والسبب على صفحة الغلاف: «ليست موضوع هذا الاستلام».',
+          } },
+          { p: {
+            de: 'Fiktive Abnahme: Über „Abschlussbericht drucken" lässt sich der Zugang der Fertigstellungsanzeige vermerken. Der Leitstand zählt dann die 12 Werktage des § 12 Abs. 5 VOB/B – danach gilt die Abnahme als erfolgt, die Schlussrechnung wird fällig und die Beweislast für Mängel liegt beim Auftraggeber.',
+            ar: 'الاستلام الحكمي: عبر «طباعة تقرير الإنجاز» يمكن توثيق تسليم إشعار الإنجاز. عندها يعدّ لوح القيادة 12 يوم عمل وفق § 12 فقرة 5 VOB/B – بعدها يُعدّ الاستلام واقعًا، وتستحق الفاتورة النهائية، وينتقل عبء إثبات العيوب إلى صاحب العمل.',
+          } },
+          { merke: {
+            de: 'Der Vertragsstrafen-Vorbehalt hat genau ZWEI Zustände. Bei „nein" druckt das Protokoll ausdrücklich: „Ein Vorbehalt der Vertragsstrafe wurde bei der Abnahme nicht erklärt." Auch „keine sonstigen Vorbehalte" muss aktiv gewählt werden – ein leeres Feld wäre eine Einladung, später mündliche Vorbehalte zu behaupten.',
+            ar: 'تحفظ الغرامة التعاقدية له حالتان فقط. عند «لا» يطبع المحضر صراحةً: «لم يُعلَن تحفظ بالغرامة التعاقدية عند الاستلام.» وكذلك «لا تحفظات أخرى» يجب اختيارها صراحةً – فالحقل الفارغ دعوة للادعاء لاحقًا بتحفظات شفهية.',
+          } },
+        ],
+      },
+      {
         id: 'entwurf',
         frage: { de: 'Was passiert, wenn das Handy mitten im Bericht ausgeht?', ar: 'ماذا يحدث إذا انطفأ الهاتف أثناء كتابة التقرير؟' },
         antwort: [
@@ -428,6 +471,25 @@ export const WISSEN = [
           { p: {
             de: 'Für die Lohnabrechnung nimmt man den ganzen Monat, sobald er vorbei ist. „Bis heute" ist für den Zwischenstand im laufenden Monat gedacht und deshalb auch nur dort wählbar.',
             ar: 'لحساب الرواتب يُؤخذ الشهر كاملًا بعد انتهائه. أما „حتى اليوم" فمخصص للحالة المؤقتة في الشهر الجاري، ولذلك يتاح فيه فقط.',
+          } },
+        ],
+      },
+      {
+        id: 'auftrag-regie-csv',
+        frage: { de: 'Was bedeutet die Spalte „Art", und wozu der CSV-Knopf?', ar: 'ماذا يعني عمود «النوع»، ولماذا زر CSV؟' },
+        zu: '/stunden',
+        antwort: [
+          { p: {
+            de: 'Seit V2 kommen die Stunden aus der zentralen Stundensammlung: die Kolonnenzeile der Monteure (Auftragsstunden), „Regie melden" und die Stundenzeilen eingereichter Regieberichte schreiben alle in dieselbe Quelle. Die Spalte „Art" trennt Auftrag und Regie, oben stehen die getrennten Summen – der Auftragsteil ist Lohnnachweis ohne Satz, der Regieteil auf dem PDF ein Vergütungsnachweis mit Satz, Betrag und Anordnungszeile.',
+            ar: 'منذ الإصدار الثاني تأتي الساعات من سجل الساعات المركزي: سطر الفرقة لدى الفنيين (ساعات العقد)، و«الإبلاغ عن عمل إضافي»، وسطور الساعات في تقارير العمل المُرسلة – كلها تكتب في المصدر نفسه. عمود «النوع» يفصل العقد عن الإضافي، وفي الأعلى المجموعان منفصلين – جزء العقد إثباتُ أجورٍ بلا سعر، وجزء الإضافي في ملف PDF إثباتُ استحقاق بسعر ومبلغ وسطر الأمر.',
+          } },
+          { p: {
+            de: 'Der CSV-Knopf erzeugt eine Monatsdatei fürs Lohnbüro: eine Zeile je Person und Arbeitstag mit Beginn, Ende, Pause, Stunden, Art und Tätigkeit, dazu je Person eine Summenzeile. Das Feld „Bemerkungen fürs Blatt" landet auf dem gedruckten Stundenzettel.',
+            ar: 'زر CSV ينشئ ملفًا شهريًا لمكتب الرواتب: سطر لكل شخص ويوم عمل مع البداية والنهاية والاستراحة والساعات والنوع والعمل، وسطر مجموع لكل شخص. وحقل «ملاحظات للكشف» يظهر على كشف الساعات المطبوع.',
+          } },
+          { merke: {
+            de: 'Der Bildschirm zeigt jetzt ALLE Kalendertage – genau wie das PDF. Was auf dem Blatt steht, steht auch auf dem Schirm; es gibt keine zweite Wahrheit mehr.',
+            ar: 'الشاشة تعرض الآن كل أيام الشهر – تمامًا مثل ملف PDF. ما يظهر على الورق يظهر على الشاشة؛ لم تعد هناك حقيقتان.',
           } },
         ],
       },

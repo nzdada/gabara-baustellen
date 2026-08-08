@@ -27,6 +27,7 @@ import { fortschrittAufgaben } from './raumaufgaben.js'
 import { heuteISO } from './slots.js'
 import { mengenAbweichung, zahlText } from './aufmass.js'
 import { isoVonZeit, addMonate } from './abrechnung.js'
+import { anerkennungsStand, abnahmeFristEnde, fiktiveAbnahmeAb, werktageZwischen } from './fristen.js'
 import { parseZahl } from './format.js'
 
 // Dringlichkeit: kleiner = weiter oben
@@ -257,6 +258,7 @@ export function schritteLeitstand({
   const raus = []
   const projektVon = (id) => projekte.find((p) => p.id === id)
   const tageSeitMs = (ms) => (ms ? Math.floor((jetzt - ms) / 86400000) : 0)
+  const heuteIso = isoVonZeit(jetzt)
 
   // 1. Kolonne ohne Einsatz heute – Leute stehen ohne Baustelle da.
   const abgedeckt = (team) => einsaetzeHeute.some((e) => e.status !== 'abgesagt'
@@ -296,6 +298,70 @@ export function schritteLeitstand({
       ziel: '/berichte',
       knopf: { de: 'Jetzt vorlegen', ar: 'قدّم الآن' },
     })
+  }
+
+  // 2b. Die zweite Zeile der Anerkennungsuhr (AP 9, Plan 6.3): Zettel
+  //     vorgelegt, 6 Werktage (bayerische Feiertage, Samstag zählt) ohne
+  //     Widerspruch verstrichen – der Nachweis GILT ALS ANERKANNT. Das ist
+  //     eine gute Nachricht, aber sie gehört sichtbar gemacht: ab jetzt
+  //     trägt der Auftraggeber die Beweislast. Gerechnet ab dem
+  //     EINGETRAGENEN Zugang (vorgelegtAm) – der Zugang selbst ist über
+  //     `zugangsnachweis` zu belegen.
+  const anerkannte = regieanordnungen
+    .map((a) => ({ a, uhr: anerkennungsStand(a, heuteIso) }))
+    .filter(({ a, uhr }) => uhr.stand === 'anerkannt' && a.status !== 'anerkannt')
+    .sort((x, y) => String(y.uhr.anerkanntAb).localeCompare(String(x.uhr.anerkanntAb)))
+  for (const { a, uhr } of anerkannte.slice(0, 2)) {
+    const p = projektVon(a.projektId)
+    raus.push({
+      id: `regie-anerkannt-${a.id}`,
+      stufe: HINWEIS,
+      icon: 'erfolg',
+      text: {
+        de: `Regie „${a.titel || '?'}“${p ? ` (${p.name})` : ''} gilt seit ${uhr.anerkanntAb} als anerkannt`,
+        ar: `العمل الإضافي «${a.titel || '?'}»${p ? ` (${p.name})` : ''} يُعدّ معترفًا به منذ ${uhr.anerkanntAb}`,
+      },
+      detail: { de: '§ 15 Abs. 3 VOB/B – Zugang belegt halten (Quittung/Mail) und in der Rechnung ansetzen.',
+                ar: '§ 15 فقرة 3 VOB/B – احتفظ بإثبات التسليم (إيصال/بريد) وأدرجه في الفاتورة.' },
+      ziel: '/berichte',
+      knopf: { de: 'Anordnungen', ar: 'الأوامر' },
+    })
+  }
+
+  // 2c. Fiktive Abnahme (AP 9, Plan 7.5): nach der Fertigstellungsanzeige
+  //     läuft die 12-Werktage-Frist des § 12 Abs. 5 VOB/B. Erst der Zähler,
+  //     nach Ablauf die blaue Zeile – Schlussrechnung fällig, Verjährung
+  //     läuft, Beweislast für Mängel liegt beim Auftraggeber.
+  const angezeigte = projekte.filter((p) => istOffen(p.status) && p.fertigAngezeigtAm && !p.abgenommenAm)
+  for (const p of angezeigte.slice(0, 2)) {
+    const seit = fiktiveAbnahmeAb(p.fertigAngezeigtAm)
+    if (heuteIso >= seit) {
+      raus.push({
+        id: `abnahme-fiktiv-${p.id}`,
+        stufe: HINWEIS,
+        icon: 'abnahme',
+        text: { de: `${p.name}: Abnahme gilt seit ${seit} als erfolgt (§ 12 Abs. 5 VOB/B)`,
+                ar: `${p.name}: يُعدّ الاستلام واقعًا منذ ${seit} (§ 12 فقرة 5 VOB/B)` },
+        detail: { de: 'Schlussrechnung ist fällig, die Verjährung läuft, die Beweislast für Mängel liegt jetzt beim Auftraggeber.',
+                  ar: 'الفاتورة النهائية مستحقة، والتقادم يسري، وعبء إثبات العيوب على صاحب العمل الآن.' },
+        ziel: '/abrechnung',
+        knopf: { de: 'Abrechnung', ar: 'الفوترة' },
+      })
+    } else {
+      const ende = abnahmeFristEnde(p.fertigAngezeigtAm)
+      const rest = werktageZwischen(heuteIso, ende)
+      raus.push({
+        id: `abnahme-frist-${p.id}`,
+        stufe: OFFEN,
+        icon: 'abnahme',
+        text: { de: `${p.name}: Abnahmefrist läuft – noch ${rest} Werktag(e) bis ${ende}`,
+                ar: `${p.name}: مهلة الاستلام جارية – بقي ${rest} يوم عمل حتى ${ende}` },
+        detail: { de: `§ 12 Abs. 5 VOB/B: ohne Abnahme bis ${ende} gilt sie als erfolgt (Fertigstellung angezeigt am ${p.fertigAngezeigtAm}).`,
+                  ar: `§ 12 فقرة 5 VOB/B: بدون استلام حتى ${ende} يُعدّ واقعًا (أُعلن الإنجاز في ${p.fertigAngezeigtAm}).` },
+        ziel: `/projekte/${p.id}?bereich=raeume`,
+        knopf: { de: 'Baustelle', ar: 'الورشة' },
+      })
+    }
   }
 
   // 3. Mengen-Abweichung über 10 % (§ 2 Abs. 3 VOB/B) – nur MEHRmengen:
@@ -384,7 +450,6 @@ export function schritteLeitstand({
   // 7. Sicherheitseinbehalte (Plan 8.9): drei Monate vor Fälligkeit erscheint
   //    die Zeile – ein nicht angemahnter Einbehalt wird in etwa jedem dritten
   //    Fall NIE gezogen. Überfällige werden DRINGEND.
-  const heuteIso = isoVonZeit(jetzt)
   const vorlaufBis = addMonate(heuteIso, EINBEHALT_VORLAUF_MONATE)
   const faellige = einbehalte
     .filter((e) => e.status === 'offen' && e.faelligAm && e.faelligAm <= vorlaufBis)

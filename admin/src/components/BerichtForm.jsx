@@ -147,6 +147,10 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
     ort: bericht?.ort || '',
     vorbehaltVertragsstrafe: bericht?.vorbehaltVertragsstrafe ?? null, // Pflicht-Entscheidung ja/nein
     vorbehalteSonstige: bericht?.vorbehalteSonstige || '',
+    // AP 9 (Plan 7.7): auch „keine sonstigen Vorbehalte" muss AKTIV gewählt
+    // werden – ein leeres Feld druckt sonst „keine Angabe" und lädt den
+    // Auftraggeber ein, später mündliche Vorbehalte zu behaupten.
+    vorbehalteSonstigeKeine: bericht?.vorbehalteSonstigeKeine ?? (bericht?.vorbehalteSonstige ? false : null),
     // Unterschriften
     unterschriftName: bericht?.unterschriftName || '',
     unterschriftFunktion: bericht?.unterschriftFunktion || '',
@@ -225,7 +229,9 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
   const anordnungOk = typ !== 'regie' || Boolean(daten.angeordnetDurch.trim())
   const abnahmeUnterschriftenOk = typ !== 'abnahme'
     || (kundeDa && monteurDa && daten.unterschriftName.trim() && daten.unterschriftFunktion.trim())
-  const vorbehaltOk = typ !== 'abnahme' || daten.vorbehaltVertragsstrafe !== null
+  const vorbehaltOk = typ !== 'abnahme'
+    || (daten.vorbehaltVertragsstrafe !== null
+      && (daten.vorbehalteSonstigeKeine === true || Boolean(daten.vorbehalteSonstige.trim())))
   const einreichenOk = daten.projektId && daten.beschreibung.trim()
     && fotosVorher.length >= 1 && fotosNachher.length >= 1
     && stundenOk && anordnungOk && abnahmeUnterschriftenOk && vorbehaltOk
@@ -239,6 +245,7 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
     if (typ === 'regie' && !stundenOk) teile.push(t('bf.gateStunden'))
     if (fotosNachher.length < 1) teile.push(t('bf.gateNachher'))
     if (typ === 'abnahme' && daten.vorbehaltVertragsstrafe === null) teile.push(t('bf.gateVorbehalt'))
+    if (typ === 'abnahme' && daten.vorbehaltVertragsstrafe !== null && !vorbehaltOk) teile.push(t('abn.gateSonstige'))
     if (typ === 'abnahme' && (!kundeDa || !daten.unterschriftName.trim() || !daten.unterschriftFunktion.trim())) teile.push(t('bf.gateKundeUnterschrift'))
     if (typ === 'abnahme' && !monteurDa) teile.push(t('bf.gateMonteurUnterschrift'))
     return teile.join(' · ')
@@ -355,11 +362,62 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
         ort: daten.ort || projekt?.anschrift?.plzOrt || '',
         vorbehaltVertragsstrafe: daten.vorbehaltVertragsstrafe,
         vorbehalteSonstige: daten.vorbehalteSonstige,
+        vorbehalteSonstigeKeine: daten.vorbehalteSonstigeKeine === true && !daten.vorbehalteSonstige.trim(),
+        // Mängelrüge: maßgeblich ist der ZUGANG, nicht die Erstellung
+        ruegeZugangAm: daten.ohneMaengel ? '' : (daten.ruegeZugangAm || ''),
       } : {}),
     }
     try {
       docAngelegt.current = true
       await withStore((s) => s.add('berichte', doc))
+      // AP 9 (Plan 6.2): Der Regiebericht schreibt seine Stundenzeilen beim
+      // EINREICHEN zusätzlich in die Sammlung `stunden` – dieselbe Quelle,
+      // aus der Stundenzettel und CSV gebaut werden. Deterministische
+      // Kennung std-<person>-<datum>-<projekt>-regie: Wiederholen ERSETZT,
+      // mehrere Zeilen derselben Person am selben Tag werden vorher
+      // ZUSAMMENGEFASST (sonst gewänne still die letzte).
+      if (typ === 'regie' && status === 'eingereicht') {
+        const jeTag = new Map()
+        for (const z of doc.stunden) {
+          const person = (z.userId || z.name || '').trim()
+          if (!person || !(Number(z.anzahl) > 0)) continue
+          const kennung = person.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+          const key = `${kennung}|${z.datum || doc.datum}`
+          const alt = jeTag.get(key)
+          if (alt) {
+            alt.stundenGesamt = Math.round((alt.stundenGesamt + z.anzahl) * 100) / 100
+            alt.von = [alt.von, z.von].filter(Boolean).sort()[0] || ''
+            alt.bis = [alt.bis, z.bis].filter(Boolean).sort().slice(-1)[0] || ''
+          } else {
+            jeTag.set(key, {
+              id: `std-${kennung}-${z.datum || doc.datum}-${doc.projektId}-regie`,
+              projektId: doc.projektId,
+              einsatzId: '',
+              userId: z.userId || '',
+              name: z.name,
+              qualifikation: z.art || '',
+              teamId: '',
+              datum: z.datum || doc.datum,
+              von: z.von || '',
+              bis: z.bis || '',
+              pauseMin: 0,
+              stundenGesamt: z.anzahl,
+              satzCent: Math.round((z.satz || 0) * 100),
+              art: 'regie',
+              taetigkeit: doc.beschreibung || '',
+              anordnungId: '',
+              berichtId: doc.id,
+              status: 'erfasst',
+              erfasstAm: Date.now(),
+              zuletztGeaendertVon: user?.name || '',
+              zuletztGeaendertAm: Date.now(),
+            })
+          }
+        }
+        for (const zeile of jeTag.values()) {
+          await withStore((s) => s.add('stunden', zeile))
+        }
+      }
       entwurf.loeschen()   // erst NACH der Bestätigung des Stores
       onClose()
     } catch (e) {
@@ -594,6 +652,13 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
                     </div>
                   ))}
                   <button onClick={() => setDaten((d) => ({ ...d, maengel: [...d.maengel, { text: '', frist: '' }] }))} className="text-sm text-praxis-600 font-medium">{t('bf.mangelNeu')}</button>
+                  {/* Mängelrüge: gedruckt wird das ZUGANGSdatum, nicht das
+                      Erstellungsdatum (AP 9, Plan 7.6). */}
+                  <div className="mt-2">
+                    <label className={label}>{t('abn.ruegeZugang')}</label>
+                    <input type="date" className={`${feld} !w-44`} dir="ltr" value={daten.ruegeZugangAm}
+                      onChange={set('ruegeZugangAm')} disabled={gesperrt} />
+                  </div>
                 </div>
               )}
               <div className="bg-gedeckt rounded-feld p-3">
@@ -607,8 +672,20 @@ export default function BerichtForm({ typ, projektId = '', bericht = null, user,
                     </button>
                   ))}
                 </div>
-                <input type="text" className={`${feld} mt-2`} placeholder={t('bf.vorbehaltePlatz')}
-                  value={daten.vorbehalteSonstige} onChange={set('vorbehalteSonstige')} disabled={gesperrt} />
+                {/* AP 9 (Plan 7.7): „keine" muss AKTIV gewählt werden – bei
+                    „nein" druckt das Protokoll den ausdrücklichen Satz. */}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => !gesperrt && setDaten((d) => ({ ...d, vorbehalteSonstigeKeine: d.vorbehalteSonstigeKeine === true ? null : true, vorbehalteSonstige: '' }))}
+                    className={`px-3.5 py-1.5 rounded-feld text-sm font-bold border ${daten.vorbehalteSonstigeKeine === true && !daten.vorbehalteSonstige ? 'bg-praxis-600 border-praxis-600 text-white' : 'bg-karte border-rahmen text-schrift-leise'}`}
+                  >
+                    {t('abn.sonstigeKeine')}
+                  </button>
+                  <input type="text" className={`${feld} !flex-1 !w-auto min-w-[200px]`} placeholder={t('bf.vorbehaltePlatz')}
+                    value={daten.vorbehalteSonstige}
+                    onChange={(e) => setDaten((d) => ({ ...d, vorbehalteSonstige: e.target.value, vorbehalteSonstigeKeine: e.target.value.trim() ? false : d.vorbehalteSonstigeKeine }))}
+                    disabled={gesperrt} />
+                </div>
               </div>
             </div>
           )}

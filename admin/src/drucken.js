@@ -448,11 +448,92 @@ export function druckeRegiebericht({ bericht, projekt, kunde, fotos = [], einst 
 }
 
 // ---------- Abnahmeprotokoll ----------
-export function druckeAbnahme({ bericht, projekt, kunde, fotos = [], einst = {} }) {
+//
+// AP 9 (Plan Kapitel 7): das Protokoll baut sich aus dem Fotobestand von
+// selbst. `seiten` (aus shared/abnahme.js abnahmeSeiten) liefert je Raum
+// beide Bildpaare Auftrag + Regie samt Beweiszeile (Aufnahmezeit mit Quelle,
+// Servereingang, Prüfsumme – nie der Druckzeitpunkt), `ausgenommen` die
+// unvollständigen Räume fürs Deckblatt (Teilabnahme statt Alles-oder-nichts).
+// Ohne `seiten` druckt die Funktion wie bisher nur das Deckblatt (V1-Daten).
+
+// Beweiszeile unter einem Raumbild (Plan 7.4: macht aus einem bestreitbaren
+// Bild ein Dokument). `beleg` kommt aus fotoBeleg (shared/abnahme.js).
+function raumBild(titel, beleg) {
+  if (!beleg || !beleg.bild) {
+    return `<div style="flex:1 1 0" class="block"><strong>${esc(titel)}</strong>
+      <p class="meta" style="margin-top:4px">Kein Bild vorhanden.</p></div>`
+  }
+  return `<figure style="flex:1 1 0; margin:0" class="block">
+    <figcaption style="font-size:8.5pt; margin-bottom:3px"><strong>${esc(titel)}</strong>
+      · ${zeitpunktDe(beleg.aufgenommenAm)} (${esc(beleg.quelle)})</figcaption>
+    <img src="${esc(beleg.bild)}" alt="" style="width:100%; height:6.2cm; object-fit:cover; border-radius:5px; border:1px solid #e2e8f0; background:#f1f5f9">
+    <figcaption class="meta" style="margin-top:2px">
+      Server ${beleg.hochgeladenAm ? zeitpunktDe(beleg.hochgeladenAm) : 'noch nicht eingegangen'}
+      · Prüfsumme ${esc(beleg.pruefsumme || '–')}
+    </figcaption>
+  </figure>`
+}
+
+function raumSeite(seite, { projekt, bericht }) {
+  const raum = seite.raum || {}
+  const flaeche = Number(raum.grundflaeche) || 0
+  const stand = raum.aufmassStand === 'geschaetzt' ? 'geschätzt'
+    : raum.aufmassStand === 'bestaetigt' ? 'bestätigt' : raum.aufmassStand === 'gemessen' ? 'gemessen' : ''
+
+  const mengenZeilen = (seite.auftrag?.zeilen || []).map((z) => `<tr>
+    <td>${esc(z.schritt)}${z.fertig ? '' : ' <span class="meta">(offen)</span>'}</td>
+    <td class="r">${z.menge ? esc(z.menge.toLocaleString('de-DE', { maximumFractionDigits: 3 })) : '–'}</td>
+    <td>${esc(z.einheit || '')}</td>
+    <td>${esc(z.oz || '')}</td>
+  </tr>`).join('')
+
+  const regie = seite.regie
+  const regieBlock = regie ? `
+    <h2>Regie (zusätzlich angeordnet)</h2>
+    <div class="box">
+      Anordnung: <strong>${esc(regie.angeordnetDurch || '–')}</strong>, ${datumDe(regie.angeordnetAm)}, ${esc(regie.anzeigeText)}
+      ${regie.titel ? ` – ${esc(regie.titel)}` : ''}<br>
+      ${regie.vorgelegtAm
+        ? `Stundenzettel vorgelegt ${datumDe(regie.vorgelegtAm)}${regie.bestritten
+            ? ' · <strong>bestritten</strong>'
+            : ` · gilt seit <strong>${datumDe(regie.anerkanntAb)}</strong> als anerkannt (§ 15 Abs. 3 VOB/B)`}`
+        : '<span class="meta">Stundenzettel noch nicht vorgelegt (§ 15 Abs. 3 VOB/B).</span>'}
+    </div>
+    <div style="display:flex; gap:10px" class="fotoblock">
+      ${raumBild('VORHER', regie.vorher)}
+      ${raumBild('NACHHER', regie.nachher)}
+    </div>
+    ${regie.stunden || regie.beschreibung ? `<p style="margin-top:5px">
+      Ausgeführt: ${esc(regie.beschreibung || regie.titel || '–')}${regie.stunden ? ` · <strong>${regie.stunden.toLocaleString('de-DE')} Std.</strong>` : ''}
+    </p>` : ''}` : ''
+
+  return `<section style="break-before:page">
+    <h2>Raum ${esc(raum.nummer || '')} ${esc(raum.name ? `„${raum.name}“` : '')}
+      ${flaeche ? `· ${flaeche.toLocaleString('de-DE')} m²` : ''}${stand ? ` (${stand})` : ''}</h2>
+    <p class="meta">Abnahme vom ${datumDe(bericht.datum)}${projekt?.vertragNummer || projekt?.vertragDatum
+      ? ` · Vertragsgrundlage: ${esc(projekt.vertragNummer || 'NU-Vertrag')}${projekt.vertragDatum ? ` vom ${datumDe(projekt.vertragDatum)}` : ''}` : ''}</p>
+    <h2>Auftrag (Vertragsleistung)</h2>
+    ${mengenZeilen ? `<table>
+      <thead><tr><th>Leistung</th><th class="r">Menge</th><th>Einh.</th><th>Pos.</th></tr></thead>
+      <tbody>${mengenZeilen}</tbody>
+    </table>` : '<p class="meta">Keine Aufgaben zu diesem Raum erfasst.</p>'}
+    <div style="display:flex; gap:10px; margin-top:8px" class="fotoblock">
+      ${raumBild('VORHER', seite.auftrag?.vorher)}
+      ${raumBild('NACHHER', seite.auftrag?.nachher)}
+    </div>
+    ${seite.auftrag?.ausgefuehrt ? `<p style="margin-top:5px">Ausgeführt: ${esc(seite.auftrag.ausgefuehrt)}</p>` : ''}
+    ${regieBlock}
+  </section>`
+}
+
+export function druckeAbnahme({ bericht, projekt, kunde, fotos = [], seiten = [], ausgenommen = [], bereitsAbgenommen = [], grundText = null, einst = {} }) {
   const maengel = bericht.maengel || []
   const ergebnis = bericht.ohneMaengel
     ? '<div class="box"><strong>Die Leistungen wurden ohne Mängel abgenommen.</strong></div>'
-    : `<div class="box warn"><strong>Abnahme mit folgenden Mängeln / Restarbeiten:</strong></div>
+    : `<div class="box warn"><strong>Abnahme mit folgenden Mängeln / Restarbeiten:</strong>${
+        bericht.ruegeZugangAm
+          ? ` Mängelrüge zugegangen am <strong>${datumDe(bericht.ruegeZugangAm)}</strong> (maßgeblich ist der Zugang, nicht die Erstellung).`
+          : ''}</div>
        <table><thead><tr><th>Mangel / Restarbeit</th><th>Frist zur Beseitigung</th></tr></thead><tbody>
        ${maengel.map((m) => `<tr><td>${esc(m.text || '')}</td><td>${datumDe(m.frist)}</td></tr>`).join('') || '<tr><td colspan="2" class="meta">Keine Einzelmängel erfasst.</td></tr>'}
        </tbody></table>`
@@ -467,23 +548,58 @@ export function druckeAbnahme({ bericht, projekt, kunde, fotos = [], einst = {} 
     return d.toLocaleDateString('de-DE')
   })()
 
+  // Vertragsstrafen-Vorbehalt mit genau ZWEI Zuständen (Plan 7.7): Nach
+  // § 11 Abs. 4 VOB/B verfällt die Vertragsstrafe ohne Vorbehalt bei der
+  // Abnahme. „keine Angabe" wäre eine Einladung, später einen mündlichen
+  // Vorbehalt zu behaupten – deshalb druckt „nein" den ausdrücklichen Satz.
+  const strafeText = bericht.vorbehaltVertragsstrafe === true
+    ? 'Vertragsstrafe gemäß § 11 VOB/B vorbehalten: <strong>JA</strong>'
+    : bericht.vorbehaltVertragsstrafe === false
+      ? '<strong>Ein Vorbehalt der Vertragsstrafe (§ 11 VOB/B) wurde bei der Abnahme nicht erklärt.</strong>'
+      : 'Vertragsstrafe gemäß § 11 VOB/B vorbehalten: <strong>keine Angabe</strong> <span class="meta">(Altbestand – Pflichtfeld seit V2)</span>'
+  const sonstigeText = bericht.vorbehalteSonstigeKeine === true && !bericht.vorbehalteSonstige
+    ? '<strong>Sonstige Vorbehalte wurden bei der Abnahme nicht erklärt.</strong>'
+    : `Sonstige Vorbehalte (bekannte Mängel / Restleistungen): ${esc(bericht.vorbehalteSonstige || 'keine Angabe')}`
   const vorbehalte = `<h2>Vorbehalte des Auftraggebers</h2>
     <div class="box${bericht.vorbehaltVertragsstrafe ? ' warn' : ''}">
-      Vertragsstrafe gemäß § 11 VOB/B vorbehalten:
-      <strong>${bericht.vorbehaltVertragsstrafe === true ? 'JA' : bericht.vorbehaltVertragsstrafe === false ? 'nein' : 'keine Angabe'}</strong><br>
-      Sonstige Vorbehalte (bekannte Mängel / Restleistungen): ${esc(bericht.vorbehalteSonstige || 'keine')}
+      ${strafeText}<br>
+      ${sonstigeText}
     </div>`
 
+  // Teilabnahme (Plan 7.5): unvollständige Räume stehen NAMENTLICH mit Grund
+  // auf dem Deckblatt – sie sind nicht Gegenstand dieser Abnahme, für sie
+  // läuft keine Frist und startet keine Gewährleistung.
+  const grund = (g) => (grundText ? grundText(g) : g)
+  const teilabnahmeBlock = ausgenommen.length || bereitsAbgenommen.length ? `
+    ${ausgenommen.length ? `<div class="box warn">
+      <strong>Nicht Gegenstand dieser Abnahme (${ausgenommen.length} Raum/Räume):</strong>
+      <ul>${ausgenommen.map(({ raum, gruende }) => `<li>${esc([raum.nummer, raum.name].filter(Boolean).join(' '))}
+        – ${gruende.map((g) => esc(grund(g))).join(', ')}</li>`).join('')}</ul>
+      <span class="meta">Für diese Räume läuft keine Abnahmefrist und beginnt keine Verjährung;
+      sie werden gesondert abgenommen.</span>
+    </div>` : ''}
+    ${bereitsAbgenommen.length ? `<div class="box recht">
+      Bereits früher abgenommen: ${bereitsAbgenommen.map((r) => `${esc([r.nummer, r.name].filter(Boolean).join(' '))} (${datumDe(r.abnahmeAm)})`).join(', ')}.
+    </div>` : ''}` : ''
+
+  const abnahmeUmfang = seiten.length
+    ? `<div class="box">Gegenstand: <strong>${seiten.length} Raum/Räume</strong> gemäß den folgenden Raumseiten
+       (je Raum Vorher-/Nachher-Bildpaar Auftrag und – soweit angeordnet – Regie). Die Gewährleistungsfrist
+       beginnt RAUMWEISE mit dieser Abnahme.</div>`
+    : ''
+
   drucke({
-    titel: `Abnahmeprotokoll${bericht.abnahmeArt === 'teil' ? ' (Teilabnahme)' : ''}`,
+    titel: `Abnahmeprotokoll${bericht.abnahmeArt === 'teil' || ausgenommen.length ? ' (Teilabnahme)' : ''}`,
     nummer: bericht.nummer || '',
     einst,
     fussExtra: `Ausdruck vom ${new Date().toLocaleDateString('de-DE')}`,
     body: `
       ${beteiligteBlock({ projekt, kunde, datum: bericht.datum, monteur: bericht.mitarbeiterName, datumLabel: 'Abnahmedatum' })}
       ${bericht.ort ? `<div class="box">Ort der Abnahme: <strong>${esc(bericht.ort)}</strong></div>` : ''}
-      <h2>Gegenstand der Abnahme (${bericht.abnahmeArt === 'teil' ? 'Teilabnahme' : 'Gesamtabnahme'})</h2>
+      <h2>Gegenstand der Abnahme (${bericht.abnahmeArt === 'teil' || ausgenommen.length ? 'Teilabnahme' : 'Gesamtabnahme'})</h2>
       <div class="feld">${escBr(bericht.leistungsumfang || 'Vertraglich geschuldete Maler- und Lackierarbeiten gemäß Leistungsverzeichnis.')}</div>
+      ${abnahmeUmfang}
+      ${teilabnahmeBlock}
       <h2>Ergebnis der Abnahme</h2>
       ${ergebnis}
       ${vorbehalte}
@@ -493,10 +609,11 @@ export function druckeAbnahme({ bericht, projekt, kunde, fotos = [], einst = {} 
         Die Abnahme erfolgt gemäß § 12 VOB/B. Mit der Abnahme geht die Gefahr auf den Auftraggeber über
         (§ 12 Abs. 6 VOB/B). Die Verjährungsfrist für Mängelansprüche beträgt
         <strong>${istVob ? '4 Jahre gemäß § 13 Abs. 4 VOB/B' : '5 Jahre gemäß § 634a BGB'}</strong>,
-        beginnt mit der Abnahme am ${datumDe(bericht.datum)}${ende ? ` und endet am <strong>${ende}</strong>` : ''}.
+        beginnt mit der Abnahme am ${datumDe(bericht.datum)}${ende ? ` und endet am <strong>${ende}</strong>` : ''}${seiten.length ? ' (je abgenommenem Raum)' : ''}.
       </div>
       ${zeitstempelZeile(bericht)}
-      ${unterschriftenBlock(bericht, einst)}`,
+      ${unterschriftenBlock(bericht, einst)}
+      ${seiten.map((s) => raumSeite(s, { projekt, bericht })).join('')}`,
   })
 }
 
@@ -606,7 +723,7 @@ export function druckeStundenlistenSammel(blaetter = [], einst = {}) {
   })
 }
 
-function stundenBlatt({ mitarbeiter, tage = [], zeitraum, summe, bemerkungen = '', einst = {} }) {
+function stundenBlatt({ mitarbeiter, tage = [], zeitraum, summe, summeAuftrag = 0, summeRegie = 0, regie = [], bemerkungen = '', einst = {} }) {
   const f = firma(einst)
   const unstimmige = tage.filter((t) => t.unstimmig).length
   const zeilen = tage.map((t) => {
@@ -619,9 +736,34 @@ function stundenBlatt({ mitarbeiter, tage = [], zeitraum, summe, bemerkungen = '
       <td class="r">${esc(t.ende || '')}</td>
       <td class="r">${t.unstimmig ? '<strong>!</strong>' : (t.pauseMin ? esc(String(t.pauseMin)) : '')}</td>
       <td class="r">${t.stunden ? esc(stundenText(t.stunden)) : ''}</td>
+      <td>${esc(t.art || '')}</td>
       <td>${escBr(t.taetigkeit || '')}</td>
     </tr>`
   }).join('')
+
+  // Regieteil (AP 9, Plan 6.4 Punkt 3): NUR hier stehen Satz und Betrag –
+  // er ist Vergütungsnachweis gegenüber dem Auftraggeber. Der Auftragsteil
+  // oben bleibt ohne Satz (Innenkalkulation und Lohnnachweis). Jede Zeile
+  // nennt ihre Anordnung (§ 15 Abs. 3 VOB/B).
+  const regieSummeCent = regie.reduce((s, z) => s + (Number(z.betragCent) || 0), 0)
+  const regieTabelle = regie.length ? `
+      <h2>Regiestunden (Vergütungsnachweis, § 15 Abs. 3 VOB/B)</h2>
+      <table>
+        <thead><tr>
+          <th>Datum</th><th class="r">Std.</th><th class="r">Satz</th><th class="r">Betrag</th><th>Anordnung</th>
+        </tr></thead>
+        <tbody>
+        ${regie.map((z) => `<tr>
+          <td>${datumDe(z.datum)}</td>
+          <td class="r">${esc(stundenText(z.stunden))}</td>
+          <td class="r">${euro((Number(z.satzCent) || 0) / 100)}</td>
+          <td class="r">${euro((Number(z.betragCent) || 0) / 100)}</td>
+          <td>${esc(z.anordnung || '–')}</td>
+        </tr>`).join('')}
+        <tr class="summe"><td>Summe Regie</td><td class="r">${esc(stundenText(summeRegie))}</td><td></td>
+          <td class="r">${euro(regieSummeCent / 100)}</td><td></td></tr>
+        </tbody>
+      </table>` : ''
 
   return `
       <h2>Kopfdaten</h2>
@@ -655,15 +797,15 @@ function stundenBlatt({ mitarbeiter, tage = [], zeitraum, summe, bemerkungen = '
         <thead>
           <tr>
             <th>Tag</th><th>Datum</th><th class="r">Beginn</th><th class="r">Ende</th>
-            <th class="r">Pause (Min.)</th><th class="r">Stunden</th><th>Tätigkeit / Baustelle</th>
+            <th class="r">Pause (Min.)</th><th class="r">Stunden</th><th>Art</th><th>Tätigkeit / Baustelle</th>
           </tr>
         </thead>
         <tbody>${zeilen}</tbody>
         <tfoot>
           <tr class="summe">
-            <td colspan="5">Gesamtstunden im Zeitraum</td>
+            <td colspan="5">Auftrag ${esc(stundenText(summeAuftrag))} h · Regie ${esc(stundenText(summeRegie))} h · gesamt</td>
             <td class="r">${esc(stundenText(summe))}</td>
-            <td></td>
+            <td colspan="2"></td>
           </tr>
         </tfoot>
       </table>
@@ -673,14 +815,17 @@ function stundenBlatt({ mitarbeiter, tage = [], zeitraum, summe, bemerkungen = '
         Stunden gemeldet, als zwischen Beginn und Ende liegen. Solange das nicht geklärt ist,
         trägt dieses Blatt für diese Tage keinen Nachweis.
       </div>` : ''}
+      ${regieTabelle}
 
       <h2>Summe &amp; Bemerkungen</h2>
       <div class="feld">${escBr(bemerkungen || '')}</div>
 
       <div class="box recht">
-        Grundlage sind die im System erfassten Stundennachweise (Regieberichte gemäß
-        § 15 Abs. 3 VOB/B). Die Pausenzeit ergibt sich aus der Differenz zwischen
-        Anwesenheit und gemeldeter Arbeitszeit.
+        Grundlage ist die im System geführte Stundensammlung je Person und Tag
+        (§ 15 Abs. 3 VOB/B) – Auftrags- und Regiestunden getrennt ausgewiesen.
+        Der Auftragsteil dient als Lohnnachweis (ohne Satz); der Regieteil ist
+        Vergütungsnachweis mit Anordnung. Die Pausenzeit ergibt sich aus der
+        Differenz zwischen Anwesenheit und gemeldeter Arbeitszeit.
       </div>
 
       <div class="unterschriften">
