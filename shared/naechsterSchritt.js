@@ -50,12 +50,15 @@ function tageSeitZahl(ms) {
 // ---------------------------------------------------------------- Büro
 
 export function schritteBuero({
-  projekte = [], lvpositionen = [], berichte = [], appointments = [],
+  projekte = [], lvpositionen = [], berichte: berichteRoh = [], appointments = [],
   requests = [], users = [], rechnungen = [], spesen = [], leistungen = [],
   raeume = [],
 } = {}) {
   const raus = []
   const heute = heuteISO()
+  // Harter Filter (Vorgabe des Inhabers): freie Regieberichte (frei: true)
+  // sind eigenständige Papiere – sie erzeugen keine Leitstand-Zeilen.
+  const berichte = berichteRoh.filter((b) => b.frei !== true)
 
   // 1. Neue Anfragen von der Webseite – jeder Tag ohne Antwort kostet den Auftrag
   const neue = requests.filter((r) => r.status === 'neu')
@@ -478,9 +481,11 @@ export function schritteLeitstand({
 
 // ---------------------------------------------------------------- Monteur
 
-export function schritteMonteur({ appointments = [], berichte = [], projekte = [], user = null } = {}) {
+export function schritteMonteur({ appointments = [], berichte: berichteRoh = [], projekte = [], user = null } = {}) {
   const raus = []
   const heute = heuteISO()
+  // Freie Regieberichte (frei: true) sind Büro-Papiere – für den Monteur unsichtbar.
+  const berichte = berichteRoh.filter((b) => b.frei !== true)
   const meine = appointments.filter((a) => (a.mitarbeiterIds || []).includes(user?.userId))
 
   // 1. Heutiger Einsatz – die eine Sache, die jetzt zählt

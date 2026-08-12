@@ -111,7 +111,8 @@ export default function Dashboard() {
       const geleistet = pos.reduce((s, x) => s + (x.istMenge || 0) * (x.einheitspreis || 0), 0)
       const abgerechnet = pos.reduce((s, x) => s + (x.abgerechnetMenge || 0) * (x.einheitspreis || 0), 0)
 
-      const regie = berichte.filter((b) => b.projektId === p.id && b.typ === 'regie' && ['freigegeben', 'abgerechnet'].includes(b.status))
+      // Harter Filter: freie Regieberichte (frei: true) zählen in KEINE Kennzahl.
+      const regie = berichte.filter((b) => b.frei !== true && b.projektId === p.id && b.typ === 'regie' && ['freigegeben', 'abgerechnet'].includes(b.status))
       const regieErloes = regie.reduce((s, b) =>
         s + (b.stunden || []).reduce((x, z) => x + (z.anzahl || 0) * (z.satz || 0), 0)
           + (b.material || []).reduce((x, m) => x + (m.menge || 0) * (m.preis || 0), 0), 0)

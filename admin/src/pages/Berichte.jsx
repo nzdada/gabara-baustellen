@@ -12,7 +12,7 @@ import SpesenForm from '../components/SpesenForm.jsx'
 import Modal from '../components/Modal.jsx'
 import * as S from '../stil.js'
 import { Seitenkopf, Leer, ChipReihe, Segment, Meldung } from '../components/Seite.jsx'
-import { druckeRegiebericht, druckeAbnahme } from '../drucken.js'
+import { druckeRegiebericht, druckeAbnahme, druckeRegieFrei } from '../drucken.js'
 
 // Berichte-Eingang: alle Regieberichte/Reklamationen/Abnahmen + Spesen.
 // Manuelle Erfassung im Büro (Übergang bis zur Flutter-App), Freigabe, PDF-Druck.
@@ -38,6 +38,8 @@ const STATUS = {
   freigegeben: { schluessel: 'status.freigegeben', farbe: 'bg-emerald-100 text-emerald-700' },
   abgerechnet: { schluessel: 'status.abgerechnet', farbe: 'bg-violet-100 text-violet-700' },
   erstattet: { schluessel: 'status.erstattet', farbe: 'bg-violet-100 text-violet-700' },
+  // Freie Regieberichte (frei: true) kennen nur entwurf | abgeschlossen.
+  abgeschlossen: { schluessel: 'status.abgeschlossen', farbe: 'bg-emerald-100 text-emerald-700' },
 }
 
 const SPESEN_TYP = { fahrt: 'spesen.fahrt', hotel: 'spesen.hotel', sonstig: 'spesen.sonstig' }
@@ -75,6 +77,11 @@ export default function Berichte({ user }) {
     const fotos = await withStore((s) => (s.listWhere
       ? s.listWhere('photos', 'berichtId', b.id)
       : s.list('photos').then((alle) => alle.filter((p) => p.berichtId === b.id))))
+    // Freie Regieberichte (ohne Projektbindung) haben ihr eigenes PDF.
+    if (b.frei === true) {
+      druckeRegieFrei({ bericht: b, fotos, einst })
+      return
+    }
     if (b.typ === 'abnahme') {
       // AP 9: die Raumseiten (beide Bildpaare je Raum) bauen sich aus dem
       // Bestand – Räume, Aufgaben, V2-Fotometadaten, Vorschaubilder,
@@ -299,11 +306,18 @@ export default function Berichte({ user }) {
               <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${TYP[b.typ]?.farbe || 'bg-gedeckt-tief'}`}>
                 {TYP[b.typ] ? t(TYP[b.typ].schluessel) : b.typ}
               </span>
+              {/* Freie Regieberichte (frei: true) haben KEIN Projekt – sie
+                  tragen das Kennzeichen „frei" und führen zur eigenen Seite. */}
+              {b.frei === true && (
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">{t('rf.kennzeichen')}</span>
+              )}
               <button
-                onClick={() => navigate(`/projekte/${b.projektId}`)}
+                onClick={() => navigate(b.frei === true ? '/regie-frei' : `/projekte/${b.projektId}`)}
                 className="flex-1 min-w-[200px] text-left"
               >
-                <p className="font-semibold text-schrift-stark truncate">{projektVon(b.projektId)?.name || '–'}</p>
+                <p className="font-semibold text-schrift-stark truncate">
+                  {b.frei === true ? (b.baustelleFrei?.name || t('nav.regieFrei')) : (projektVon(b.projektId)?.name || '–')}
+                </p>
                 <p className="text-sm text-schrift-leise truncate">
                   {b.datum ? datumLok(b.datum, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '–'} · {b.mitarbeiterName || '–'}
                   {b.beschreibung ? ` · ${b.beschreibung}` : ''}
@@ -316,7 +330,11 @@ export default function Berichte({ user }) {
                 {b.status === 'eingereicht' && (
                   <button onClick={() => freigeben(b)} className="px-3 py-1.5 rounded-feld bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700">{t('berichte.freigeben')}</button>
                 )}
-                {['entwurf', 'eingereicht'].includes(b.status) ? (
+                {/* Freie Regieberichte werden NUR auf ihrer eigenen Seite
+                    bearbeitet – das Projekt-Formular würde an projektId:'' brechen. */}
+                {b.frei === true ? (
+                  <button onClick={() => navigate('/regie-frei')} className="px-3 py-1.5 rounded-feld bg-gedeckt-tief text-schrift text-xs font-medium">{t('allg.ansehen')}</button>
+                ) : ['entwurf', 'eingereicht'].includes(b.status) ? (
                   <button onClick={() => setBearbeite(b)} className="px-3 py-1.5 rounded-feld bg-gedeckt-tief text-schrift text-xs font-medium hover:bg-gedeckt-tief">{t('allg.bearbeiten')}</button>
                 ) : (
                   <button onClick={() => setBearbeite(b)} className="px-3 py-1.5 rounded-feld bg-gedeckt text-schrift-zart text-xs font-medium" title={t('berichte.nurAnsicht')}>{t('allg.ansehen')}</button>

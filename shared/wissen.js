@@ -420,6 +420,37 @@ export const WISSEN = [
           } },
         ],
       },
+      {
+        id: 'freie-regie',
+        frage: { de: 'Was ist ein freier Regiebericht („Freie Regie") und wann nutze ich ihn?', ar: 'ما هو تقرير الساعات الحر («تقرير حر») ومتى أستخدمه؟' },
+        zu: '/regie-frei',
+        antwort: [
+          { p: {
+            de: 'Manchmal wird gearbeitet, ohne dass die Baustelle je als Projekt angelegt wurde – eine kurze Aushilfe für einen anderen Betrieb, eine Kleinbaustelle, Zusatzarbeiten außerhalb jedes Auftrags. Dafür gibt es die Seite „Freie Regie": ein Regiebericht, bei dem Baustelle, Ort und Auftraggeber als Freitext eingetragen werden. Es braucht kein Projekt, kein LV und keine Termine.',
+            ar: 'أحيانًا يُنفَّذ عمل دون أن تكون الورشة مسجلة كمشروع – مساعدة قصيرة لشركة أخرى، ورشة صغيرة، أو أعمال إضافية خارج أي عقد. لهذا توجد صفحة «تقرير حر»: تقرير ساعات تُكتب فيه ورشة البناء والمكان وصاحب العمل كنص حر. لا يحتاج مشروعًا ولا جدول كميات ولا مواعيد.',
+          } },
+          { achtung: {
+            de: 'Der freie Regiebericht erzeugt AUSSCHLIESSLICH ein PDF. Er geht in keine Gesamtabrechnung ein: nicht in den Rechnungs-Assistenten, nicht in die Abrechnung, nicht in Kennzahlen und nicht in die Stundenzettel. Er ist ein eigenständiges Papier, das der Auftraggeber direkt unterschreibt.',
+            ar: 'التقرير الحر يُنتج ملف PDF فقط. لا يدخل في أي فوترة إجمالية: لا في مساعد الفواتير ولا في الفوترة ولا في المؤشرات ولا في كشوف الساعات. إنه وثيقة مستقلة يوقّعها صاحب العمل مباشرة.',
+          } },
+          { schritte: [
+            { de: 'Verwaltung → Freie Regie → „Neuer freier Regiebericht".', ar: 'الإدارة ← تقرير حر ← «تقرير ساعات حر جديد».' },
+            { de: 'Baustelle/Objekt, Ort und Auftraggeber als Freitext eintragen, dazu den Leistungszeitraum von–bis (Pflicht).', ar: 'أدخل ورشة البناء/المبنى والمكان وصاحب العمل كنص حر، مع فترة التنفيذ من–إلى (إلزامي).' },
+            { de: 'Arbeiten beschreiben und – wenn möglich – die Anordnung festhalten (durch wen, am, mündlich/schriftlich/Mail). Ohne Anordnung ist die Vergütung angreifbar (§ 2 Abs. 8 VOB/B), gesperrt wird deshalb aber nichts.', ar: 'صف الأعمال ووثّق – إن أمكن – أمر التنفيذ (من، متى، شفهيًا/كتابيًا/بريدًا). بدون أمر يصبح الأجر عرضة للطعن (§ 2 فقرة 8 VOB/B)، لكن لا شيء يُقفل بسبب ذلك.' },
+            { de: 'Stunden als Zeilen: Name (Freitext, mit Vorschlägen aus den Mitarbeitern), Qualifikation, Tage, Std./Tag und Lohn €/Std – der Lohn ist aus Einstellungen → Sätze vorbelegt und je Zeile änderbar.', ar: 'الساعات كأسطر: الاسم (نص حر مع اقتراحات من قائمة الموظفين)، المؤهل، الأيام، ساعات/اليوم والأجر €/ساعة – الأجر معبّأ من الإعدادات ← الأسعار وقابل للتعديل في كل سطر.' },
+            { de: 'Fotos in beliebiger Zahl hochladen (Mehrfachauswahl, keine Vorher/Nachher-Pflicht).', ar: 'ارفع أي عدد من الصور (اختيار متعدد، دون إلزام بصور قبل/بعد).' },
+            { de: 'Vor Ort am Handy unterschreiben lassen: Auftraggeber/Bauleitung mit Name und Funktion, Auftragnehmer optional. Dann „Abschließen" und das PDF drucken.', ar: 'اجمع التوقيع في الموقع على الهاتف: صاحب العمل/إدارة الموقع مع الاسم والوظيفة، والمقاول اختياري. ثم «إنهاء» واطبع ملف PDF.' },
+          ] },
+          { p: {
+            de: 'Beispiel aus dem Betrieb: „Spachtelarbeiten, Ecken-Verbesserungen – 4 Tage, 2 Facharbeiter + 1 Helfer." Das sind drei Stunden-Zeilen: zwei Facharbeiter-Zeilen und eine Helfer-Zeile, jede mit 4 Tagen × 8 Std./Tag × ihrem Lohn. Die Gesamtsumme rechnet die Seite selbst.',
+            ar: 'مثال من العمل: «أعمال معجون وتحسين زوايا – 4 أيام، عاملان ماهران + مساعد.» هذه ثلاثة أسطر ساعات: سطران لعاملين ماهرين وسطر لمساعد، كل منها 4 أيام × 8 ساعات/يوم × أجره. والمجموع تحسبه الصفحة تلقائيًا.',
+          } },
+          { merke: {
+            de: 'Die Unterschriften überleben die Entwurfssicherung: Geht das Handy mitten im Ausfüllen aus, sind Eingaben UND Unterschriften nach dem Neuöffnen wiederherstellbar. Ohne Unterschrift druckt das PDF leere Unterschriftslinien – dann wird klassisch auf Papier unterschrieben.',
+            ar: 'التواقيع تنجو مع حفظ المسودة: إذا انطفأ الهاتف أثناء التعبئة، يمكن استعادة الإدخالات والتواقيع بعد إعادة الفتح. وبدون توقيع يطبع PDF خطوط توقيع فارغة – فيُوقَّع حينها على الورق كالمعتاد.',
+          } },
+        ],
+      },
     ],
   },
 

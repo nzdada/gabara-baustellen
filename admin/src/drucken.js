@@ -1110,3 +1110,115 @@ export function druckeAbschluss({ projekt, kunde, raeume = [], positionen = [], 
       </div>`,
   })
 }
+
+// ---------- Freier Regiebericht (ohne Projektbindung) ----------
+//
+// Ausdrücklicher Wunsch des Inhabers: ein eigenständiges Papier, das NUR als
+// PDF existiert und in keine Gesamtabrechnung eingeht (bericht.frei === true).
+// Baustelle und Auftraggeber sind FREITEXT (bericht.baustelleFrei), die
+// Stunden stehen als Tage × Std/Tag × Lohn je Person. PDF bleibt deutsch –
+// Empfänger sind Auftraggeber und ggf. Gericht. esc() auf jeder Nutzereingabe.
+export function druckeRegieFrei({ bericht, fotos = [], einst = {} }) {
+  const b = bericht || {}
+  const frei = b.baustelleFrei || {}
+  const stunden = b.stunden || []
+  const zahl = (wert) => (Number(wert) || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 })
+  const summe = stunden.reduce((s, z) => s + (Number(z.tage) || 0) * (Number(z.stdProTag) || 0) * (Number(z.satz) || 0), 0)
+
+  // 2 Beteiligte: Auftraggeber (Freitext) | Baustelle (Freitext) + Zeitraum
+  const beteiligte = `<div class="spalten">
+    <div class="block">
+      <h3>Auftraggeber</h3>
+      <strong>${esc(frei.auftraggeber || '–')}</strong>
+    </div>
+    <div class="block">
+      <h3>Baustelle / Objekt</h3>
+      <strong>${esc(frei.name || '–')}</strong>
+      ${zeile('Ort', esc(frei.ort || '–'))}
+      ${zeile('Leistungszeitraum', `<strong>${datumDe(b.zeitraumVon)} – ${datumDe(b.zeitraumBis)}</strong>`)}
+      ${zeile('Berichtsdatum', datumDe(b.datum))}
+      ${zeile('Erstellt von', esc(b.mitarbeiterName || '–'))}
+    </div>
+  </div>`
+
+  // Anordnung der Stundenlohnarbeiten – wenn erfasst (§ 15 Abs. 3 VOB/B).
+  // Fehlt sie, wird das im Formular gelb angemahnt (§ 2 Abs. 8 VOB/B),
+  // gedruckt wird dann schlicht nichts.
+  const anordnung = b.anordnung?.durch
+    ? `<div class="box">Die Stundenlohnarbeiten wurden${b.anordnung.am ? ` am <strong>${datumDe(b.anordnung.am)}</strong>` : ''}
+       durch <strong>${esc(b.anordnung.durch)}</strong>
+       ${b.anordnung.art === 'schriftlich' ? 'schriftlich' : b.anordnung.art === 'mail' ? 'per E-Mail' : 'mündlich vor Ort'}
+       angeordnet bzw. angezeigt – <strong>§ 15 Abs. 3 VOB/B</strong>.</div>`
+    : ''
+
+  // Stundentabelle: Name · Qualifikation · Tage · Std/Tag · Stunden · Lohn · Betrag
+  const stundenTabelle = stunden.length ? `<h2>Arbeitszeiten</h2><table>
+    <thead><tr>
+      <th>Name</th><th>Qualifikation</th><th class="r">Tage</th><th class="r">Std./Tag</th>
+      <th class="r">Stunden</th><th class="r">Lohn €/Std.</th><th class="r">Betrag</th>
+    </tr></thead>
+    <tbody>
+    ${stunden.map((z) => {
+      const gesamtStd = (Number(z.tage) || 0) * (Number(z.stdProTag) || 0)
+      return `<tr>
+        <td>${esc(z.name || '–')}</td>
+        <td>${z.qualifikation === 'helfer' ? 'Helfer / Azubi' : 'Facharbeiter Malerhandwerk'}</td>
+        <td class="r">${zahl(z.tage)}</td>
+        <td class="r">${zahl(z.stdProTag)}</td>
+        <td class="r">${zahl(gesamtStd)}</td>
+        <td class="r">${euro(z.satz)}</td>
+        <td class="r">${euro(gesamtStd * (Number(z.satz) || 0))}</td>
+      </tr>`
+    }).join('')}
+    <tr class="summe"><td colspan="6">Gesamtsumme Arbeitszeit (netto)</td><td class="r">${euro(summe)}</td></tr>
+    </tbody>
+  </table>
+  <div class="gesamt">Gesamtsumme netto: ${euro(summe)}</div>` : ''
+
+  // ALLE Fotos als Galerie (3 je Reihe), Aufnahmedatum nur wenn vorhanden
+  const galerie = fotos.length ? `<h2>Fotodokumentation (${fotos.length})</h2>
+    <div class="gitter">
+      ${fotos.map((f) => `<figure>
+        <img src="${esc(f.dataUrl)}" alt="">
+        <figcaption>${f.createdAt ? zeitpunktDe(f.createdAt) : ''}${f.von ? `${f.createdAt ? '<br>' : ''}erfasst von ${esc(f.von)}` : ''}</figcaption>
+      </figure>`).join('')}
+    </div>` : ''
+
+  // Anerkennungsfiktion (§ 15 Abs. 3 VOB/B: 6 Werktage)
+  const fiktion = `<div class="box recht"><strong>Rechtlicher Hinweis:</strong> Einwendungen gegen diesen Stundenlohnnachweis
+    sind innerhalb von <strong>6 Werktagen</strong> nach Zugang geltend zu machen; andernfalls gilt der
+    Nachweis gemäß § 15 Abs. 3 VOB/B als anerkannt.</div>`
+
+  // Zwei Unterschriftszeilen. Mit Unterschrift: Bild + Klarname + Funktion +
+  // Datum. Ohne Unterschrift: leere Linien (wird auf Papier unterschrieben).
+  const unterschriftFeld = (art, bild, klar, rolle) => `<div>
+    <div class="art">${esc(art)}</div>
+    <div class="flaeche">${bild ? `<img src="${esc(bild)}" alt="">` : ''}</div>
+    <div class="linie">
+      <div class="klar">${klar ? esc(klar) : '&nbsp;'}</div>
+      <div class="rolle">${rolle ? esc(rolle) : 'Name in Klarschrift'}</div>
+      <div class="rolle">Datum: ${bild ? datumDe(b.datum) : ''}</div>
+    </div>
+  </div>`
+
+  drucke({
+    titel: 'Freier Regiebericht / Stundenlohnzettel',
+    nummer: '',
+    einst,
+    fussExtra: `Ausdruck vom ${new Date().toLocaleDateString('de-DE')}`,
+    body: `
+      ${beteiligte}
+      ${anordnung}
+      <h2>Ausgeführte Arbeiten</h2>
+      <div class="feld">${escBr(b.beschreibung || '–')}</div>
+      ${stundenTabelle}
+      ${galerie}
+      ${fiktion}
+      <p class="meta" style="margin-top:6px">Erfasst am ${zeitpunktDe(b.createdAt)}${
+        b.abgeschlossenAm ? ` · abgeschlossen am ${zeitpunktDe(b.abgeschlossenAm)}` : ''}</p>
+      <div class="unterschriften">
+        ${unterschriftFeld('Auftraggeber / Bauleitung', b.unterschriftKunde, b.unterschriftName, b.unterschriftFunktion)}
+        ${unterschriftFeld('Auftragnehmer', b.unterschriftMonteur, b.unterschriftMonteurName || b.mitarbeiterName || '', firma(einst).name)}
+      </div>`,
+  })
+}

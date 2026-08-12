@@ -15,6 +15,7 @@ import Kalender from './pages/Kalender.jsx'
 import Termine from './pages/Termine.jsx'
 import Kunden from './pages/Kunden.jsx'
 import Berichte from './pages/Berichte.jsx'
+import RegieFrei from './pages/RegieFrei.jsx'
 import Freigabe from './pages/Freigabe.jsx'
 import Fotoampel from './pages/Fotoampel.jsx'
 import Anfragen from './pages/Anfragen.jsx'
@@ -34,6 +35,7 @@ const NAV = [
   { to: '/projekte', schluessel: 'nav.projekte', icon: 'folder' },
   { to: '/termine', schluessel: 'nav.termine', icon: 'list' },
   { to: '/berichte', schluessel: 'nav.berichte', icon: 'bericht' },
+  { to: '/regie-frei', schluessel: 'nav.regieFrei', icon: 'regie' },
   { to: '/freigabe', schluessel: 'nav.freigabe', icon: 'check' },
   { to: '/fotoampel', schluessel: 'nav.fotoampel', icon: 'foto' },
   { to: '/kunden', schluessel: 'nav.kunden', icon: 'firma' },
@@ -334,6 +336,7 @@ export default function App() {
         <Route path="/termine" element={<Termine user={user} />} />
         <Route path="/kunden" element={<Kunden />} />
         <Route path="/berichte" element={<Berichte user={user} />} />
+        <Route path="/regie-frei" element={<RegieFrei user={user} />} />
         <Route path="/freigabe" element={<Freigabe user={user} />} />
         <Route path="/fotoampel" element={<Fotoampel />} />
         <Route path="/anfragen" element={<Anfragen user={user} />} />

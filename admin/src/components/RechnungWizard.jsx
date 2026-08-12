@@ -63,6 +63,9 @@ export default function RechnungWizard({ onClose, projektIdVorbelegt = '' }) {
     .filter((p) => rund(Math.max(p.menge || 0, p.istMenge || 0) - (p.abgerechnetMenge || 0)) > 0)
     .sort((a, b) => (a.sort || 0) - (b.sort || 0)), [lvAlle, projektId])
   const regieFrei = useMemo(() => berichteAlle
+    // Harter Filter (Vorgabe des Inhabers): FREIE Regieberichte (frei: true,
+    // ohne Projektbindung) gehen NIE in eine Rechnung – sie sind nur PDF.
+    .filter((b) => b.frei !== true)
     .filter((b) => b.projektId === projektId && b.typ === 'regie' && b.status === 'freigegeben'), [berichteAlle, projektId])
   const spesenOffen = useMemo(() => spesenAlle
     .filter((s) => s.projektId === projektId && s.status === 'eingereicht'), [spesenAlle, projektId])
