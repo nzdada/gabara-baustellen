@@ -8,7 +8,7 @@ import {
   einsatzFuerTag, aufgabenZumEinsatz, istLetzterOffenerSchritt, zeichenFuer,
   vorherFehlt, tagesgruppen, summeM2, laeuftBauen, wartetBauen, weiterBauen,
   stundenId, minutenVon, zeitText, stundenAus, taetigkeitAusAufgaben,
-  stundenZeile, isoVonMs,
+  stundenZeile, isoVonMs, REGIE_BAUSTEINE,
 } from '../shared/monteurtag.js'
 
 const faelle = []
@@ -133,6 +133,18 @@ p('Stunden', 'satzCent als GANZZAHL-Schnappschuss', zeile.satzCent, 2800)
 p('Stunden', 'stundenGesamt gerechnet', zeile.stundenGesamt, 8.5)
 p('Stunden', 'zuletzt geändert sichtbar', [zeile.zuletztGeaendertVon, zeile.zuletztGeaendertAm], ['Walid', 444])
 p('Stunden', 'Status startet als erfasst', zeile.status, 'erfasst')
+
+// ---------------------------------------------------------------- Regie-Bausteine
+// Der de-Text wird Titel der Anordnung und landet auf Stundenzettel und
+// Regiebericht – jede Zeile braucht Kennung + BEIDE Sprachen, Kennungen
+// eindeutig (Entwurfs-Wiederherstellung sucht per find über die id).
+p('Bausteine', 'Kennungen eindeutig',
+  new Set(REGIE_BAUSTEINE.map((b) => b.id)).size, REGIE_BAUSTEINE.length)
+p('Bausteine', 'jede Zeile hat id, de und ar',
+  REGIE_BAUSTEINE.every((b) => Boolean(b.id && String(b.de || '').trim() && String(b.ar || '').trim())), true)
+p('Bausteine', 'Nachtrag R2/R4/R5/R6/R9 vorhanden',
+  ['silikon', 'acryllack', 'heizkoerper', 'fugensanierung', 'stromdeckel']
+    .every((id) => REGIE_BAUSTEINE.some((b) => b.id === id)), true)
 
 // ---------------------------------------------------------------- Ausgabe
 const kaputt = faelle.filter((f) => !f.ok)

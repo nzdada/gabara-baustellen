@@ -892,6 +892,29 @@ export const WISSEN = [
           } },
         ],
       },
+      {
+        id: 'regie-bausteine',
+        frage: { de: 'Welche Regie-Bausteine gibt es – und wann Freitext?', ar: 'ما العبارات الجاهزة للعمل الإضافي – ومتى النص الحر؟' },
+        zu: '/monteur',
+        antwort: [
+          { p: {
+            de: 'Bei „Regie melden“, Schritt 2 (WAS?), stehen fertige Bausteine bereit. Der angetippte Baustein wird der Titel der Anordnung und landet später wörtlich auf Stundenzettel und Regiebericht – deshalb ist er einem Freitext immer vorzuziehen.',
+            ar: 'في «الإبلاغ عن عمل إضافي»، الخطوة 2 (ماذا؟)، توجد عبارات جاهزة. العبارة المختارة تصبح عنوان الأمر وتظهر لاحقًا حرفيًا على كشف الساعات وتقرير العمل – لذلك هي دائمًا أفضل من النص الحر.',
+          } },
+          { p: {
+            de: 'Neben den sechs Malerbausteinen (Altanstrich, Spachteln, Abdecken, Kleinreparatur, 3. Anstrich, Baustelle räumen) gibt es fünf weitere: Silikonarbeiten Bad/Sanitär · Türen/Zargen mit Acrylfugen und Lackierung · Heizkörper reinigen und lackieren · Fugensanierung · Stromdeckel montieren.',
+            ar: 'إلى جانب عبارات الدهان الست (إزالة الطلاء القديم، المعجنة، التغطية، الإصلاحات الصغيرة، الطبقة الثالثة، إخلاء الموقع) توجد خمس عبارات أخرى: أعمال السيليكون للحمّام/الصحية · الأبواب والإطارات بفواصل أكريليك وطلاء · تنظيف المدافئ وطلاؤها · تجديد الفواصل · تركيب أغطية الكهرباء.',
+          } },
+          { merke: {
+            de: '„Heizkörper reinigen und lackieren“ ist ABSICHTLICH ein Baustein: Die Reinigung gehört als Vor- und Nacharbeit zur Lackierung. Getrennt gemeldet sähe sie wie eine Doppelabrechnung der vertraglichen Reinigungsposition aus.',
+            ar: '«تنظيف المدافئ وطلاؤها» عبارة واحدة عمدًا: التنظيف جزء تحضيري وختامي من الطلاء. لو أُبلغ عنه منفصلًا لبدا كمحاسبة مزدوجة لبند التنظيف التعاقدي.',
+          } },
+          { p: {
+            de: 'Der Freitext bleibt für das, was kein Baustein sagt: der BEZUG der Arbeit. Ohne Stückzahlen ist die Raumnummer der Leistungsnachweis – also z. B. „Mangelprotokoll vom 30.06., Räume 1.14 / 1.15“ dazuschreiben. Das kostet nichts und macht den Bericht prüfbar.',
+            ar: 'يبقى النص الحر لما لا تقوله العبارة الجاهزة: مرجع العمل. بدون أعداد قطع يكون رقم الغرفة هو إثبات الإنجاز – فاكتب مثلًا «محضر العيوب بتاريخ 30.06، الغرف 1.14 / 1.15». هذا لا يكلف شيئًا ويجعل التقرير قابلًا للتدقيق.',
+          } },
+        ],
+      },
     ],
   },
 

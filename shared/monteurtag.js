@@ -54,6 +54,15 @@ export const REGIE_BAUSTEINE = [
   { id: 'kleinreparatur', de: 'Kleinreparaturen am Untergrund', ar: 'إصلاحات صغيرة في السطح' },
   { id: 'zusatzanstrich', de: 'Zusätzlicher Anstrich (3. Gang)', ar: 'طلاء إضافي (طبقة ثالثة)' },
   { id: 'reinigung', de: 'Baustelle räumen und reinigen', ar: 'إخلاء موقع العمل وتنظيفه' },
+  // Nachtrag 13.08.2026 (docs/regie-taetigkeiten.md, Abschnitt 11): fuenf
+  // Taetigkeiten, die bislang nur als Freitext gingen (R2/R4/R5/R6/R9).
+  // Heizkoerper BEWUSST als EIN Baustein reinigen+lackieren – getrennt saehe
+  // die Reinigung wie eine Doppelabrechnung der Vertragsposition aus (8a).
+  { id: 'silikon', de: 'Silikonarbeiten Bad/Sanitär', ar: 'أعمال السيليكون (حمّام/صحّية)' },
+  { id: 'acryllack', de: 'Türen/Zargen: Acrylfugen und Lackierung', ar: 'الأبواب والإطارات: فواصل أكريليك وطلاء' },
+  { id: 'heizkoerper', de: 'Heizkörper reinigen und lackieren', ar: 'تنظيف المدافئ وطلاؤها' },
+  { id: 'fugensanierung', de: 'Fugensanierung (Fugen erneuern)', ar: 'تجديد الفواصل (ترميم الفواصل)' },
+  { id: 'stromdeckel', de: 'Stromdeckel/Abdeckungen montieren', ar: 'تركيب أغطية الكهرباء والمآخذ' },
 ]
 
 const FERTIG_STATUS = new Set(['fertig', 'abgerechnet'])
