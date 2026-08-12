@@ -62,9 +62,14 @@ service cloud.firestore {
     function nurFelder(felder) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(felder);
     }
-    // Berichte mit diesem Status sind Beweismittel und dürfen sich nicht mehr ändern
+    // Berichte mit diesem Status sind Beweismittel und dürfen sich nicht mehr ändern.
+    // 'abgeschlossen' ist der Endstatus des FREIEN Regieberichts (RegieFrei.jsx):
+    // vom Auftraggeber unterschrieben (§ 15 Abs. 3 VOB/B) – ohne den Eintrag hier
+    // könnte ein zweiter offener Tab den unterschriebenen Bericht per setDoc-Upsert
+    // überschreiben und auf 'entwurf' zurücksetzen.
     function gesperrterStatus(status) {
-      return status == 'freigegeben' || status == 'abgerechnet' || status == 'erstattet';
+      return status == 'freigegeben' || status == 'abgerechnet'
+        || status == 'erstattet' || status == 'abgeschlossen';
     }
 
     // Anfragen von der öffentlichen Gabara-Webseite:

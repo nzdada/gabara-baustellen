@@ -1144,10 +1144,18 @@ export function druckeRegieFrei({ bericht, fotos = [], einst = {} }) {
   // Anordnung der Stundenlohnarbeiten – wenn erfasst (§ 15 Abs. 3 VOB/B).
   // Fehlt sie, wird das im Formular gelb angemahnt (§ 2 Abs. 8 VOB/B),
   // gedruckt wird dann schlicht nichts.
+  // Die ART der Anordnung nur drucken, wenn sie WIRKLICH gewählt wurde:
+  // das Formular startet mit leerer Auswahl, und ein Fallback auf „mündlich
+  // vor Ort" würde auf einem gerichtstauglichen Papier eine nie eingegebene
+  // Rechtstatsache behaupten. Bei leerer Art fällt der Satzteil weg.
+  const anordnungArt = b.anordnung?.art === 'schriftlich' ? 'schriftlich'
+    : b.anordnung?.art === 'mail' ? 'per E-Mail'
+    : b.anordnung?.art === 'muendlich' ? 'mündlich vor Ort'
+    : ''
   const anordnung = b.anordnung?.durch
     ? `<div class="box">Die Stundenlohnarbeiten wurden${b.anordnung.am ? ` am <strong>${datumDe(b.anordnung.am)}</strong>` : ''}
-       durch <strong>${esc(b.anordnung.durch)}</strong>
-       ${b.anordnung.art === 'schriftlich' ? 'schriftlich' : b.anordnung.art === 'mail' ? 'per E-Mail' : 'mündlich vor Ort'}
+       durch <strong>${esc(b.anordnung.durch)}</strong>${anordnungArt ? `
+       ${anordnungArt}` : ''}
        angeordnet bzw. angezeigt – <strong>§ 15 Abs. 3 VOB/B</strong>.</div>`
     : ''
 

@@ -442,12 +442,16 @@ export const WISSEN = [
             { de: 'Vor Ort am Handy unterschreiben lassen: Auftraggeber/Bauleitung mit Name und Funktion, Auftragnehmer optional. Dann „Abschließen" und das PDF drucken.', ar: 'اجمع التوقيع في الموقع على الهاتف: صاحب العمل/إدارة الموقع مع الاسم والوظيفة، والمقاول اختياري. ثم «إنهاء» واطبع ملف PDF.' },
           ] },
           { p: {
-            de: 'Beispiel aus dem Betrieb: „Spachtelarbeiten, Ecken-Verbesserungen – 4 Tage, 2 Facharbeiter + 1 Helfer." Das sind drei Stunden-Zeilen: zwei Facharbeiter-Zeilen und eine Helfer-Zeile, jede mit 4 Tagen × 8 Std./Tag × ihrem Lohn. Die Gesamtsumme rechnet die Seite selbst.',
-            ar: 'مثال من العمل: «أعمال معجون وتحسين زوايا – 4 أيام، عاملان ماهران + مساعد.» هذه ثلاثة أسطر ساعات: سطران لعاملين ماهرين وسطر لمساعد، كل منها 4 أيام × 8 ساعات/يوم × أجره. والمجموع تحسبه الصفحة تلقائيًا.',
+            de: 'Beispiel aus dem Betrieb: „Spachtelarbeiten, Ecken-Verbesserungen – 4 Tage, 2 Facharbeiter + 1 Helfer." Das sind drei Stunden-Zeilen: zwei Facharbeiter-Zeilen und eine Helfer-Zeile, jede mit 4 Tagen × 8 Std./Tag × ihrem Lohn. Bei 35 €/Std. je Facharbeiter und 31 €/Std. je Helfer ergibt das 1.120 € + 1.120 € + 992 € = 3.232 € netto – die Gesamtsumme rechnet die Seite selbst, jede Zeile zeigt ihre eigene Rechnung.',
+            ar: 'مثال من العمل: «أعمال معجون وتحسين زوايا – 4 أيام، عاملان ماهران + مساعد.» هذه ثلاثة أسطر ساعات: سطران لعاملين ماهرين وسطر لمساعد، كل منها 4 أيام × 8 ساعات/يوم × أجره. بأجر 35 € للساعة للعامل الماهر و31 € للمساعد يكون الناتج 1.120 € + 1.120 € + 992 € = 3.232 € صافي – والمجموع تحسبه الصفحة تلقائيًا، وكل سطر يعرض حسابه الخاص.',
           } },
           { merke: {
             de: 'Die Unterschriften überleben die Entwurfssicherung: Geht das Handy mitten im Ausfüllen aus, sind Eingaben UND Unterschriften nach dem Neuöffnen wiederherstellbar. Ohne Unterschrift druckt das PDF leere Unterschriftslinien – dann wird klassisch auf Papier unterschrieben.',
             ar: 'التواقيع تنجو مع حفظ المسودة: إذا انطفأ الهاتف أثناء التعبئة، يمكن استعادة الإدخالات والتواقيع بعد إعادة الفتح. وبدون توقيع يطبع PDF خطوط توقيع فارغة – فيُوقَّع حينها على الورق كالمعتاد.',
+          } },
+          { achtung: {
+            de: 'Nach „Abschließen" ist der Bericht endgültig gesperrt – auch auf dem Server. Er ist ein unterschriebenes Beweismittel (§ 15 Abs. 3 VOB/B) und lässt sich nur noch ansehen und drucken. Ein zweites Fenster, das den Bericht noch im Bearbeiten-Zustand offen hat, kann ihn nicht mehr überschreiben – es bekommt eine Meldung. Wer noch etwas ändern will, erfasst einen neuen Bericht.',
+            ar: 'بعد «إنهاء» يُقفل التقرير نهائيًا – على الخادم أيضًا. فهو وثيقة إثبات موقّعة (§ 15 فقرة 3 VOB/B) ولا يمكن إلا عرضه وطباعته. ونافذة ثانية ما زالت تفتح التقرير في وضع التحرير لا تستطيع الكتابة فوقه – بل تظهر لها رسالة. ومن أراد تعديل شيء فليُنشئ تقريرًا جديدًا.',
           } },
         ],
       },

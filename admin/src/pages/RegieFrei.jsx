@@ -75,7 +75,10 @@ function RegieFreiForm({ bericht = null, user, onClose }) {
   const draftId = useRef(bericht?.id || lokaleUuid())
   const docAngelegt = useRef(Boolean(bericht))
   const [fotoSchluessel, setFotoSchluessel] = useState(draftId.current)
-  const fotos = useWhere('photos', 'berichtId', fotoSchluessel)
+  // Firestore liefert where()-Treffer in Dokument-ID-Reihenfolge (Zufalls-IDs) –
+  // Galerie und PDF sollen die Aufnahme-/Upload-Reihenfolge zeigen (createdAt).
+  const fotosRoh = useWhere('photos', 'berichtId', fotoSchluessel)
+  const fotos = [...fotosRoh].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
   const fotoRef = useRef(null)
 
   const satzFuer = (qualifikation) => Number(
@@ -214,6 +217,18 @@ function RegieFreiForm({ bericht = null, user, onClose }) {
     }
     setLaeuft(true)
     try {
+      // Schutz gegen zwei offene Tabs/Geräte: ist der Bericht auf dem Server
+      // inzwischen abgeschlossen (unterschrieben – Beweismittel § 15 Abs. 3
+      // VOB/B), darf dieser eingefrorene Formularstand ihn NICHT mehr per
+      // setDoc-Upsert überschreiben. Die Firestore-Regel (gesperrterStatus)
+      // lehnt den Schreibversuch serverseitig ohnehin ab – hier gibt es die
+      // verständliche Meldung dazu. Offline (Frist abgelaufen) wird normal
+      // weitergeschrieben; dann entscheidet die Server-Regel.
+      const aufServer = await mitFrist(withStore((s) => s.get('berichte', draftId.current)))
+      if (aufServer && aufServer.status === 'abgeschlossen') {
+        setFehler(t('rf.bereitsAbgeschlossen'))
+        return
+      }
       const doc = {
         id: draftId.current, typ: 'regie', frei: true, projektId: '',
         mitarbeiterId: bericht?.mitarbeiterId || user?.userId || '',
@@ -547,6 +562,8 @@ export default function RegieFrei({ user }) {
     const fotos = await withStore((s) => (s.listWhere
       ? s.listWhere('photos', 'berichtId', b.id)
       : s.list('photos').then((alle) => alle.filter((p) => p.berichtId === b.id))))
+    // Aufnahme-/Upload-Reihenfolge statt Zufalls-Dokument-IDs (Firestore where())
+    fotos.sort((a, b2) => (a.createdAt || 0) - (b2.createdAt || 0))
     druckeRegieFrei({ bericht: b, fotos, einst })
   }
 
