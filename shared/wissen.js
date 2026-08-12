@@ -450,8 +450,16 @@ export const WISSEN = [
             ar: 'التواقيع تنجو مع حفظ المسودة: إذا انطفأ الهاتف أثناء التعبئة، يمكن استعادة الإدخالات والتواقيع بعد إعادة الفتح. وبدون توقيع يطبع PDF خطوط توقيع فارغة – فيُوقَّع حينها على الورق كالمعتاد.',
           } },
           { achtung: {
-            de: 'Nach „Abschließen" ist der Bericht endgültig gesperrt – auch auf dem Server. Er ist ein unterschriebenes Beweismittel (§ 15 Abs. 3 VOB/B) und lässt sich nur noch ansehen und drucken. Ein zweites Fenster, das den Bericht noch im Bearbeiten-Zustand offen hat, kann ihn nicht mehr überschreiben – es bekommt eine Meldung. Wer noch etwas ändern will, erfasst einen neuen Bericht.',
-            ar: 'بعد «إنهاء» يُقفل التقرير نهائيًا – على الخادم أيضًا. فهو وثيقة إثبات موقّعة (§ 15 فقرة 3 VOB/B) ولا يمكن إلا عرضه وطباعته. ونافذة ثانية ما زالت تفتح التقرير في وضع التحرير لا تستطيع الكتابة فوقه – بل تظهر لها رسالة. ومن أراد تعديل شيء فليُنشئ تقريرًا جديدًا.',
+            de: 'Nach „Abschließen" ist der Bericht endgültig gesperrt – auch auf dem Server. Er ist ein unterschriebenes Beweismittel (§ 15 Abs. 3 VOB/B) und lässt sich nur noch ansehen und drucken. Ein zweites Fenster, das den Bericht noch im Bearbeiten-Zustand offen hat, kann ihn nicht mehr überschreiben – es bekommt eine Meldung. Wer noch etwas ändern will, legt über „Kopieren" eine Kopie an.',
+            ar: 'بعد «إنهاء» يُقفل التقرير نهائيًا – على الخادم أيضًا. فهو وثيقة إثبات موقّعة (§ 15 فقرة 3 VOB/B) ولا يمكن إلا عرضه وطباعته. ونافذة ثانية ما زالت تفتح التقرير في وضع التحرير لا تستطيع الكتابة فوقه – بل تظهر لها رسالة. ومن أراد تعديل شيء فلينشئ نسخة عبر «نسخ».',
+          } },
+          { p: {
+            de: 'Bearbeiten: Solange ein Bericht im Status „Entwurf" ist, öffnet der Knopf „Bearbeiten" in der Liste dasselbe Formular vorbefüllt – Baustelle, Auftraggeber, Zeitraum, Beschreibung, Anordnung, alle Stundenzeilen und die bereits hochgeladenen Fotos sind wieder da, neue Fotos kommen einfach dazu. Speichern aktualisiert denselben Bericht. Bei einem abgeschlossenen Bericht steht statt „Bearbeiten" ein Schloss-Hinweis: unterschrieben – zum Ändern eine Kopie anlegen.',
+            ar: 'التعديل: ما دام التقرير في حالة «مسودة»، يفتح زر «تعديل» في القائمة النموذج نفسه معبّأً مسبقًا – ورشة البناء وصاحب العمل والفترة والوصف وأمر التنفيذ وجميع أسطر الساعات والصور المرفوعة سابقًا كلها موجودة من جديد، والصور الجديدة تُضاف إليها ببساطة. الحفظ يحدّث التقرير نفسه. أما التقرير المُنهى فيظهر مكان «تعديل» تنبيه بقفل: موقّع – لإجراء تغيير أنشئ نسخة.',
+          } },
+          { p: {
+            de: 'Kopieren: Jeder Bericht – auch ein abgeschlossener – hat einen Knopf „Kopieren". Er öffnet das Formular als NEUEN Bericht (Status „Entwurf") mit übernommener Baustelle, Ort, Auftraggeber, Beschreibung, Anordnung und allen Stundenzeilen (Namen, Qualifikation, Tage, Std./Tag, Lohn). Bewusst NICHT übernommen werden die Unterschriften (sie gehören zum Original), die Fotos (sie gehören zur alten Baustelle) und der Leistungszeitraum (neue Daten eintragen) – ein Hinweis im Formular erinnert daran. Das Original bleibt unverändert.',
+            ar: 'النسخ: لكل تقرير – حتى المُنهى – زر «نسخ». يفتح النموذج كتقرير جديد (حالة «مسودة») مع نقل ورشة البناء والمكان وصاحب العمل والوصف وأمر التنفيذ وجميع أسطر الساعات (الاسم، المؤهل، الأيام، ساعات/اليوم، الأجر). عمدًا لا تُنقل التواقيع (فهي تخص الأصل) ولا الصور (فهي تخص الورشة القديمة) ولا فترة التنفيذ (تُدخل تواريخ جديدة) – وتنبيه في النموذج يذكّر بذلك. ويبقى الأصل دون تغيير.',
           } },
         ],
       },

@@ -32,6 +32,21 @@ import { druckeRegieFrei } from '../drucken.js'
 // baustelleFrei{name,ort,auftraggeber}, zeitraumVon, zeitraumBis,
 // beschreibung, anordnung{durch,am,art}, stunden[{name,qualifikation,tage,
 // stdProTag,satz}], status 'entwurf' | 'abgeschlossen'.
+//
+// NACHTRAG (Wunsch des Inhabers): BEARBEITEN & KOPIEREN.
+//  - Bearbeiten: nur im Status 'entwurf' – öffnet dasselbe Formular
+//    vorbefüllt, Speichern aktualisiert DASSELBE Dokument (add = Upsert).
+//    Ein 'abgeschlossen'-Bericht ist unterschrieben und serverseitig
+//    gesperrt (gesperrterStatus in firestore.rules) – in der Liste steht
+//    statt eines Bearbeiten-Knopfs ein Schloss-Hinweis.
+//  - Kopieren: für JEDEN Bericht (auch abgeschlossene) – öffnet das Formular
+//    als NEUEN Bericht (neue ID, Status 'entwurf') mit Baustelle, Ort,
+//    Auftraggeber, Beschreibung, Anordnung und allen Stundenzeilen.
+//    BEWUSST NICHT übernommen: Unterschriften (gehören zum Original),
+//    Fotos (gehören zur alten Baustelle), Leistungszeitraum (wird geleert).
+//  - Entwurfssicherung je Modus mit EIGENEM Schlüssel, damit sich Bearbeiten,
+//    Kopie und Neuanlage nie vermischen: regie-frei:<id> beim Bearbeiten,
+//    regie-frei:kopie:<id> für die Kopie, regie-frei:neu für Neu.
 
 function lokaleUuid() {
   return crypto.randomUUID ? crypto.randomUUID() : `rf-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -63,11 +78,15 @@ function mitFrist(versprechen, ms = 2500) {
 
 // ---------------------------------------------------------------- Formular
 
-function RegieFreiForm({ bericht = null, user, onClose }) {
+function RegieFreiForm({ bericht = null, kopieVon = null, user, onClose }) {
   useLang()
   const users = useCollection('users')
   const einst = useEinstellungen()
   const gesperrt = Boolean(bericht && bericht.status === 'abgeschlossen')
+  // Kopiervorlage: liefert die Startwerte für einen NEUEN Bericht (bericht
+  // bleibt dabei null → neue ID, Status 'entwurf'). Unterschriften, Fotos
+  // und Leistungszeitraum kommen absichtlich NICHT mit (siehe Kopfkommentar).
+  const vorlage = bericht || kopieVon
 
   // Lokale Kennung VOR dem ersten Foto (Eiserne Regel: nie eine
   // Server-Kennung vor einem Foto). Sie wandert in die Entwurfssicherung,
@@ -90,17 +109,19 @@ function RegieFreiForm({ bericht = null, user, onClose }) {
   })
 
   const [daten, setDaten] = useState(() => ({
-    baustelleName: bericht?.baustelleFrei?.name || '',
-    baustelleOrt: bericht?.baustelleFrei?.ort || '',
-    auftraggeber: bericht?.baustelleFrei?.auftraggeber || '',
-    beschreibung: bericht?.beschreibung || '',
-    zeitraumVon: bericht?.zeitraumVon || heuteISO(),
-    zeitraumBis: bericht?.zeitraumBis || heuteISO(),
-    anordnungDurch: bericht?.anordnung?.durch || '',
-    anordnungAm: bericht?.anordnung?.am || '',
-    anordnungArt: bericht?.anordnung?.art || '',
-    stunden: bericht?.stunden?.length
-      ? bericht.stunden.map((z) => ({
+    baustelleName: vorlage?.baustelleFrei?.name || '',
+    baustelleOrt: vorlage?.baustelleFrei?.ort || '',
+    auftraggeber: vorlage?.baustelleFrei?.auftraggeber || '',
+    beschreibung: vorlage?.beschreibung || '',
+    // Kopie: Zeitraum GELEERT (neue Daten eintragen) statt heute vorbelegt –
+    // sonst rutscht der alte Leistungszeitraum unbemerkt ins neue Papier.
+    zeitraumVon: kopieVon ? '' : (bericht?.zeitraumVon || heuteISO()),
+    zeitraumBis: kopieVon ? '' : (bericht?.zeitraumBis || heuteISO()),
+    anordnungDurch: vorlage?.anordnung?.durch || '',
+    anordnungAm: vorlage?.anordnung?.am || '',
+    anordnungArt: vorlage?.anordnung?.art || '',
+    stunden: vorlage?.stunden?.length
+      ? vorlage.stunden.map((z) => ({
           name: z.name || '',
           qualifikation: z.qualifikation === 'helfer' ? 'helfer' : 'facharbeiter',
           tage: String(z.tage ?? ''), stdProTag: String(z.stdProTag ?? ''), satz: String(z.satz ?? ''),
@@ -127,7 +148,13 @@ function RegieFreiForm({ bericht = null, user, onClose }) {
   // hängen bereits am Store (berichtId), nur die Kennung darf nicht verloren
   // gehen – deshalb steht sie MIT im Entwurf.
   const entwurfDaten = { draftId: draftId.current, ...daten }
-  const entwurf = useEntwurf(`regie-frei:${bericht?.id || 'neu'}`, entwurfDaten, !gesperrt)
+  // Eigener Schlüssel je Modus: Bearbeiten sichert unter der Berichts-ID,
+  // die Kopie unter kopie:<Quell-ID>, Neuanlage unter 'neu' – so überschreibt
+  // eine offene Kopie nie den Entwurf einer Bearbeitung (und umgekehrt).
+  const entwurfName = bericht
+    ? `regie-frei:${bericht.id}`
+    : (kopieVon ? `regie-frei:kopie:${kopieVon.id}` : 'regie-frei:neu')
+  const entwurf = useEntwurf(entwurfName, entwurfDaten, !gesperrt)
 
   function entwurfZurueckholen() {
     const alt = entwurf.wiederherstellen()
@@ -285,7 +312,7 @@ function RegieFreiForm({ bericht = null, user, onClose }) {
 
   return (
     <Modal
-      titel={`${t('rf.titel')} · ${bericht ? t(gesperrt ? 'allg.ansehen' : 'allg.bearbeiten') : t('rf.neuKurz')}`}
+      titel={`${t('rf.titel')} · ${bericht ? t(gesperrt ? 'allg.ansehen' : 'allg.bearbeiten') : t(kopieVon ? 'rf.kopieKurz' : 'rf.neuKurz')}`}
       icon="regie"
       onClose={onClose}
       breite="max-w-3xl"
@@ -295,6 +322,13 @@ function RegieFreiForm({ bericht = null, user, onClose }) {
 
         {/* Nachtrag a des Inhabers – SICHTBAR auf der Seite */}
         <Meldung art="info">{t('rf.hinweisNurPdf')}</Meldung>
+
+        {/* Kopie: sagt klar, was NICHT mitkommt (Zeitraum, Fotos, Unterschriften) */}
+        {kopieVon && (
+          <Meldung art="warnung">
+            {t('rf.kopieHinweis', { name: kopieVon.baustelleFrei?.name || t('rf.titel') })}
+          </Meldung>
+        )}
 
         {/* Baustelle als FREITEXT – bewusst KEIN Projekt-Dropdown */}
         <section className={S.KARTE + ' p-4'}>
@@ -552,7 +586,7 @@ export default function RegieFrei({ user }) {
   useLang()
   const berichte = useCollection('berichte')
   const einst = useEinstellungen()
-  const [formular, setFormular] = useState(null)   // 'neu' | bericht-Objekt
+  const [formular, setFormular] = useState(null)   // 'neu' | bericht-Objekt | { kopie: bericht }
 
   const freie = berichte
     .filter((b) => b.typ === 'regie' && b.frei === true)
@@ -600,14 +634,29 @@ export default function RegieFrei({ user }) {
               <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${b.status === 'abgeschlossen' ? 'bg-emerald-100 text-emerald-700' : 'bg-gedeckt-tief text-schrift'}`}>
                 {t(b.status === 'abgeschlossen' ? 'status.abgeschlossen' : 'status.entwurf')}
               </span>
-              <div className="flex gap-1.5">
-                <button onClick={() => setFormular(b)} className="min-h-11 px-3 rounded-feld bg-gedeckt-tief text-schrift text-xs font-medium">
-                  {t(b.status === 'abgeschlossen' ? 'allg.ansehen' : 'allg.bearbeiten')}
+              <div className="flex flex-wrap gap-1.5">
+                {b.status === 'abgeschlossen' ? (
+                  <button onClick={() => setFormular(b)} className="min-h-11 px-3 rounded-feld bg-gedeckt-tief text-schrift text-xs font-medium">
+                    {t('allg.ansehen')}
+                  </button>
+                ) : (
+                  <button onClick={() => setFormular(b)} className="min-h-11 px-3 rounded-feld bg-gedeckt-tief text-schrift text-xs font-medium flex items-center gap-1">
+                    <Icon name="stift" className="w-3.5 h-3.5" /> {t('allg.bearbeiten')}
+                  </button>
+                )}
+                <button onClick={() => setFormular({ kopie: b })} className="min-h-11 px-3 rounded-feld bg-gedeckt-tief text-schrift text-xs font-medium flex items-center gap-1">
+                  <Icon name="kopieren" className="w-3.5 h-3.5" /> {t('rf.kopieren')}
                 </button>
                 <button onClick={() => drucken(b)} className="min-h-11 px-3 rounded-feld bg-gedeckt-tief text-schrift text-xs font-medium flex items-center gap-1">
                   <Icon name="doc" className="w-3.5 h-3.5" /> PDF
                 </button>
               </div>
+              {/* Statt Bearbeiten-Knopf: unterschrieben = serverseitig gesperrt */}
+              {b.status === 'abgeschlossen' && (
+                <p className="basis-full flex items-center gap-1.5 text-xs text-schrift-leise">
+                  <Icon name="schloss" className="w-3.5 h-3.5 shrink-0" /> {t('rf.gesperrtHinweis')}
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -615,7 +664,12 @@ export default function RegieFrei({ user }) {
 
       {formular && (
         <RegieFreiForm
-          bericht={formular === 'neu' ? null : formular}
+          // key erzwingt einen FRISCHEN Formularzustand beim Moduswechsel
+          // (z. B. Bearbeiten offen → Kopieren geklickt): useState/useRef
+          // laufen nur beim Einhängen – ohne key blieben alte Werte stehen.
+          key={formular === 'neu' ? 'neu' : (formular.kopie ? `kopie:${formular.kopie.id}` : formular.id)}
+          bericht={formular === 'neu' || formular.kopie ? null : formular}
+          kopieVon={formular === 'neu' ? null : (formular.kopie || null)}
           user={user}
           onClose={() => setFormular(null)}
         />

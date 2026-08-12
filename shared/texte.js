@@ -1482,6 +1482,10 @@ export const TEXTE = {
   'rf.gateZeitraum': { de: 'Leistungszeitraum von–bis (von ≤ bis)', ar: 'فترة التنفيذ من–إلى (من ≤ إلى)' },
   'rf.gateStunden': { de: 'je Stunden-Zeile: Name + Tage + Std./Tag', ar: 'لكل سطر ساعات: الاسم + الأيام + ساعات/اليوم' },
   'rf.bereitsAbgeschlossen': { de: 'Dieser Bericht wurde inzwischen abgeschlossen und unterschrieben – er kann nicht mehr überschrieben werden. Bitte das Fenster schließen und den Bericht neu öffnen.', ar: 'هذا التقرير أُنهي ووُقّع في هذه الأثناء – لا يمكن الكتابة فوقه بعد الآن. يرجى إغلاق النافذة وفتح التقرير من جديد.' },
+  'rf.kopieren': { de: 'Kopieren', ar: 'نسخ' },
+  'rf.kopieKurz': { de: 'Kopie erfassen', ar: 'إنشاء نسخة' },
+  'rf.kopieHinweis': { de: 'Kopie von „{name}" – Leistungszeitraum, Fotos und Unterschriften werden neu erfasst.', ar: 'نسخة من «{name}» – فترة التنفيذ والصور والتواقيع تُدخل من جديد.' },
+  'rf.gesperrtHinweis': { de: 'Unterschrieben – zum Ändern eine Kopie anlegen.', ar: 'موقّع – لإجراء تغيير أنشئ نسخة.' },
 }
 
 registriereTexte(TEXTE)
